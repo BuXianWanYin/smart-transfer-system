@@ -1,0 +1,13 @@
+/**
+ * 全局样式入口文件
+ */
+
+/* 重置样式 */
+@import './reset.css';
+
+/* CSS 变量定义 */
+@import './variables.css';
+
+/* 公共样式 */
+@import './common.css';
+

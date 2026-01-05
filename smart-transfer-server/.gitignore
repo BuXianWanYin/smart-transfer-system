@@ -1,0 +1,17 @@
+# Maven
+target/
+.idea/
+*.iml
+.flattened-pom.xml
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+
+# File Storage
+file-storage/
+!file-storage/README.md
+

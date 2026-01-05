@@ -1,0 +1,141 @@
+# ========================================
+# 项目文档和配置（不上传）
+# ========================================
+doc/
+.cursor/
+
+# ========================================
+# 参考项目（不上传）
+# ========================================
+greenhouse-management-server/
+greenhouse-management-web/
+
+# ========================================
+# 前端项目（smart-transfer-web）
+# ========================================
+# 依赖
+node_modules/
+.pnp
+.pnp.js
+
+# 构建产物
+dist/
+dist-ssr/
+*.local
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 编辑器缓存
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+
+# ========================================
+# 后端项目（smart-transfer-server）
+# ========================================
+# Maven
+**/target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# 文件存储（上传的文件不提交）
+**/file-storage/
+!**/file-storage/README.md
+
+# 后端日志
+**/logs/
+**/*.log
+
+# Spring Boot
+**/.springBoot
+
+# ========================================
+# IDE 配置文件
+# ========================================
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# ========================================
+# 操作系统文件
+# ========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ========================================
+# 其他
+# ========================================
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

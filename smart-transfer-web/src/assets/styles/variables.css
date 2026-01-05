@@ -1,0 +1,23 @@
+/**
+ * CSS 变量定义
+ */
+
+:root {
+  /* 主题色 */
+  --primary-color: #409eff;
+  --success-color: #67c23a;
+  --warning-color: #e6a23c;
+  --danger-color: #f56c6c;
+  --info-color: #909399;
+
+  /* 字体大小 */
+  --font-size-base: 14px;
+  --font-size-small: 12px;
+  --font-size-large: 16px;
+
+  /* 间距 */
+  --spacing-small: 8px;
+  --spacing-base: 16px;
+  --spacing-large: 24px;
+}
+
