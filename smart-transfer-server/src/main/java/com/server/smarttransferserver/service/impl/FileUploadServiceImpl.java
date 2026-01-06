@@ -7,6 +7,7 @@ import com.server.smarttransferserver.entity.FileChunk;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.mapper.FileChunkMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
+import com.server.smarttransferserver.service.FileUploadCacheService;
 import com.server.smarttransferserver.service.IFileChecksumService;
 import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.FileUploadService;
@@ -20,7 +21,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -41,6 +44,9 @@ public class FileUploadServiceImpl implements FileUploadService {
     
     @Autowired
     private IFileChecksumService checksumService;
+    
+    @Autowired
+    private FileUploadCacheService uploadCacheService;
     
     /**
      * 初始化文件上传
@@ -68,14 +74,27 @@ public class FileUploadServiceImpl implements FileUploadService {
                     .build();
         }
         
-        // 2. 检查是否有未完成的上传（断点续传）
+        // 3. 检查是否有未完成的上传（断点续传）
         if (existingFile != null && "UPLOADING".equals(existingFile.getUploadStatus())) {
-            // 断点续传
-            List<FileChunk> uploadedChunks = fileChunkMapper.selectByFileIdAndUploadStatus(
-                    existingFile.getId(), "COMPLETED");
-            List<Integer> chunkNumbers = uploadedChunks.stream()
-                    .map(FileChunk::getChunkNumber)
-                    .collect(Collectors.toList());
+            // 优先从 Redis 获取已上传分片
+            Set<Integer> cachedChunks = uploadCacheService.getUploadedChunks(existingFile.getId());
+            List<Integer> chunkNumbers;
+            
+            if (!cachedChunks.isEmpty()) {
+                // Redis 有缓存
+                chunkNumbers = new ArrayList<>(cachedChunks);
+                log.info("从Redis获取已上传分片 - 文件ID: {}, 数量: {}", existingFile.getId(), chunkNumbers.size());
+            } else {
+                // Redis 无缓存，从数据库查询
+                List<FileChunk> uploadedChunks = fileChunkMapper.selectByFileIdAndUploadStatus(
+                        existingFile.getId(), "COMPLETED");
+                chunkNumbers = uploadedChunks.stream()
+                        .map(FileChunk::getChunkNumber)
+                        .collect(Collectors.toList());
+                
+                // 同步到 Redis
+                chunkNumbers.forEach(num -> uploadCacheService.markChunkUploaded(existingFile.getId(), num));
+            }
             
             log.info("断点续传 - 文件ID: {}, 已上传分片: {}", existingFile.getId(), chunkNumbers.size());
             return FileUploadInitVO.builder()
@@ -86,7 +105,7 @@ public class FileUploadServiceImpl implements FileUploadService {
                     .build();
         }
         
-        // 3. 创建新的文件记录
+        // 4. 创建新的文件记录
         // 临时文件路径（上传完成后会更新为实际路径）
         String tempFilePath = "uploading/" + dto.getFileHash();
         
@@ -104,7 +123,7 @@ public class FileUploadServiceImpl implements FileUploadService {
         
         log.info("创建文件记录 - 文件ID: {}, 临时路径: {}", fileInfo.getId(), tempFilePath);
         
-        // 4. 创建分片记录
+        // 5. 创建分片记录
         for (int i = 0; i < dto.getTotalChunks(); i++) {
             FileChunk chunk = FileChunk.builder()
                     .fileId(fileInfo.getId())
@@ -151,7 +170,6 @@ public class FileUploadServiceImpl implements FileUploadService {
      * @param dto 分片上传DTO
      * @return 上传结果
      */
-    @Transactional
     private ChunkUploadVO uploadChunkInternal(ChunkUploadDTO dto) {
         log.info("上传分片 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
         

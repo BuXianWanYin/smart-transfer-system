@@ -11,17 +11,13 @@
           router
           class="el-menu-vertical"
         >
-          <el-menu-item index="/upload">
-            <el-icon><UploadFilled /></el-icon>
-            <span>文件上传</span>
+          <el-menu-item index="/transfer">
+            <el-icon><Connection /></el-icon>
+            <span>传输中心</span>
           </el-menu-item>
           <el-menu-item index="/files">
-            <el-icon><Document /></el-icon>
-            <span>文件列表</span>
-          </el-menu-item>
-          <el-menu-item index="/monitor">
-            <el-icon><Monitor /></el-icon>
-            <span>拥塞监控</span>
+            <el-icon><Folder /></el-icon>
+            <span>文件管理</span>
           </el-menu-item>
           <el-menu-item index="/config">
             <el-icon><Setting /></el-icon>
@@ -49,7 +45,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { UploadFilled, Document, Monitor, Setting } from '@element-plus/icons-vue'
+import { Connection, Folder, Setting } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)

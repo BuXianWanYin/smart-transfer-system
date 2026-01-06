@@ -3,31 +3,34 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/upload'
+    redirect: '/transfer'
   },
   {
-    path: '/upload',
-    name: 'FileUpload',
-    component: () => import('@/views/FileUpload.vue'),
-    meta: { title: '文件上传' }
+    path: '/transfer',
+    name: 'TransferCenter',
+    component: () => import('@/views/TransferCenter.vue'),
+    meta: { title: '传输中心' }
   },
   {
     path: '/files',
     name: 'FileList',
     component: () => import('@/views/FileList.vue'),
-    meta: { title: '文件列表' }
-  },
-  {
-    path: '/monitor',
-    name: 'CongestionMonitor',
-    component: () => import('@/views/CongestionMonitor.vue'),
-    meta: { title: '拥塞监控' }
+    meta: { title: '文件管理' }
   },
   {
     path: '/config',
     name: 'CongestionConfig',
     component: () => import('@/views/CongestionConfig.vue'),
     meta: { title: '系统配置' }
+  },
+  // 保留旧路由以兼容
+  {
+    path: '/upload',
+    redirect: '/transfer'
+  },
+  {
+    path: '/monitor',
+    redirect: '/transfer'
   }
 ]
 

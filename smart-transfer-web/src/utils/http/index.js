@@ -51,7 +51,12 @@ service.interceptors.response.use(
     }
     
     // 返回响应数据的 data 字段（实际业务数据）
-    return res.data.data
+    // 后端返回格式：{ code: 200, message: '...', data: {...} }
+    // 其中 data 可能是：
+    // - 普通对象：{ quickUpload: false, fileId: 1, ... }
+    // - 分页对象：{ records: [...], total: 10, size: 10, current: 1 }
+    // 我们直接返回 data 字段
+    return res.data
   },
   error => {
     console.error('请求错误：', error)
