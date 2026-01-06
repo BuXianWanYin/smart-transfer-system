@@ -3,39 +3,45 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/home'
+    redirect: '/upload'
   },
   {
-    path: '/home',
-    name: 'Home',
-    component: () => import('@/views/home/index.vue'),
-    meta: {
-      title: '首页'
-    }
+    path: '/upload',
+    name: 'FileUpload',
+    component: () => import('@/views/FileUpload.vue'),
+    meta: { title: '文件上传' }
   },
   {
-    path: '/login',
-    name: 'Login',
-    component: () => import('@/views/login/index.vue'),
-    meta: {
-      title: '登录'
-    }
+    path: '/files',
+    name: 'FileList',
+    component: () => import('@/views/FileList.vue'),
+    meta: { title: '文件列表' }
+  },
+  {
+    path: '/monitor',
+    name: 'CongestionMonitor',
+    component: () => import('@/views/CongestionMonitor.vue'),
+    meta: { title: '拥塞监控' }
+  },
+  {
+    path: '/config',
+    name: 'CongestionConfig',
+    component: () => import('@/views/CongestionConfig.vue'),
+    meta: { title: '系统配置' }
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
 
-/**
- * 路由守卫
- */
+// 路由守卫
 router.beforeEach((to, from, next) => {
   // 设置页面标题
-  document.title = to.meta.title || '基于Java+Vue的TCP拥塞控制优化大文件传输工具'
+  const baseTitle = '基于Java+Vue的TCP拥塞控制优化大文件传输工具'
+  document.title = to.meta.title ? `${to.meta.title} - ${baseTitle}` : baseTitle
   next()
 })
 
 export default router
-
