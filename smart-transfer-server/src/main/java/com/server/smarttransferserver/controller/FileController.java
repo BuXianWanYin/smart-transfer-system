@@ -33,7 +33,7 @@ import java.nio.charset.StandardCharsets;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/file")
+@RequestMapping("/file")
 public class FileController {
     
     @Autowired

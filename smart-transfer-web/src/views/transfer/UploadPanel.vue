@@ -207,7 +207,7 @@ const startUpload = async (item) => {
     })
     
     // 检查是否秒传
-    if (initRes.data.quickUpload) {
+    if (initRes.quickUpload) {
       ElMessage.success(`${item.fileName} 秒传成功！`)
       item.status = 'completed'
       item.progress = 100
@@ -216,8 +216,8 @@ const startUpload = async (item) => {
     }
     
     item.status = 'uploading'
-    item.fileId = initRes.data.fileId
-    item.uploadedChunks = initRes.data.uploadedChunks || []
+    item.fileId = initRes.fileId
+    item.uploadedChunks = initRes.uploadedChunks || []
     
     // 上传分片
     await uploadChunks(item, chunks, fileHash)
@@ -232,6 +232,7 @@ const startUpload = async (item) => {
     item.status = 'completed'
     item.progress = 100
     item.speed = 0
+    fileStore.updateUploadSpeed(item.id, 0)
     ElMessage.success(`${item.fileName} 上传成功！`)
     fileStore.moveToCompleted(item)
     
@@ -239,6 +240,7 @@ const startUpload = async (item) => {
     console.error('上传失败', error)
     item.status = 'failed'
     item.speed = 0
+    fileStore.updateUploadSpeed(item.id, 0)
     ElMessage.error(`${item.fileName} 上传失败: ${error.message || '未知错误'}`)
   }
 }
@@ -273,6 +275,8 @@ const uploadChunks = async (item, chunks, fileHash) => {
       uploadedSize += (chunks[i].size * percent) / 100
       const elapsed = (Date.now() - startTime) / 1000
       item.speed = Math.floor(uploadedSize / elapsed)
+      // 同步速度到store用于监控面板显示
+      fileStore.updateUploadSpeed(item.id, item.speed)
       
       const remaining = item.fileSize - uploadedSize
       const timeLeft = Math.ceil(remaining / item.speed)
@@ -287,6 +291,7 @@ const uploadChunks = async (item, chunks, fileHash) => {
 const pauseUpload = (item) => {
   item.status = 'paused'
   item.speed = 0
+  fileStore.updateUploadSpeed(item.id, 0)
   ElMessage.info(`已暂停 ${item.fileName}`)
 }
 

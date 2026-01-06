@@ -40,6 +40,11 @@ public class FileInfoVO {
      * 文件路径
      */
     private String filePath;
+
+    /**
+     * 所属文件夹ID
+     */
+    private Long folderId;
     
     /**
      * 上传状态

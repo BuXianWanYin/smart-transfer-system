@@ -33,8 +33,8 @@ export default defineConfig(({ mode }) => {
     proxy: {
       '/api': {
         target: env.VITE_SERVER_URL || 'http://localhost:8081',
-        changeOrigin: true
-        // 不需要 rewrite，后端路径已包含 /api
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
   },

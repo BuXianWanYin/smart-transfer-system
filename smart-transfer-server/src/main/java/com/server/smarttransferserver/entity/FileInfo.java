@@ -53,6 +53,12 @@ public class FileInfo implements Serializable {
     private String filePath;
 
     /**
+     * 所属文件夹ID，0表示根目录
+     */
+    @TableField("folder_id")
+    private Long folderId;
+
+    /**
      * 上传状态：PENDING-待上传 UPLOADING-上传中 COMPLETED-已完成
      */
     @TableField("upload_status")

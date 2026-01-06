@@ -305,7 +305,7 @@ const loadHistoryList = async () => {
     })
     
     // 转换为前端需要的格式
-    historyList.value = (res.data || []).map(record => ({
+    historyList.value = (res || []).map(record => ({
       id: record.id,
       fileName: record.fileName,
       fileSize: record.fileSize,
@@ -439,9 +439,9 @@ const clearAll = async () => {
       cancelButtonText: '取消'
     })
     
-    const res = await clearAllHistory()
+    await clearAllHistory()
     historyList.value = []
-    ElMessage.success(res.msg || '已清空所有记录')
+    ElMessage.success('已清空所有记录')
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('清空失败')

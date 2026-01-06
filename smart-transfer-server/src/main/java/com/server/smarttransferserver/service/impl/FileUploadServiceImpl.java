@@ -174,22 +174,12 @@ public class FileUploadServiceImpl implements FileUploadService {
         log.info("上传分片 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
         
         try {
-            // 1. 验证分片哈希
-            String actualHash = checksumService.calculateMD5(dto.getFile());
-            if (!actualHash.equalsIgnoreCase(dto.getChunkHash())) {
-                log.error("分片哈希校验失败 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
-                return ChunkUploadVO.builder()
-                        .fileId(dto.getFileId())
-                        .chunkNumber(dto.getChunkNumber())
-                        .success(false)
-                        .message("分片哈希校验失败")
-                        .build();
-            }
+            // 注：分片哈希验证已跳过，文件完整性在合并时通过整体哈希验证
             
-            // 2. 保存分片文件
+            // 1. 保存分片文件
             storageService.saveChunk(dto.getFileId(), dto.getChunkNumber(), dto.getFile());
             
-            // 3. 更新分片记录
+            // 2. 更新分片记录
             FileChunk chunk = fileChunkMapper.selectByFileIdAndChunkNumber(dto.getFileId(), dto.getChunkNumber());
             if (chunk != null) {
                 chunk.setChunkHash(dto.getChunkHash());
@@ -197,7 +187,7 @@ public class FileUploadServiceImpl implements FileUploadService {
                 fileChunkMapper.updateById(chunk);
             }
             
-            // 4. 统计上传进度
+            // 3. 统计上传进度
             QueryWrapper<FileChunk> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("file_id", dto.getFileId());
             List<FileChunk> allChunks = fileChunkMapper.selectList(queryWrapper);

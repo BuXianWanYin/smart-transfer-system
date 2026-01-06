@@ -10,9 +10,8 @@ import request from '@/utils/http'
  * @returns {Promise}
  */
 export function getHistoryList(params) {
-  return request({
-    url: '/api/transfer/history/list',
-    method: 'get',
+  return request.get({
+    url: '/transfer/history/list',
     params
   })
 }
@@ -23,9 +22,8 @@ export function getHistoryList(params) {
  * @returns {Promise}
  */
 export function getHistoryDetail(id) {
-  return request({
-    url: `/api/transfer/history/${id}`,
-    method: 'get'
+  return request.get({
+    url: `/transfer/history/${id}`
   })
 }
 
@@ -35,9 +33,8 @@ export function getHistoryDetail(id) {
  * @returns {Promise}
  */
 export function addHistory(data) {
-  return request({
-    url: '/api/transfer/history',
-    method: 'post',
+  return request.post({
+    url: '/transfer/history',
     data
   })
 }
@@ -48,9 +45,8 @@ export function addHistory(data) {
  * @returns {Promise}
  */
 export function deleteHistory(ids) {
-  return request({
-    url: `/api/transfer/history/${ids}`,
-    method: 'delete'
+  return request.del({
+    url: `/transfer/history/${ids}`
   })
 }
 
@@ -59,9 +55,8 @@ export function deleteHistory(ids) {
  * @returns {Promise}
  */
 export function clearAllHistory() {
-  return request({
-    url: '/api/transfer/history/clear',
-    method: 'delete'
+  return request.del({
+    url: '/transfer/history/clear'
   })
 }
 

@@ -17,7 +17,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/config")
+@RequestMapping("/config")
 public class ConfigController {
     
     @Autowired

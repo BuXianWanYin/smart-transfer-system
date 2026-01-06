@@ -18,7 +18,7 @@ import javax.annotation.PostConstruct;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/congestion")
+@RequestMapping("/congestion")
 public class CongestionController {
     
     @Autowired

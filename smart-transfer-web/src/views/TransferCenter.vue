@@ -44,7 +44,7 @@
           <el-col :span="6">
             <div class="monitor-item">
               <div class="monitor-label">传输速率</div>
-              <div class="monitor-value success">{{ formatSpeed(currentMetrics.rate) }}</div>
+              <div class="monitor-value success">{{ formatSpeed(realTimeSpeed) }}</div>
             </div>
           </el-col>
           <el-col :span="6">
@@ -82,6 +82,13 @@
           </el-col>
           <el-col :span="6">
             <div class="monitor-item-small">
+              <el-tag v-if="wsConnected" type="success" size="small" effect="light" style="margin-right: 8px;">
+                <el-icon style="vertical-align: middle;"><Connection /></el-icon>
+                已连接
+              </el-tag>
+              <el-tag v-else type="info" size="small" effect="light" style="margin-right: 8px;">
+                未连接
+              </el-tag>
               <el-button 
                 size="small" 
                 :type="isMonitoring ? 'danger' : 'success'"
@@ -154,11 +161,11 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   Monitor, ArrowDown, ArrowUp, Upload, Download, CircleCheck,
-  VideoPlay, VideoPause
+  VideoPlay, VideoPause, Connection
 } from '@element-plus/icons-vue'
 import { useCongestionStore } from '@/store/congestionStore'
 import { useFileStore } from '@/store/fileStore'
-import { getCongestionMetrics } from '@/api/congestionApi'
+import { monitorWs } from '@/utils/websocket'
 import { formatFileSize, formatSpeed } from '@/utils/file'
 import { formatPercent } from '@/utils/format'
 import UploadPanel from './transfer/UploadPanel.vue'
@@ -172,6 +179,7 @@ const fileStore = useFileStore()
 const activeTab = ref('upload')
 const monitorCollapsed = ref(false)
 const isMonitoring = ref(false)
+const wsConnected = ref(false)
 const currentMetrics = ref({
   algorithm: 'CUBIC',
   cwnd: 0,
@@ -187,16 +195,18 @@ const uploadingCount = computed(() => fileStore.uploadingFiles?.length || 0)
 const downloadingCount = computed(() => fileStore.downloadingFiles?.length || 0)
 const completedCount = computed(() => fileStore.completedFiles?.length || 0)
 
+// 实时传输速率（从上传队列计算）
+const realTimeSpeed = computed(() => fileStore.currentTotalSpeed || 0)
+
 // 引用
 const uploadPanelRef = ref()
 const downloadPanelRef = ref()
 const completedPanelRef = ref()
 
-let monitoringTimer = null
+let wsUnsubscribe = null
 
 // 生命周期
 onMounted(() => {
-  fetchMetrics()
   // 默认开始监控
   startMonitoring()
 })
@@ -210,13 +220,15 @@ const toggleMonitor = () => {
   monitorCollapsed.value = !monitorCollapsed.value
 }
 
-const fetchMetrics = async () => {
-  try {
-    const res = await getCongestionMetrics()
-    currentMetrics.value = res.data || currentMetrics.value
-    congestionStore.updateMetrics(res.data)
-  } catch (error) {
-    console.error('获取监控指标失败', error)
+// WebSocket消息处理
+const handleWsEvent = (event) => {
+  if (event.type === 'connected') {
+    wsConnected.value = true
+  } else if (event.type === 'disconnected') {
+    wsConnected.value = false
+  } else if (event.type === 'message' && event.data) {
+    currentMetrics.value = event.data
+    congestionStore.updateMetrics(event.data)
   }
 }
 
@@ -231,17 +243,24 @@ const toggleMonitoring = () => {
 const startMonitoring = () => {
   isMonitoring.value = true
   congestionStore.startMonitoring()
-  monitoringTimer = setInterval(fetchMetrics, 3000) // 每3秒刷新
+  
+  // 连接WebSocket
+  wsUnsubscribe = monitorWs.addListener(handleWsEvent)
+  monitorWs.connect()
+  
   ElMessage.success('开始实时监控')
 }
 
 const stopMonitoring = () => {
   isMonitoring.value = false
   congestionStore.stopMonitoring()
-  if (monitoringTimer) {
-    clearInterval(monitoringTimer)
-    monitoringTimer = null
+  
+  // 断开WebSocket
+  if (wsUnsubscribe) {
+    wsUnsubscribe()
+    wsUnsubscribe = null
   }
+  monitorWs.disconnect()
 }
 
 const handleTabClick = (tab) => {

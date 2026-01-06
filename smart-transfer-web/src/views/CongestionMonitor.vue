@@ -132,8 +132,8 @@ onUnmounted(() => {
 const fetchMetrics = async () => {
   try {
     const res = await getCongestionMetrics()
-    currentMetrics.value = res.data
-    congestionStore.updateMetrics(res.data)
+    currentMetrics.value = res
+    congestionStore.updateMetrics(res)
   } catch (error) {
     console.error('获取指标失败', error)
   }

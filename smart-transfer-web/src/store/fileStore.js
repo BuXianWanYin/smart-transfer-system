@@ -29,6 +29,25 @@ export const useFileStore = defineStore('file', () => {
   const failedFiles = computed(() => {
     return allHistory.value.filter(item => item.status === 'failed')
   })
+
+  // 当前总上传速度
+  const currentUploadSpeed = computed(() => {
+    return uploadQueue.value
+      .filter(item => item.status === 'uploading')
+      .reduce((total, item) => total + (item.speed || 0), 0)
+  })
+
+  // 当前总下载速度
+  const currentDownloadSpeed = computed(() => {
+    return downloadQueue.value
+      .filter(item => item.status === 'downloading')
+      .reduce((total, item) => total + (item.speed || 0), 0)
+  })
+
+  // 当前总传输速度
+  const currentTotalSpeed = computed(() => {
+    return currentUploadSpeed.value + currentDownloadSpeed.value
+  })
   
   // 方法
   function setFileList(list) {
@@ -37,12 +56,12 @@ export const useFileStore = defineStore('file', () => {
   
   function addToQueue(fileInfo) {
     uploadQueue.value.push({
-      id: Date.now() + Math.random(),
       ...fileInfo,
-      status: 'pending',
-      progress: 0,
-      speed: 0,
-      uploadedChunks: [],
+      id: fileInfo.id || Date.now() + Math.random(),
+      status: fileInfo.status || 'pending',
+      progress: fileInfo.progress || 0,
+      speed: fileInfo.speed || 0,
+      uploadedChunks: fileInfo.uploadedChunks || [],
       startTime: null,
       endTime: null
     })
@@ -133,6 +152,9 @@ export const useFileStore = defineStore('file', () => {
     downloadingFiles,
     completedFiles,
     failedFiles,
+    currentUploadSpeed,
+    currentDownloadSpeed,
+    currentTotalSpeed,
     setFileList,
     addToQueue,
     updateUploadProgress,
