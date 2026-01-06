@@ -5,11 +5,13 @@ import com.server.smarttransferserver.congestion.AdaptiveAlgorithm;
 import com.server.smarttransferserver.congestion.BBRAlgorithm;
 import com.server.smarttransferserver.congestion.CongestionControlAlgorithm;
 import com.server.smarttransferserver.congestion.CubicAlgorithm;
-import com.server.smarttransferserver.service.impl.CongestionMetricsServiceImpl;
+import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import javax.annotation.PostConstruct;
 
 /**
  * 拥塞控制Controller
@@ -20,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
 public class CongestionController {
     
     @Autowired
-    private CongestionMetricsServiceImpl metricsService;
+    private CongestionMetricsService metricsService;
     
     @Autowired(required = false)
     private CubicAlgorithm cubicAlgorithm;
@@ -35,6 +37,26 @@ public class CongestionController {
      * 当前使用的算法
      */
     private CongestionControlAlgorithm currentAlgorithm;
+    
+    /**
+     * 初始化：设置默认算法为 ADAPTIVE
+     */
+    @PostConstruct
+    public void init() {
+        // 默认使用 ADAPTIVE 算法
+        if (adaptiveAlgorithm != null) {
+            currentAlgorithm = adaptiveAlgorithm;
+            log.info("拥塞控制初始化完成 - 默认算法: ADAPTIVE");
+        } else if (cubicAlgorithm != null) {
+            currentAlgorithm = cubicAlgorithm;
+            log.info("拥塞控制初始化完成 - 默认算法: CUBIC");
+        } else if (bbrAlgorithm != null) {
+            currentAlgorithm = bbrAlgorithm;
+            log.info("拥塞控制初始化完成 - 默认算法: BBR");
+        } else {
+            log.warn("未找到任何拥塞控制算法实现");
+        }
+    }
     
     /**
      * 获取当前拥塞控制指标

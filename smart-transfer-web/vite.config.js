@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import AutoImport from 'unplugin-auto-import/vite'
@@ -6,7 +6,10 @@ import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd())
+  
+  return {
   plugins: [
     vue(),
     AutoImport({
@@ -25,13 +28,13 @@ export default defineConfig({
     }
   },
   server: {
-    port: Number(process.env.VITE_APP_PORT) || 3000,
+    port: Number(env.VITE_APP_PORT) || 3000,
     open: true,
     proxy: {
       '/api': {
-        target: process.env.VITE_SERVER_URL || 'http://localhost:8081',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        target: env.VITE_SERVER_URL || 'http://localhost:8081',
+        changeOrigin: true
+        // 不需要 rewrite，后端路径已包含 /api
       }
     }
   },
@@ -41,5 +44,5 @@ export default defineConfig({
     minify: 'terser',
     chunkSizeWarningLimit: 1500
   }
-})
+}})
 

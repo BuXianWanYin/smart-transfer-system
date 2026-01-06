@@ -3,18 +3,24 @@ package com.server.smarttransferserver.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.dto.TransferTaskQueryDTO;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.entity.TransferTask;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.TransferTaskMapper;
+import com.server.smarttransferserver.service.TransferTaskService;
 import com.server.smarttransferserver.vo.TransferTaskVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -22,7 +28,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-public class TransferTaskServiceImpl {
+public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, TransferTask> implements TransferTaskService {
     
     @Autowired
     private TransferTaskMapper transferTaskMapper;
@@ -31,11 +37,39 @@ public class TransferTaskServiceImpl {
     private FileInfoMapper fileInfoMapper;
     
     /**
+     * 创建传输任务
+     *
+     * @param fileId 文件ID
+     * @param taskType 任务类型（UPLOAD/DOWNLOAD）
+     * @return 任务ID
+     */
+    @Override
+    @Transactional
+    public String createTask(Long fileId, String taskType) {
+        String taskId = UUID.randomUUID().toString();
+        
+        TransferTask task = TransferTask.builder()
+                .taskId(taskId)
+                .fileId(fileId)
+                .taskType(taskType)
+                .transferStatus("PENDING")
+                .progress(BigDecimal.ZERO)
+                .startTime(LocalDateTime.now())
+                .build();
+        
+        save(task);
+        log.info("创建传输任务 - 任务ID: {}, 文件ID: {}, 类型: {}", taskId, fileId, taskType);
+        
+        return taskId;
+    }
+    
+    /**
      * 根据任务ID查询任务
      *
      * @param taskId 任务ID
      * @return 任务VO
      */
+    @Override
     public TransferTaskVO getTaskByTaskId(String taskId) {
         TransferTask task = transferTaskMapper.selectByTaskId(taskId);
         if (task == null) {
@@ -45,11 +79,57 @@ public class TransferTaskServiceImpl {
     }
     
     /**
+     * 更新任务状态
+     *
+     * @param taskId 任务ID
+     * @param status 传输状态
+     * @return 是否更新成功
+     */
+    @Override
+    @Transactional
+    public boolean updateTaskStatus(String taskId, String status) {
+        TransferTask task = transferTaskMapper.selectByTaskId(taskId);
+        if (task != null) {
+            task.setTransferStatus(status);
+            if ("COMPLETED".equals(status)) {
+                task.setEndTime(LocalDateTime.now());
+            }
+            return updateById(task);
+        }
+        return false;
+    }
+    
+    /**
+     * 更新任务进度
+     *
+     * @param taskId 任务ID
+     * @param progress 进度百分比
+     * @param transferSpeed 传输速率
+     * @param cwnd 拥塞窗口大小
+     * @param rtt 往返时延
+     * @return 是否更新成功
+     */
+    @Override
+    @Transactional
+    public boolean updateTaskProgress(String taskId, Integer progress, Long transferSpeed, Long cwnd, Long rtt) {
+        TransferTask task = transferTaskMapper.selectByTaskId(taskId);
+        if (task != null) {
+            task.setProgress(BigDecimal.valueOf(progress));
+            task.setTransferSpeed(transferSpeed);
+            task.setCwnd(cwnd);
+            task.setRtt(rtt);
+            return updateById(task);
+        }
+        return false;
+    }
+    
+    /**
      * 查询任务列表
      *
      * @param queryDTO 查询条件
      * @return 任务列表
      */
+    @Override
     public IPage<TransferTaskVO> queryTasks(TransferTaskQueryDTO queryDTO) {
         // 构建查询条件
         QueryWrapper<TransferTask> queryWrapper = new QueryWrapper<>();
@@ -125,13 +205,18 @@ public class TransferTaskServiceImpl {
      * 删除任务
      *
      * @param taskId 任务ID
+     * @return 是否删除成功
      */
-    public void deleteTask(String taskId) {
+    @Override
+    @Transactional
+    public boolean deleteTask(String taskId) {
         TransferTask task = transferTaskMapper.selectByTaskId(taskId);
         if (task != null) {
-            transferTaskMapper.deleteById(task.getId());
+            removeById(task.getId());
             log.info("删除任务 - 任务ID: {}", taskId);
+            return true;
         }
+        return false;
     }
     
     /**

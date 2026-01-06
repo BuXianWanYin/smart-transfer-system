@@ -8,8 +8,9 @@ import com.server.smarttransferserver.entity.TransferTask;
 import com.server.smarttransferserver.mapper.FileChunkMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.TransferTaskMapper;
-import com.server.smarttransferserver.service.FileChecksumService;
-import com.server.smarttransferserver.service.FileStorageService;
+import com.server.smarttransferserver.service.IFileChecksumService;
+import com.server.smarttransferserver.service.FileMergeService;
+import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.vo.FileMergeVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-public class FileMergeServiceImpl {
+public class FileMergeServiceImpl implements FileMergeService {
     
     @Autowired
     private FileInfoMapper fileInfoMapper;
@@ -37,10 +38,10 @@ public class FileMergeServiceImpl {
     private TransferTaskMapper transferTaskMapper;
     
     @Autowired
-    private FileStorageService storageService;
+    private IFileStorageService storageService;
     
     @Autowired
-    private FileChecksumService checksumService;
+    private IFileChecksumService checksumService;
     
     /**
      * 合并文件
@@ -48,6 +49,7 @@ public class FileMergeServiceImpl {
      * @param dto 合并请求DTO
      * @return 合并结果
      */
+    @Override
     @Transactional
     public FileMergeVO mergeFile(FileMergeDTO dto) {
         log.info("开始合并文件 - 文件ID: {}, 哈希: {}", dto.getFileId(), dto.getFileHash());

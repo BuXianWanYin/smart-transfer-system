@@ -1,9 +1,12 @@
 package com.server.smarttransferserver.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.server.smarttransferserver.config.CongestionConfig;
 import com.server.smarttransferserver.dto.CongestionConfigDTO;
 import com.server.smarttransferserver.entity.SystemConfig;
 import com.server.smarttransferserver.mapper.SystemConfigMapper;
+import com.server.smarttransferserver.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -19,16 +22,20 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-public class SystemConfigServiceImpl {
+public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, SystemConfig> implements SystemConfigService {
     
     @Autowired
     private SystemConfigMapper configMapper;
+    
+    @Autowired
+    private CongestionConfig congestionConfig;
     
     /**
      * 获取拥塞控制配置
      *
      * @return 配置映射
      */
+    @Override
     public Map<String, String> getCongestionConfig() {
         Map<String, String> config = new HashMap<>();
         
@@ -48,14 +55,16 @@ public class SystemConfigServiceImpl {
     
     /**
      * 更新拥塞控制配置
+     * 包括更新数据库配置和刷新内存配置
      *
      * @param dto 配置DTO
      */
+    @Override
     @Transactional
     public void updateCongestionConfig(CongestionConfigDTO dto) {
         log.info("更新拥塞控制配置 - 算法: {}", dto.getAlgorithm());
         
-        // 更新各个配置项
+        // 更新各个配置项到数据库
         updateConfigValue("congestion.algorithm", dto.getAlgorithm(), "拥塞控制算法");
         
         if (dto.getInitialCwnd() != null) {
@@ -82,7 +91,10 @@ public class SystemConfigServiceImpl {
             updateConfigValue("congestion.min-rate", dto.getMinRate().toString(), "最小速率");
         }
         
-        log.info("拥塞控制配置更新完成");
+        // 刷新内存中的配置（业务逻辑在Service层完成）
+        congestionConfig.refresh();
+        
+        log.info("拥塞控制配置更新完成，已刷新内存配置");
     }
     
     /**
@@ -120,9 +132,52 @@ public class SystemConfigServiceImpl {
      * @param key 配置键
      * @return 配置值
      */
+    @Override
     public String getConfigValue(String key) {
         SystemConfig config = configMapper.selectByConfigKey(key);
         return config != null ? config.getConfigValue() : null;
+    }
+    
+    /**
+     * 根据键获取配置值（带默认值）
+     *
+     * @param key 配置键
+     * @param defaultValue 默认值
+     * @return 配置值，不存在返回默认值
+     */
+    @Override
+    public String getConfigValue(String key, String defaultValue) {
+        String value = getConfigValue(key);
+        return value != null ? value : defaultValue;
+    }
+    
+    /**
+     * 设置配置值
+     *
+     * @param key 配置键
+     * @param value 配置值
+     * @return 是否设置成功
+     */
+    @Override
+    @Transactional
+    public boolean setConfigValue(String key, String value) {
+        updateConfigValue(key, value, "");
+        return true;
+    }
+    
+    /**
+     * 批量设置配置
+     *
+     * @param configs 配置Map
+     * @return 是否设置成功
+     */
+    @Override
+    @Transactional
+    public boolean setConfigs(Map<String, String> configs) {
+        for (Map.Entry<String, String> entry : configs.entrySet()) {
+            updateConfigValue(entry.getKey(), entry.getValue(), "");
+        }
+        return true;
     }
     
     /**
@@ -130,8 +185,35 @@ public class SystemConfigServiceImpl {
      *
      * @return 配置列表
      */
+    @Override
     public List<SystemConfig> getAllConfigs() {
         return configMapper.selectList(null);
+    }
+    
+    /**
+     * 删除配置
+     *
+     * @param key 配置键
+     * @return 是否删除成功
+     */
+    @Override
+    @Transactional
+    public boolean deleteConfig(String key) {
+        SystemConfig config = configMapper.selectByConfigKey(key);
+        if (config != null) {
+            removeById(config.getId());
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * 刷新配置（从数据库重新加载）
+     */
+    @Override
+    public void refreshConfig() {
+        log.info("刷新系统配置");
+        congestionConfig.refresh();
     }
 }
 

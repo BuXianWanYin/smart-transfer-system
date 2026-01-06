@@ -38,7 +38,7 @@ service.interceptors.response.use(
     
     // 如果返回的状态码不是 200，则认为是错误
     if (res.code !== 200) {
-      ElMessage.error(res.msg || '请求失败')
+      ElMessage.error(res.message || res.msg || '请求失败')
       
       // 401: 未登录或 token 过期
       if (res.code === 401) {
@@ -47,13 +47,15 @@ service.interceptors.response.use(
         window.location.href = '/login'
       }
       
-      return Promise.reject(new Error(res.msg || '请求失败'))
+      return Promise.reject(new Error(res.message || res.msg || '请求失败'))
     }
     
-    return res
+    // 返回响应数据的 data 字段（实际业务数据）
+    return res.data.data
   },
   error => {
-    ElMessage.error(error.message || '网络错误')
+    console.error('请求错误：', error)
+    ElMessage.error(error.response?.data?.message || error.message || '网络错误')
     return Promise.reject(error)
   }
 )

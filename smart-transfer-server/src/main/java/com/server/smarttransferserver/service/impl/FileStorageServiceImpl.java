@@ -1,5 +1,6 @@
-package com.server.smarttransferserver.service;
+package com.server.smarttransferserver.service.impl;
 
+import com.server.smarttransferserver.service.IFileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,12 +17,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * 文件存储服务
+ * 文件存储服务实现
  * 负责文件和分片的物理存储
  */
 @Slf4j
 @Service
-public class FileStorageService {
+public class FileStorageServiceImpl implements IFileStorageService {
     
     /**
      * 文件存储根路径
@@ -44,6 +45,7 @@ public class FileStorageService {
      * @return 分片文件路径
      * @throws IOException IO异常
      */
+    @Override
     public String saveChunk(Long fileId, Integer chunkNumber, MultipartFile file) throws IOException {
         // 创建临时目录
         Path chunkDir = Paths.get(tempPath, fileId.toString());
@@ -71,6 +73,7 @@ public class FileStorageService {
      * @return 合并后的文件路径
      * @throws IOException IO异常
      */
+    @Override
     public String mergeChunks(Long fileId, String fileName, Integer totalChunks) throws IOException {
         // 创建存储目录
         Path storageDir = Paths.get(storagePath);
@@ -114,6 +117,7 @@ public class FileStorageService {
      *
      * @param fileId 文件ID
      */
+    @Override
     public void deleteTempChunks(Long fileId) {
         try {
             Path chunkDir = Paths.get(tempPath, fileId.toString());
@@ -133,6 +137,7 @@ public class FileStorageService {
      * @param chunkNumber 分片序号
      * @return 是否存在
      */
+    @Override
     public boolean chunkExists(Long fileId, Integer chunkNumber) {
         Path chunkPath = Paths.get(tempPath, fileId.toString(), "chunk_" + chunkNumber);
         return Files.exists(chunkPath);
@@ -146,6 +151,7 @@ public class FileStorageService {
      * @return 文件大小
      * @throws IOException IO异常
      */
+    @Override
     public long getChunkSize(Long fileId, Integer chunkNumber) throws IOException {
         Path chunkPath = Paths.get(tempPath, fileId.toString(), "chunk_" + chunkNumber);
         return Files.size(chunkPath);
@@ -157,6 +163,7 @@ public class FileStorageService {
      * @param filePath 文件路径
      * @return 是否存在
      */
+    @Override
     public boolean fileExists(String filePath) {
         return Files.exists(Paths.get(filePath));
     }
@@ -166,6 +173,7 @@ public class FileStorageService {
      *
      * @param filePath 文件路径
      */
+    @Override
     public void deleteFile(String filePath) {
         try {
             Files.deleteIfExists(Paths.get(filePath));
@@ -182,6 +190,7 @@ public class FileStorageService {
      * @return 文件大小
      * @throws IOException IO异常
      */
+    @Override
     public long getFileSize(String filePath) throws IOException {
         return Files.size(Paths.get(filePath));
     }

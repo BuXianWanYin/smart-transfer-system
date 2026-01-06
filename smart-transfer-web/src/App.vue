@@ -72,8 +72,9 @@ const activeMenu = computed(() => route.path)
 }
 
 .el-aside {
-  background-color: #304156;
+  background-color: var(--art-sidebar-bg);
   color: #fff;
+  box-shadow: var(--art-box-shadow-sm);
 }
 
 .logo {
@@ -81,8 +82,10 @@ const activeMenu = computed(() => route.path)
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #2b3a4a;
+  background-color: var(--art-sidebar-logo-bg);
   color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 .logo h3 {
@@ -91,34 +94,38 @@ const activeMenu = computed(() => route.path)
 
 .el-menu {
   border-right: none;
-  background-color: #304156;
+  background-color: var(--art-sidebar-bg);
 }
 
 .el-menu-item {
-  color: #bfcbd9;
+  color: var(--art-sidebar-text);
+  transition: all 0.3s;
 }
 
 .el-menu-item:hover,
 .el-menu-item.is-active {
-  background-color: #263445 !important;
-  color: #fff !important;
+  background-color: var(--art-sidebar-menu-hover) !important;
+  color: var(--art-sidebar-text-active) !important;
 }
 
 .el-header {
-  background-color: #fff;
-  box-shadow: 0 1px 4px rgba(0,21,41,.08);
+  background-color: var(--art-main-bg-color);
+  box-shadow: var(--art-root-card-box-shadow);
   display: flex;
   align-items: center;
   padding: 0 20px;
+  border-bottom: 1px solid var(--art-border-color);
 }
 
 .header-content h2 {
   font-size: 20px;
-  color: #303133;
+  color: var(--art-text-gray-900);
+  font-weight: 600;
 }
 
 .el-main {
-  background-color: #f0f2f5;
+  background-color: var(--art-bg-color);
   overflow: auto;
+  padding: 20px;
 }
 </style>

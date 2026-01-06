@@ -1,10 +1,9 @@
 package com.server.smarttransferserver.controller;
 
 import com.server.smarttransferserver.common.Result;
-import com.server.smarttransferserver.config.CongestionConfig;
 import com.server.smarttransferserver.dto.CongestionConfigDTO;
 import com.server.smarttransferserver.entity.SystemConfig;
-import com.server.smarttransferserver.service.impl.SystemConfigServiceImpl;
+import com.server.smarttransferserver.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -22,10 +21,7 @@ import java.util.Map;
 public class ConfigController {
     
     @Autowired
-    private SystemConfigServiceImpl configService;
-    
-    @Autowired
-    private CongestionConfig congestionConfig;
+    private SystemConfigService configService;
     
     /**
      * 获取拥塞控制配置
@@ -52,15 +48,11 @@ public class ConfigController {
      */
     @PostMapping("/congestion")
     public Result<String> updateCongestionConfig(@Valid @RequestBody CongestionConfigDTO dto) {
-        log.info("更新拥塞控制配置 - 算法: {}", dto.getAlgorithm());
+        log.info("接收更新拥塞控制配置请求 - 算法: {}", dto.getAlgorithm());
         try {
-            // 更新数据库配置
+            // 调用Service层完成业务逻辑（包括数据库更新和内存刷新）
             configService.updateCongestionConfig(dto);
-            
-            // 刷新内存中的配置
-            congestionConfig.refresh();
-            
-            return Result.success("配置更新成功，已刷新");
+            return Result.success("配置更新成功");
         } catch (Exception e) {
             log.error("更新拥塞控制配置失败", e);
             return Result.error("配置更新失败: " + e.getMessage());
@@ -74,9 +66,9 @@ public class ConfigController {
      */
     @PostMapping("/refresh")
     public Result<String> refreshConfig() {
-        log.info("刷新系统配置");
+        log.info("接收刷新系统配置请求");
         try {
-            congestionConfig.refresh();
+            configService.refreshConfig();
             return Result.success("配置刷新成功");
         } catch (Exception e) {
             log.error("刷新配置失败", e);

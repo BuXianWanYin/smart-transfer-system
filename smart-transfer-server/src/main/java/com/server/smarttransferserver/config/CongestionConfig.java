@@ -1,6 +1,7 @@
 package com.server.smarttransferserver.config;
 
-import com.server.smarttransferserver.service.impl.SystemConfigServiceImpl;
+import com.server.smarttransferserver.entity.SystemConfig;
+import com.server.smarttransferserver.mapper.SystemConfigMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -16,7 +17,7 @@ import javax.annotation.PostConstruct;
 public class CongestionConfig {
     
     @Autowired
-    private SystemConfigServiceImpl configService;
+    private SystemConfigMapper configMapper;
     
     // CUBIC算法配置
     private long initialCwnd = 10485760L;      // 10MB
@@ -80,12 +81,12 @@ public class CongestionConfig {
      * 获取Long类型配置
      */
     private long getLongConfig(String key, long defaultValue) {
-        String value = configService.getConfigValue(key);
-        if (value != null && !value.isEmpty()) {
+        SystemConfig config = configMapper.selectByConfigKey(key);
+        if (config != null && config.getConfigValue() != null && !config.getConfigValue().isEmpty()) {
             try {
-                return Long.parseLong(value);
+                return Long.parseLong(config.getConfigValue());
             } catch (NumberFormatException e) {
-                log.warn("配置值格式错误 - key: {}, value: {}", key, value);
+                log.warn("配置值格式错误 - key: {}, value: {}", key, config.getConfigValue());
             }
         }
         return defaultValue;
@@ -95,12 +96,12 @@ public class CongestionConfig {
      * 获取Double类型配置
      */
     private double getDoubleConfig(String key, double defaultValue) {
-        String value = configService.getConfigValue(key);
-        if (value != null && !value.isEmpty()) {
+        SystemConfig config = configMapper.selectByConfigKey(key);
+        if (config != null && config.getConfigValue() != null && !config.getConfigValue().isEmpty()) {
             try {
-                return Double.parseDouble(value);
+                return Double.parseDouble(config.getConfigValue());
             } catch (NumberFormatException e) {
-                log.warn("配置值格式错误 - key: {}, value: {}", key, value);
+                log.warn("配置值格式错误 - key: {}, value: {}", key, config.getConfigValue());
             }
         }
         return defaultValue;

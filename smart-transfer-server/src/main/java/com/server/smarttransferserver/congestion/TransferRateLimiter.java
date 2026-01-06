@@ -2,17 +2,18 @@ package com.server.smarttransferserver.congestion;
 
 import com.google.common.util.concurrent.RateLimiter;
 import com.server.smarttransferserver.config.CongestionConfig;
+import com.server.smarttransferserver.service.INetworkMonitorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * 传输速率控制器
+ * 传输速率限制器
  * 使用Guava的RateLimiter实现速率限制
  */
 @Slf4j
 @Component
-public class TransferRateController {
+public class TransferRateLimiter {
     
     /**
      * 速率限制器
@@ -32,7 +33,7 @@ public class TransferRateController {
     /**
      * 网络监测服务
      */
-    private final NetworkMonitorService networkMonitor;
+    private final INetworkMonitorService networkMonitor;
     
     /**
      * 拥塞控制配置
@@ -44,7 +45,7 @@ public class TransferRateController {
      * 构造方法
      */
     @Autowired
-    public TransferRateController(NetworkMonitorService networkMonitor, CongestionConfig congestionConfig) {
+    public TransferRateLimiter(INetworkMonitorService networkMonitor, CongestionConfig congestionConfig) {
         this.networkMonitor = networkMonitor;
         this.congestionConfig = congestionConfig;
         this.currentRate = congestionConfig.getMinRate();

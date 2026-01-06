@@ -1,36 +1,47 @@
 <template>
-  <div class="file-upload-page">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>文件上传</span>
-          <el-tag v-if="currentAlgorithm" type="primary">
-            当前算法: {{ currentAlgorithm }}
-          </el-tag>
-        </div>
-      </template>
-      
-      <FileUploader />
-    </el-card>
+  <div class="file-upload-page page-container">
+    <!-- 页面头部 -->
+    <div class="page-header">
+      <div class="page-title">文件上传</div>
+      <div class="page-description">支持大文件分片上传、断点续传和秒传功能</div>
+    </div>
     
-    <!-- 上传统计 -->
-    <el-row :gutter="20" style="margin-top: 20px">
-      <el-col :span="8">
-        <el-statistic title="上传中" :value="uploadingCount">
-          <template #suffix>个</template>
-        </el-statistic>
+    <!-- 上传统计卡片 -->
+    <el-row :gutter="20" class="stat-cards">
+      <el-col :span="6">
+        <div class="stat-card">
+          <div class="stat-card-title">当前算法</div>
+          <div class="stat-card-value text-primary">{{ currentAlgorithm || '-' }}</div>
+          <div class="stat-card-trend">拥塞控制算法</div>
+        </div>
       </el-col>
-      <el-col :span="8">
-        <el-statistic title="已完成" :value="completedCount" value-style="color: #67c23a">
-          <template #suffix>个</template>
-        </el-statistic>
+      <el-col :span="6">
+        <div class="stat-card" style="border-left-color: rgb(var(--art-info))">
+          <div class="stat-card-title">上传中</div>
+          <div class="stat-card-value text-info">{{ uploadingCount }}</div>
+          <div class="stat-card-trend">个文件正在上传</div>
+        </div>
       </el-col>
-      <el-col :span="8">
-        <el-statistic title="失败" :value="failedCount" value-style="color: #f56c6c">
-          <template #suffix>个</template>
-        </el-statistic>
+      <el-col :span="6">
+        <div class="stat-card" style="border-left-color: rgb(var(--art-success))">
+          <div class="stat-card-title">已完成</div>
+          <div class="stat-card-value text-success">{{ completedCount }}</div>
+          <div class="stat-card-trend">个文件上传成功</div>
+        </div>
+      </el-col>
+      <el-col :span="6">
+        <div class="stat-card" style="border-left-color: rgb(var(--art-danger))">
+          <div class="stat-card-title">失败</div>
+          <div class="stat-card-value text-danger">{{ failedCount }}</div>
+          <div class="stat-card-trend">个文件上传失败</div>
+        </div>
       </el-col>
     </el-row>
+    
+    <!-- 上传组件 -->
+    <el-card class="upload-card">
+      <FileUploader />
+    </el-card>
   </div>
 </template>
 
@@ -50,14 +61,12 @@ const failedCount = computed(() => fileStore.failedFiles.length)
 </script>
 
 <style scoped>
-.file-upload-page {
-  padding: 20px;
+.stat-cards {
+  margin-bottom: 20px;
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.upload-card {
+  margin-top: 20px;
 }
 </style>
 

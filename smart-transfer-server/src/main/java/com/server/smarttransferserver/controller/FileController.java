@@ -2,14 +2,13 @@ package com.server.smarttransferserver.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.server.smarttransferserver.common.Result;
-import com.server.smarttransferserver.dto.ChunkUploadDTO;
 import com.server.smarttransferserver.dto.FileMergeDTO;
 import com.server.smarttransferserver.dto.FileUploadInitDTO;
 import com.server.smarttransferserver.dto.TransferTaskQueryDTO;
-import com.server.smarttransferserver.service.impl.FileInfoServiceImpl;
-import com.server.smarttransferserver.service.impl.FileMergeServiceImpl;
-import com.server.smarttransferserver.service.impl.FileUploadServiceImpl;
-import com.server.smarttransferserver.service.impl.TransferTaskServiceImpl;
+import com.server.smarttransferserver.service.FileInfoService;
+import com.server.smarttransferserver.service.FileMergeService;
+import com.server.smarttransferserver.service.FileUploadService;
+import com.server.smarttransferserver.service.TransferTaskService;
 import com.server.smarttransferserver.vo.ChunkUploadVO;
 import com.server.smarttransferserver.vo.FileMergeVO;
 import com.server.smarttransferserver.vo.FileInfoVO;
@@ -38,16 +37,16 @@ import java.nio.charset.StandardCharsets;
 public class FileController {
     
     @Autowired
-    private FileUploadServiceImpl uploadService;
+    private FileUploadService uploadService;
     
     @Autowired
-    private FileMergeServiceImpl mergeService;
+    private FileMergeService mergeService;
     
     @Autowired
-    private TransferTaskServiceImpl taskService;
+    private TransferTaskService taskService;
     
     @Autowired
-    private FileInfoServiceImpl fileInfoService;
+    private FileInfoService fileInfoService;
     
     /**
      * 初始化文件上传
@@ -86,13 +85,7 @@ public class FileController {
         log.info("上传分片 - 文件ID: {}, 分片: {}", fileId, chunkNumber);
         
         try {
-            ChunkUploadDTO dto = new ChunkUploadDTO();
-            dto.setFileId(fileId);
-            dto.setChunkNumber(chunkNumber);
-            dto.setChunkHash(chunkHash);
-            dto.setFile(file);
-            
-            ChunkUploadVO vo = uploadService.uploadChunk(dto);
+            ChunkUploadVO vo = uploadService.uploadChunk(fileId, chunkNumber, chunkHash, file);
             return Result.success(vo);
         } catch (Exception e) {
             log.error("分片上传失败", e);

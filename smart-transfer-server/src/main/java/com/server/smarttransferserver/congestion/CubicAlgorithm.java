@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
+
 /**
  * CUBIC拥塞控制算法实现
  * Linux内核默认的TCP拥塞控制算法
@@ -62,6 +64,7 @@ public class CubicAlgorithm implements CongestionControlAlgorithm {
     /**
      * 初始化CUBIC算法
      */
+    @PostConstruct
     @Override
     public void initialize() {
         // 从配置中心获取初始值

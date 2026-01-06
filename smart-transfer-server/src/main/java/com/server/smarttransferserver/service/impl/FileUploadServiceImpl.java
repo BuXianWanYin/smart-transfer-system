@@ -7,14 +7,16 @@ import com.server.smarttransferserver.entity.FileChunk;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.mapper.FileChunkMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
-import com.server.smarttransferserver.service.FileChecksumService;
-import com.server.smarttransferserver.service.FileStorageService;
+import com.server.smarttransferserver.service.IFileChecksumService;
+import com.server.smarttransferserver.service.IFileStorageService;
+import com.server.smarttransferserver.service.FileUploadService;
 import com.server.smarttransferserver.vo.ChunkUploadVO;
 import com.server.smarttransferserver.vo.FileUploadInitVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -26,7 +28,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-public class FileUploadServiceImpl {
+public class FileUploadServiceImpl implements FileUploadService {
     
     @Autowired
     private FileInfoMapper fileInfoMapper;
@@ -35,10 +37,10 @@ public class FileUploadServiceImpl {
     private FileChunkMapper fileChunkMapper;
     
     @Autowired
-    private FileStorageService storageService;
+    private IFileStorageService storageService;
     
     @Autowired
-    private FileChecksumService checksumService;
+    private IFileChecksumService checksumService;
     
     /**
      * 初始化文件上传
@@ -47,6 +49,7 @@ public class FileUploadServiceImpl {
      * @param dto 上传初始化DTO
      * @return 初始化结果
      */
+    @Override
     @Transactional
     public FileUploadInitVO initUpload(FileUploadInitDTO dto) {
         log.info("初始化文件上传 - 文件名: {}, 大小: {}字节, 哈希: {}", 
@@ -84,16 +87,22 @@ public class FileUploadServiceImpl {
         }
         
         // 3. 创建新的文件记录
+        // 临时文件路径（上传完成后会更新为实际路径）
+        String tempFilePath = "uploading/" + dto.getFileHash();
+        
         FileInfo fileInfo = FileInfo.builder()
                 .fileName(dto.getFileName())
                 .fileSize(dto.getFileSize())
                 .fileHash(dto.getFileHash())
+                .filePath(tempFilePath)  // 设置临时文件路径，合并完成后会更新
                 .uploadStatus("UPLOADING")
                 .createTime(LocalDateTime.now())
                 .updateTime(LocalDateTime.now())
                 .build();
         
         fileInfoMapper.insert(fileInfo);
+        
+        log.info("创建文件记录 - 文件ID: {}, 临时路径: {}", fileInfo.getId(), tempFilePath);
         
         // 4. 创建分片记录
         for (int i = 0; i < dto.getTotalChunks(); i++) {
@@ -117,13 +126,33 @@ public class FileUploadServiceImpl {
     }
     
     /**
-     * 上传分片
+     * 上传文件分片
+     *
+     * @param fileId 文件ID
+     * @param chunkNumber 分片编号
+     * @param chunkHash 分片哈希
+     * @param file 分片文件
+     * @return 分片上传结果
+     */
+    @Override
+    @Transactional
+    public ChunkUploadVO uploadChunk(Long fileId, Integer chunkNumber, String chunkHash, MultipartFile file) {
+        ChunkUploadDTO dto = new ChunkUploadDTO();
+        dto.setFileId(fileId);
+        dto.setChunkNumber(chunkNumber);
+        dto.setChunkHash(chunkHash);
+        dto.setFile(file);
+        return uploadChunkInternal(dto);
+    }
+    
+    /**
+     * 上传分片（内部方法）
      *
      * @param dto 分片上传DTO
      * @return 上传结果
      */
     @Transactional
-    public ChunkUploadVO uploadChunk(ChunkUploadDTO dto) {
+    private ChunkUploadVO uploadChunkInternal(ChunkUploadDTO dto) {
         log.info("上传分片 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
         
         try {
@@ -140,7 +169,7 @@ public class FileUploadServiceImpl {
             }
             
             // 2. 保存分片文件
-            String chunkPath = storageService.saveChunk(dto.getFileId(), dto.getChunkNumber(), dto.getFile());
+            storageService.saveChunk(dto.getFileId(), dto.getChunkNumber(), dto.getFile());
             
             // 3. 更新分片记录
             FileChunk chunk = fileChunkMapper.selectByFileIdAndChunkNumber(dto.getFileId(), dto.getChunkNumber());

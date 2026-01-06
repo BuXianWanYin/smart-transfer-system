@@ -1,32 +1,37 @@
 package com.server.smarttransferserver.service.impl;
 
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.congestion.*;
 import com.server.smarttransferserver.entity.CongestionMetrics;
 import com.server.smarttransferserver.mapper.CongestionMetricsMapper;
+import com.server.smarttransferserver.service.CongestionMetricsService;
+import com.server.smarttransferserver.service.INetworkMonitorService;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 拥塞指标服务实现
  */
 @Slf4j
 @Service
-public class CongestionMetricsServiceImpl {
+public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsMapper, CongestionMetrics> implements CongestionMetricsService {
     
     @Autowired
     private CongestionMetricsMapper metricsMapper;
     
     @Autowired(required = false)
-    private NetworkMonitorService networkMonitor;
+    private INetworkMonitorService networkMonitor;
     
     @Autowired(required = false)
-    private TransferRateController rateController;
+    private TransferRateLimiter rateLimiter;
     
     /**
      * 获取当前拥塞控制指标
@@ -34,8 +39,9 @@ public class CongestionMetricsServiceImpl {
      * @param algorithm 当前使用的算法
      * @return 指标VO
      */
+    @Override
     public CongestionMetricsVO getCurrentMetrics(CongestionControlAlgorithm algorithm) {
-        if (algorithm == null || networkMonitor == null || rateController == null) {
+        if (algorithm == null || networkMonitor == null || rateLimiter == null) {
             return buildEmptyMetrics();
         }
         
@@ -61,7 +67,46 @@ public class CongestionMetricsServiceImpl {
     }
     
     /**
-     * 记录拥塞指标到数据库
+     * 记录拥塞指标
+     *
+     * @param metrics 拥塞指标实体
+     * @return 是否记录成功
+     */
+    @Override
+    public boolean recordMetrics(CongestionMetrics metrics) {
+        return save(metrics);
+    }
+    
+    /**
+     * 根据任务ID查询最新的拥塞指标
+     *
+     * @param taskId 任务ID
+     * @param limit 查询数量
+     * @return 拥塞指标列表
+     */
+    @Override
+    public List<CongestionMetricsVO> getLatestMetrics(String taskId, Integer limit) {
+        List<CongestionMetrics> metricsList = metricsMapper.selectByTaskIdOrderByRecordTimeDesc(Long.parseLong(taskId));
+        
+        return metricsList.stream()
+                .limit(limit != null ? limit : 100)
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 根据任务ID查询所有拥塞指标
+     *
+     * @param taskId 任务ID
+     * @return 拥塞指标列表
+     */
+    @Override
+    public List<CongestionMetricsVO> getMetricsByTaskId(String taskId) {
+        return getLatestMetrics(taskId, null);
+    }
+    
+    /**
+     * 记录拥塞指标到数据库（兼容旧方法）
      *
      * @param taskId    任务ID
      * @param algorithm 算法
@@ -82,7 +127,7 @@ public class CongestionMetricsServiceImpl {
                 .recordTime(LocalDateTime.now())
                 .build();
         
-        metricsMapper.insert(metrics);
+        recordMetrics(metrics);
         
         log.debug("记录拥塞指标 - 任务ID: {}, 算法: {}", taskId, algorithm.getAlgorithmName());
     }
@@ -95,6 +140,18 @@ public class CongestionMetricsServiceImpl {
      */
     public List<CongestionMetrics> getTaskMetrics(Long taskId) {
         return metricsMapper.selectByTaskIdOrderByRecordTimeDesc(taskId);
+    }
+    
+    /**
+     * 转换为VO
+     *
+     * @param metrics 指标实体
+     * @return 指标VO
+     */
+    private CongestionMetricsVO convertToVO(CongestionMetrics metrics) {
+        CongestionMetricsVO vo = new CongestionMetricsVO();
+        BeanUtils.copyProperties(metrics, vo);
+        return vo;
     }
     
     /**

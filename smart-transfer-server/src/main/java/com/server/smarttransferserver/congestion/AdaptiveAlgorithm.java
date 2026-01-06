@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -68,6 +69,7 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         this.rttSamples = new LinkedList<>();
     }
     
+    @PostConstruct
     @Override
     public void initialize() {
         // 初始化两个算法

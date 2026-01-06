@@ -1,5 +1,6 @@
-package com.server.smarttransferserver.service;
+package com.server.smarttransferserver.service.impl;
 
+import com.server.smarttransferserver.service.IFileChecksumService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.stereotype.Service;
@@ -15,12 +16,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * 文件校验服务
+ * 文件校验服务实现
  * 提供MD5、SHA256等哈希计算
  */
 @Slf4j
 @Service
-public class FileChecksumService {
+public class FileChecksumServiceImpl implements IFileChecksumService {
     
     /**
      * 计算文件MD5
@@ -29,6 +30,7 @@ public class FileChecksumService {
      * @return MD5值
      * @throws IOException IO异常
      */
+    @Override
     public String calculateMD5(String filePath) throws IOException {
         try (FileInputStream fis = new FileInputStream(filePath)) {
             String md5 = DigestUtils.md5Hex(fis);
@@ -44,6 +46,7 @@ public class FileChecksumService {
      * @return SHA256值
      * @throws IOException IO异常
      */
+    @Override
     public String calculateSHA256(String filePath) throws IOException {
         try (FileInputStream fis = new FileInputStream(filePath)) {
             String sha256 = DigestUtils.sha256Hex(fis);
@@ -59,6 +62,7 @@ public class FileChecksumService {
      * @return MD5值
      * @throws IOException IO异常
      */
+    @Override
     public String calculateMD5(MultipartFile file) throws IOException {
         try (InputStream is = file.getInputStream()) {
             String md5 = DigestUtils.md5Hex(is);
@@ -74,6 +78,7 @@ public class FileChecksumService {
      * @return SHA256值
      * @throws IOException IO异常
      */
+    @Override
     public String calculateSHA256(MultipartFile file) throws IOException {
         try (InputStream is = file.getInputStream()) {
             String sha256 = DigestUtils.sha256Hex(is);
@@ -90,6 +95,7 @@ public class FileChecksumService {
      * @param algorithm    算法（MD5或SHA256）
      * @return 是否匹配
      */
+    @Override
     public boolean verifyHash(String filePath, String expectedHash, String algorithm) {
         try {
             String actualHash;
@@ -121,6 +127,7 @@ public class FileChecksumService {
      * @throws IOException              IO异常
      * @throws NoSuchAlgorithmException 算法异常
      */
+    @Override
     public String calculateQuickHash(String filePath) throws IOException, NoSuchAlgorithmException {
         Path path = Paths.get(filePath);
         long fileSize = Files.size(path);

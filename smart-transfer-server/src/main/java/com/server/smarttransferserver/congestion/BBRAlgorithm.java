@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -90,6 +91,7 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
         this.rttSamples = new LinkedList<>();
     }
     
+    @PostConstruct
     @Override
     public void initialize() {
         this.bottleneckBandwidth = 0;

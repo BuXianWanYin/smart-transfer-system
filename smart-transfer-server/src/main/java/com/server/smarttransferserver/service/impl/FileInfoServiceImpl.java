@@ -3,8 +3,10 @@ package com.server.smarttransferserver.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
+import com.server.smarttransferserver.service.FileInfoService;
 import com.server.smarttransferserver.vo.FileInfoVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -16,7 +18,7 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-public class FileInfoServiceImpl {
+public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> implements FileInfoService {
     
     @Autowired
     private FileInfoMapper fileInfoMapper;
@@ -27,6 +29,7 @@ public class FileInfoServiceImpl {
      * @param id 文件ID
      * @return 文件信息VO
      */
+    @Override
     public FileInfoVO getFileById(Long id) {
         FileInfo fileInfo = fileInfoMapper.selectById(id);
         if (fileInfo == null) {
@@ -46,6 +49,7 @@ public class FileInfoServiceImpl {
      * @param status   上传状态（可选）
      * @return 文件列表
      */
+    @Override
     public IPage<FileInfoVO> getFileList(Integer pageNum, Integer pageSize, String status) {
         QueryWrapper<FileInfo> queryWrapper = new QueryWrapper<>();
         
@@ -61,17 +65,42 @@ public class FileInfoServiceImpl {
         IPage<FileInfo> filePage = fileInfoMapper.selectPage(page, queryWrapper);
         
         // 转换为VO
-        Page<FileInfoVO> voPage = new Page<>(filePage.getCurrent(), filePage.getSize(), filePage.getTotal());
-        voPage.setRecords(filePage.getRecords().stream()
-                .map(fileInfo -> {
-                    FileInfoVO vo = new FileInfoVO();
-                    BeanUtils.copyProperties(fileInfo, vo);
-                    return vo;
-                })
-                .collect(java.util.stream.Collectors.toList()));
+        Page<FileInfoVO> voPage = new Page<>(pageNum, pageSize);
+        voPage.setTotal(filePage.getTotal());
+        voPage.setRecords(filePage.getRecords().stream().map(fileInfo -> {
+            FileInfoVO vo = new FileInfoVO();
+            BeanUtils.copyProperties(fileInfo, vo);
+            return vo;
+        }).collect(java.util.stream.Collectors.toList()));
         
         log.info("查询文件列表 - 状态: {}, 结果数: {}", status, voPage.getRecords().size());
         return voPage;
+    }
+    
+    /**
+     * 根据文件哈希查询文件信息
+     *
+     * @param fileHash 文件哈希值
+     * @return 文件信息，不存在返回null
+     */
+    @Override
+    public FileInfo getByFileHash(String fileHash) {
+        return fileInfoMapper.selectByFileHash(fileHash);
+    }
+    
+    /**
+     * 更新文件上传状态
+     *
+     * @param fileId 文件ID
+     * @param status 上传状态
+     * @return 是否更新成功
+     */
+    @Override
+    public boolean updateUploadStatus(Long fileId, String status) {
+        FileInfo fileInfo = new FileInfo();
+        fileInfo.setId(fileId);
+        fileInfo.setUploadStatus(status);
+        return updateById(fileInfo);
     }
     
     /**
@@ -79,8 +108,9 @@ public class FileInfoServiceImpl {
      *
      * @param id 文件ID
      */
+    @Override
     public void deleteFile(Long id) {
-        fileInfoMapper.deleteById(id);
+        removeById(id);
         log.info("删除文件 - ID: {}", id);
     }
 }

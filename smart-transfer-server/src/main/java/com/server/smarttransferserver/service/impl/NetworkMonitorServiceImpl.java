@@ -1,17 +1,19 @@
-package com.server.smarttransferserver.congestion;
+package com.server.smarttransferserver.service.impl;
 
+import com.server.smarttransferserver.congestion.*;
+import com.server.smarttransferserver.service.INetworkMonitorService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 网络监测服务
+ * 网络监测服务实现
  * 集成RTT测量、带宽估算、丢包检测
  */
 @Slf4j
 @Service
-public class NetworkMonitorService {
+public class NetworkMonitorServiceImpl implements INetworkMonitorService {
     
     /**
      * RTT测量器
@@ -42,9 +44,9 @@ public class NetworkMonitorService {
      * 构造方法
      */
     @Autowired
-    public NetworkMonitorService(RttMeasurement rttMeasurement,
-                                  BandwidthEstimator bandwidthEstimator,
-                                  PacketLossDetector lossDetector) {
+    public NetworkMonitorServiceImpl(RttMeasurement rttMeasurement,
+                                      BandwidthEstimator bandwidthEstimator,
+                                      PacketLossDetector lossDetector) {
         this.rttMeasurement = rttMeasurement;
         this.bandwidthEstimator = bandwidthEstimator;
         this.lossDetector = lossDetector;
@@ -58,6 +60,7 @@ public class NetworkMonitorService {
      * @param sequenceNumber 序列号
      * @param size           数据包大小
      */
+    @Override
     public void recordPacketSent(long sequenceNumber, long size) {
         totalSentPackets++;
         
@@ -80,6 +83,7 @@ public class NetworkMonitorService {
      * @param sequenceNumber 序列号
      * @return 测量的RTT值
      */
+    @Override
     public long recordAckReceived(long sequenceNumber) {
         totalReceivedAcks++;
         
@@ -101,6 +105,7 @@ public class NetworkMonitorService {
     /**
      * 检查超时丢包
      */
+    @Override
     public void checkTimeoutLoss() {
         java.util.concurrent.ConcurrentHashMap<Long, PacketLossDetector.PacketInfo> lostPackets = lossDetector.checkTimeout();
         if (!lostPackets.isEmpty()) {
@@ -113,6 +118,7 @@ public class NetworkMonitorService {
      *
      * @return RTT（毫秒）
      */
+    @Override
     public long getCurrentRtt() {
         return rttMeasurement.getSmoothedRtt();
     }
@@ -122,6 +128,7 @@ public class NetworkMonitorService {
      *
      * @return 最小RTT（毫秒）
      */
+    @Override
     public long getMinRtt() {
         return rttMeasurement.getMinRtt();
     }
@@ -131,15 +138,17 @@ public class NetworkMonitorService {
      *
      * @return 带宽（字节/秒）
      */
+    @Override
     public long getEstimatedBandwidth() {
         return bandwidthEstimator.getEstimatedBandwidth();
     }
     
     /**
-     * 获取丢包率
+     * 丢包率
      *
      * @return 丢包率
      */
+    @Override
     public double getLossRate() {
         return lossDetector.getLossRate(totalSentPackets);
     }
@@ -149,6 +158,7 @@ public class NetworkMonitorService {
      *
      * @return 在途数据包数
      */
+    @Override
     public int getInflightCount() {
         return lossDetector.getInflightCount();
     }
@@ -158,6 +168,7 @@ public class NetworkMonitorService {
      *
      * @return 在途数据字节数
      */
+    @Override
     public long getInflightBytes() {
         return lossDetector.getInflightBytes();
     }
@@ -167,6 +178,7 @@ public class NetworkMonitorService {
      *
      * @return 网络质量等级
      */
+    @Override
     public NetworkQuality evaluateNetworkQuality() {
         double lossRate = getLossRate();
         long rtt = getCurrentRtt();
@@ -194,6 +206,7 @@ public class NetworkMonitorService {
     /**
      * 重置所有监测器
      */
+    @Override
     public void reset() {
         rttMeasurement.reset();
         bandwidthEstimator.reset();
@@ -209,6 +222,7 @@ public class NetworkMonitorService {
      *
      * @return 网络统计
      */
+    @Override
     public NetworkStats getStats() {
         NetworkStats stats = new NetworkStats();
         

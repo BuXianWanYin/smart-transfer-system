@@ -1,23 +1,147 @@
-/**
- * CSS 变量定义
- */
+/* Theme Variables - 参考 greenhouse-management-web */
 
 :root {
-  /* 主题色 */
-  --primary-color: #409eff;
-  --success-color: #67c23a;
-  --warning-color: #e6a23c;
-  --danger-color: #f56c6c;
-  --info-color: #909399;
+  /* 主题色 - Theme color */
+  --art-primary: 93, 135, 255;
+  --art-secondary: 73, 190, 255;
+  --art-error: 250, 137, 107;
+  --art-info: 83, 155, 255;
+  --art-success: 19, 222, 185;
+  --art-warning: 255, 174, 31;
+  --art-danger: 255, 77, 79;
 
-  /* 字体大小 */
-  --font-size-base: 14px;
-  --font-size-small: 12px;
-  --font-size-large: 16px;
+  /* 主题背景色 - Theme background color */
+  --art-bg-primary: 236, 242, 255;
+  --art-bg-secondary: 232, 247, 255;
+  --art-bg-success: 230, 255, 250;
+  --art-bg-error: 253, 237, 232;
+  --art-bg-info: 235, 243, 254;
+  --art-bg-warning: 254, 245, 229;
+  --art-bg-danger: 253, 237, 232;
 
-  /* 间距 */
-  --spacing-small: 8px;
-  --spacing-base: 16px;
-  --spacing-large: 24px;
+  --art-hoverColor: 246, 249, 252;
+  --art-grey100: 242, 246, 250;
+  --art-grey200: 234, 239, 244;
+
+  --art-color: #ffffff;
+  --art-light: #f9f9f9;
+  --art-dark: #1e2129;
+
+  /* 背景色 - Background color */
+  --art-text-muted: #99a1b7;
+  --art-gray-100: #f9f9f9;
+  --art-gray-100-rgb: 249, 249, 249;
+  --art-gray-200: #f1f1f4;
+  --art-gray-200-rgb: 241, 241, 244;
+  --art-gray-300: #dbdfe9;
+  --art-gray-300-rgb: 219, 223, 233;
+  --art-gray-400: #c4cada;
+  --art-gray-400-rgb: 196, 202, 218;
+  --art-gray-500: #99a1b7;
+  --art-gray-500-rgb: 153, 161, 183;
+  --art-gray-600: #78829d;
+  --art-gray-600-rgb: 120, 130, 157;
+  --art-gray-700: #4b5675;
+  --art-gray-700-rgb: 75, 86, 117;
+  --art-gray-800: #252f4a;
+  --art-gray-800-rgb: 37, 47, 74;
+  --art-gray-900: #071437;
+  --art-gray-900-rgb: 7, 20, 55;
+
+  /* 文字颜色 - Text color */
+  --art-text-gray-100: #f9f9f9;
+  --art-text-gray-200: #f1f1f4;
+  --art-text-gray-300: #dbdfe9;
+  --art-text-gray-400: #c4cada;
+  --art-text-gray-500: #99a1b7;
+  --art-text-gray-600: #78829d;
+  --art-text-gray-700: #4b5675;
+  --art-text-gray-800: #252f4a;
+  --art-text-gray-900: #071437;
+
+  /* 边框 - Border */
+  --art-border-color: #eaebf1;
+  --art-border-dashed-color: #dbdfe9;
+  --art-root-card-border-color: #f1f1f4;
+
+  /* 阴影 - Shadow */
+  --art-box-shadow-xs: 0 0.1rem 0.75rem 0.25rem rgba(0, 0, 0, 0.05);
+  --art-box-shadow-sm: 0 0.1rem 1rem 0.25rem rgba(0, 0, 0, 0.05);
+  --art-box-shadow: 0 0.5rem 1.5rem 0.5rem rgba(0, 0, 0, 0.075);
+  --art-box-shadow-lg: 0 1rem 2rem 1rem rgba(0, 0, 0, 0.1);
+
+  /* 卡片 - Card */
+  --art-root-card-box-shadow: 0px 3px 4px 0px rgba(0, 0, 0, 0.03);
+  --art-card-border: rgba(219, 223, 233, 0.6);
+  --art-card-shadow: 0px 0px 4px 0px rgba(0, 0, 0, 0.04);
+
+  /* 主题背景色 - Theme background color */
+  --art-bg-color: #fafbfc;
+  --art-main-bg-color: #ffffff;
+  
+  /* 侧边栏颜色 */
+  --art-sidebar-bg: #304156;
+  --art-sidebar-logo-bg: #2b3a4a;
+  --art-sidebar-menu-hover: #263445;
+  --art-sidebar-text: #bfcbd9;
+  --art-sidebar-text-active: #ffffff;
 }
 
+/* 工具类 - Utility classes */
+.bg-primary {
+  background-color: rgb(var(--art-bg-primary)) !important;
+  color: rgb(var(--art-primary)) !important;
+}
+
+.bg-secondary {
+  background-color: rgb(var(--art-bg-secondary)) !important;
+  color: rgb(var(--art-secondary)) !important;
+}
+
+.bg-warning {
+  background-color: rgb(var(--art-bg-warning)) !important;
+  color: rgb(var(--art-warning)) !important;
+}
+
+.bg-error {
+  background-color: rgb(var(--art-bg-error)) !important;
+  color: rgb(var(--art-error)) !important;
+}
+
+.bg-success {
+  background-color: rgb(var(--art-bg-success)) !important;
+  color: rgb(var(--art-success)) !important;
+}
+
+.bg-danger {
+  background-color: rgb(var(--art-bg-danger)) !important;
+  color: rgb(var(--art-danger)) !important;
+}
+
+.text-primary {
+  color: rgb(var(--art-primary)) !important;
+}
+
+.text-secondary {
+  color: rgb(var(--art-secondary)) !important;
+}
+
+.text-success {
+  color: rgb(var(--art-success)) !important;
+}
+
+.text-warning {
+  color: rgb(var(--art-warning)) !important;
+}
+
+.text-error {
+  color: rgb(var(--art-error)) !important;
+}
+
+.text-danger {
+  color: rgb(var(--art-danger)) !important;
+}
+
+.text-info {
+  color: rgb(var(--art-info)) !important;
+}

@@ -80,38 +80,26 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Netty (网络控制) -->
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-            <version>4.1.82.Final</version>
-        </dependency>
-
-        <!-- Guava (限流器) -->
+        <!-- Guava (限流器) - 核心依赖，用于速率控制 -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>31.1-jre</version>
         </dependency>
 
-        <!-- Commons Math3 (数学计算) -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-math3</artifactId>
-            <version>3.6.1</version>
-        </dependency>
-
-        <!-- Micrometer (性能指标) -->
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-core</artifactId>
-        </dependency>
-
-        <!-- Spring Boot Actuator (监控) -->
+        <!-- Spring Boot Actuator (监控) - 用于生产环境健康检查 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+
+        <!-- ============================================ -->
+        <!-- 以下依赖已删除（未使用）                        -->
+        <!-- ============================================ -->
+        <!-- Netty - 未使用，项目使用HTTP协议而非自定义TCP -->
+        <!-- Commons Math3 - 未使用，基础Math运算已足够 -->
+        <!-- Micrometer - 未使用，Actuator已提供监控功能 -->
+        <!-- ============================================ -->
 
         <!-- Spring Boot Test -->
         <dependency>

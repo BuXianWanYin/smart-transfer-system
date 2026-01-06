@@ -66,6 +66,18 @@ public class TransferTask implements Serializable {
     private Long transferSpeed;
 
     /**
+     * 拥塞窗口大小（字节）
+     */
+    @TableField(exist = false)
+    private Long cwnd;
+
+    /**
+     * 往返时延RTT（毫秒）
+     */
+    @TableField(exist = false)
+    private Long rtt;
+
+    /**
      * 开始时间
      */
     @TableField("start_time")
