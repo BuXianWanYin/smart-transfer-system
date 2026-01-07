@@ -254,8 +254,6 @@ const loadConfig = async () => {
     const res = await getCongestionConfig()
     const config = res
     
-    console.log('加载的配置数据:', config)
-    
     // 将字符串转换为数字（后端返回的是下划线格式：initial_cwnd）
     configForm.value = {
       algorithm: config.algorithm || 'CUBIC',
@@ -290,12 +288,9 @@ const loadConfig = async () => {
       minRateUnit: minRateDisplay.unit
     }
     
-    console.log('转换后的显示配置:', displayForm.value)
-    
     configStore.updateCongestionConfig(configForm.value)
     ElMessage.success('配置加载成功')
   } catch (error) {
-    console.error('加载配置失败:', error)
     ElMessage.error('加载配置失败')
   }
 }
@@ -315,8 +310,6 @@ const handleSave = async () => {
       minRate: convertToBytes('minRate')
     }
     
-    console.log('提交的配置数据（字节）:', submitData)
-    
     await updateCongestionConfig(submitData)
     
     // 更新configForm为新的字节值
@@ -325,7 +318,6 @@ const handleSave = async () => {
     
     ElMessage.success('配置保存成功')
   } catch (error) {
-    console.error('保存配置失败:', error)
     if (error !== false) {
       ElMessage.error('保存配置失败')
     }

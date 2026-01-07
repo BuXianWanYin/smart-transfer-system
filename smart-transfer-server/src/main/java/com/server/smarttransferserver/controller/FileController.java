@@ -27,6 +27,9 @@ import javax.validation.Valid;
 import java.io.File;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 文件传输Controller
@@ -63,6 +66,35 @@ public class FileController {
         } catch (Exception e) {
             log.error("初始化上传失败", e);
             return Result.error("初始化上传失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 检查分片是否已上传（秒传/断点续传）
+     * 兼容 vue-simple-uploader GET 请求
+     *
+     * @param identifier 文件唯一标识（MD5）
+     * @param chunkNumber 分片编号
+     * @param totalChunks 总分片数
+     * @param totalSize 文件总大小
+     * @param filename 文件名
+     * @return 检查结果
+     */
+    @GetMapping("/upload/chunk")
+    public Result<FileUploadInitVO> checkChunk(
+            @RequestParam("identifier") String identifier,
+            @RequestParam(value = "chunkNumber", required = false) Integer chunkNumber,
+            @RequestParam(value = "totalChunks", required = false) Integer totalChunks,
+            @RequestParam(value = "totalSize", required = false) Long totalSize,
+            @RequestParam(value = "filename", required = false) String filename) {
+        
+        log.info("检查分片 - identifier: {}, chunkNumber: {}", identifier, chunkNumber);
+        try {
+            FileUploadInitVO vo = uploadService.checkChunk(identifier, totalSize, filename, totalChunks);
+            return Result.success(vo);
+        } catch (Exception e) {
+            log.error("检查分片失败", e);
+            return Result.error("检查分片失败: " + e.getMessage());
         }
     }
     
@@ -273,6 +305,185 @@ public class FileController {
         } catch (Exception e) {
             log.error("删除文件失败", e);
             return Result.error("删除文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 搜索文件
+     *
+     * @param fileName 文件名关键词
+     * @return 搜索结果
+     */
+    @GetMapping("/search")
+    public Result<?> searchFile(@RequestParam String fileName) {
+        log.info("搜索文件 - 关键词: {}", fileName);
+        try {
+            List<FileInfoVO> list = fileInfoService.searchByFileName(fileName);
+            return Result.success(list);
+        } catch (Exception e) {
+            log.error("搜索文件失败", e);
+            return Result.error("搜索文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 重命名文件
+     *
+     * @param params 包含id和fileName
+     * @return 重命名结果
+     */
+    @PutMapping("/rename")
+    public Result<String> renameFile(@RequestBody Map<String, Object> params) {
+        Long id = Long.valueOf(params.get("id").toString());
+        String fileName = params.get("fileName").toString();
+        log.info("重命名文件 - ID: {}, 新名称: {}", id, fileName);
+        try {
+            fileInfoService.renameFile(id, fileName);
+            return Result.success("重命名成功");
+        } catch (Exception e) {
+            log.error("重命名文件失败", e);
+            return Result.error("重命名文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 移动文件到指定文件夹
+     *
+     * @param params 包含id和targetFolderId
+     * @return 移动结果
+     */
+    @PutMapping("/move")
+    public Result<String> moveFile(@RequestBody Map<String, Object> params) {
+        Long id = Long.valueOf(params.get("id").toString());
+        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
+        log.info("移动文件 - ID: {}, 目标文件夹: {}", id, targetFolderId);
+        try {
+            fileInfoService.moveFile(id, targetFolderId);
+            return Result.success("移动成功");
+        } catch (Exception e) {
+            log.error("移动文件失败", e);
+            return Result.error("移动文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 批量移动文件
+     *
+     * @param params 包含fileIds和targetFolderId
+     * @return 移动结果
+     */
+    @PutMapping("/move/batch")
+    public Result<String> batchMoveFiles(@RequestBody Map<String, Object> params) {
+        @SuppressWarnings("unchecked")
+        List<Long> fileIds = ((List<Integer>) params.get("fileIds"))
+                .stream().map(Long::valueOf).collect(Collectors.toList());
+        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
+        log.info("批量移动文件 - 数量: {}, 目标文件夹: {}", fileIds.size(), targetFolderId);
+        try {
+            fileInfoService.batchMoveFiles(fileIds, targetFolderId);
+            return Result.success("批量移动成功");
+        } catch (Exception e) {
+            log.error("批量移动文件失败", e);
+            return Result.error("批量移动文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 批量删除文件（移动到回收站）
+     *
+     * @param ids 文件ID列表
+     * @return 删除结果
+     */
+    @DeleteMapping("/batch")
+    public Result<String> batchDeleteFiles(@RequestBody List<Long> ids) {
+        log.info("批量删除文件 - 数量: {}", ids.size());
+        try {
+            fileInfoService.batchDeleteFiles(ids);
+            return Result.success("批量删除成功");
+        } catch (Exception e) {
+            log.error("批量删除文件失败", e);
+            return Result.error("批量删除文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 预览文件
+     *
+     * @param id 文件ID
+     * @return 文件流
+     */
+    @GetMapping("/preview/{id}")
+    public ResponseEntity<Resource> previewFile(@PathVariable Long id) {
+        log.info("预览文件 - ID: {}", id);
+        try {
+            FileInfoVO fileInfo = fileInfoService.getFileById(id);
+            if (fileInfo == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            File file = new File(fileInfo.getFilePath());
+            if (!file.exists()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Resource resource = new FileSystemResource(file);
+            String contentType = getContentType(fileInfo.getExtendName());
+            
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(resource);
+                    
+        } catch (Exception e) {
+            log.error("预览文件失败", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * 获取文件MIME类型
+     */
+    private String getContentType(String extendName) {
+        if (extendName == null) return "application/octet-stream";
+        
+        switch (extendName.toLowerCase()) {
+            case "jpg":
+            case "jpeg":
+                return "image/jpeg";
+            case "png":
+                return "image/png";
+            case "gif":
+                return "image/gif";
+            case "bmp":
+                return "image/bmp";
+            case "webp":
+                return "image/webp";
+            case "svg":
+                return "image/svg+xml";
+            case "mp4":
+                return "video/mp4";
+            case "webm":
+                return "video/webm";
+            case "mp3":
+                return "audio/mpeg";
+            case "wav":
+                return "audio/wav";
+            case "ogg":
+                return "audio/ogg";
+            case "pdf":
+                return "application/pdf";
+            case "txt":
+            case "md":
+                return "text/plain";
+            case "html":
+                return "text/html";
+            case "css":
+                return "text/css";
+            case "js":
+                return "application/javascript";
+            case "json":
+                return "application/json";
+            default:
+                return "application/octet-stream";
         }
     }
 }

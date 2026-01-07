@@ -318,7 +318,7 @@ const loadHistoryList = async () => {
       selected: false
     }))
   } catch (error) {
-    console.error('加载历史记录失败', error)
+    // 加载失败
     ElMessage.error('加载历史记录失败')
   }
 }

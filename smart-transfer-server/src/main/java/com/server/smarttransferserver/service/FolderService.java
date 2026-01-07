@@ -22,8 +22,13 @@ public interface FolderService {
 
     /**
      * 获取文件夹内容（文件夹+文件）
+     * @param folderId 文件夹ID
+     * @param fileType 文件类型筛选（0-全部, 1-图片, 2-文档, 3-视频, 4-音乐, 5-其他）
+     * @param pageNum 页码
+     * @param pageSize 每页数量
+     * @return 文件夹内容
      */
-    FolderContentVO getFolderContent(Long folderId, Integer pageNum, Integer pageSize);
+    FolderContentVO getFolderContent(Long folderId, Integer fileType, Integer pageNum, Integer pageSize);
 
     /**
      * 重命名文件夹

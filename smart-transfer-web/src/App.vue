@@ -1,54 +1,18 @@
 <template>
   <div id="app">
-    <el-container>
-      <!-- 侧边栏 -->
-      <el-aside width="200px">
-        <div class="logo">
-          <h3>文件传输系统</h3>
-        </div>
-        <el-menu
-          :default-active="activeMenu"
-          router
-          class="el-menu-vertical"
-        >
-          <el-menu-item index="/transfer">
-            <el-icon><Connection /></el-icon>
-            <span>传输中心</span>
-          </el-menu-item>
-          <el-menu-item index="/files">
-            <el-icon><Folder /></el-icon>
-            <span>文件管理</span>
-          </el-menu-item>
-          <el-menu-item index="/config">
-            <el-icon><Setting /></el-icon>
-            <span>系统配置</span>
-          </el-menu-item>
-        </el-menu>
-      </el-aside>
-      
-      <!-- 主内容区 -->
-      <el-container>
-        <el-header>
-          <div class="header-content">
-            <h2>基于TCP拥塞控制优化的大文件传输工具</h2>
-          </div>
-        </el-header>
-        
-        <el-main>
-          <router-view />
-        </el-main>
-      </el-container>
-    </el-container>
+    <Header />
+    <div class="main-container">
+      <AsideMenu />
+      <div class="page-content">
+        <router-view />
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-import { Connection, Folder, Setting } from '@element-plus/icons-vue'
-
-const route = useRoute()
-const activeMenu = computed(() => route.path)
+import Header from '@/components/Header.vue'
+import AsideMenu from '@/components/file/AsideMenu.vue'
 </script>
 
 <style>
@@ -61,67 +25,22 @@ const activeMenu = computed(() => route.path)
 #app {
   font-family: 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   height: 100vh;
-}
-
-.el-container {
-  height: 100%;
-}
-
-.el-aside {
-  background-color: var(--art-sidebar-bg);
-  color: #fff;
-  box-shadow: var(--art-box-shadow-sm);
-}
-
-.logo {
-  height: 60px;
+  overflow: hidden;
+  -webkit-text-size-adjust: none;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--art-sidebar-logo-bg);
-  color: #fff;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  flex-direction: column;
+  background: #f5f7fa;
 }
 
-.logo h3 {
-  font-size: 18px;
-}
-
-.el-menu {
-  border-right: none;
-  background-color: var(--art-sidebar-bg);
-}
-
-.el-menu-item {
-  color: var(--art-sidebar-text);
-  transition: all 0.3s;
-}
-
-.el-menu-item:hover,
-.el-menu-item.is-active {
-  background-color: var(--art-sidebar-menu-hover) !important;
-  color: var(--art-sidebar-text-active) !important;
-}
-
-.el-header {
-  background-color: var(--art-main-bg-color);
-  box-shadow: var(--art-root-card-box-shadow);
+.main-container {
+  flex: 1;
   display: flex;
-  align-items: center;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--art-border-color);
+  overflow: hidden;
 }
 
-.header-content h2 {
-  font-size: 20px;
-  color: var(--art-text-gray-900);
-  font-weight: 600;
-}
-
-.el-main {
-  background-color: var(--art-bg-color);
+.page-content {
+  flex: 1;
   overflow: auto;
-  padding: 20px;
+  padding: 16px;
 }
 </style>

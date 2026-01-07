@@ -60,7 +60,8 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .inflightBytes(networkMonitor.getInflightBytes())
                 .build();
         
-        log.debug("获取当前拥塞指标 - 算法: {}, cwnd: {}, rate: {}", 
+        // 高频调用，使用trace级别避免日志过多
+        log.trace("获取当前拥塞指标 - 算法: {}, cwnd: {}, rate: {}", 
                   vo.getAlgorithm(), vo.getCwnd(), vo.getRate());
         
         return vo;

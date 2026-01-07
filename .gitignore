@@ -9,6 +9,8 @@ doc/
 # ========================================
 greenhouse-management-server/
 greenhouse-management-web/
+qiwen-file-web/
+qiwen-file/
 
 # ========================================
 # 前端项目（smart-transfer-web）

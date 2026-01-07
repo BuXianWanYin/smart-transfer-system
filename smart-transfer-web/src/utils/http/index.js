@@ -59,7 +59,7 @@ service.interceptors.response.use(
     return res.data
   },
   error => {
-    console.error('请求错误：', error)
+    // 请求错误
     ElMessage.error(error.response?.data?.message || error.message || '网络错误')
     return Promise.reject(error)
   }

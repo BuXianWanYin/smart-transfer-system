@@ -29,13 +29,10 @@ class MonitorWebSocket {
     const port = import.meta.env.VITE_WS_PORT || '8081'
     this.url = `${protocol}//${host}:${port}/ws/monitor`
 
-    console.log('正在连接WebSocket:', this.url)
-
     try {
       this.ws = new WebSocket(this.url)
 
       this.ws.onopen = () => {
-        console.log('WebSocket连接成功')
         this.isConnecting = false
         this.reconnectAttempts = 0
         this.notifyListeners({ type: 'connected' })
@@ -45,25 +42,22 @@ class MonitorWebSocket {
         try {
           const data = JSON.parse(event.data)
           this.notifyListeners({ type: 'message', data })
-        } catch (e) {
-          console.error('解析WebSocket消息失败:', e)
+        } catch {
+          // 解析消息失败，静默处理
         }
       }
 
-      this.ws.onclose = (event) => {
-        console.log('WebSocket连接关闭:', event.code, event.reason)
+      this.ws.onclose = () => {
         this.isConnecting = false
         this.notifyListeners({ type: 'disconnected' })
         this.scheduleReconnect()
       }
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket错误:', error)
         this.isConnecting = false
         this.notifyListeners({ type: 'error', error })
       }
-    } catch (e) {
-      console.error('创建WebSocket失败:', e)
+    } catch {
       this.isConnecting = false
       this.scheduleReconnect()
     }
@@ -107,13 +101,11 @@ class MonitorWebSocket {
    */
   scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('达到最大重连次数，停止重连')
       return
     }
 
     this.reconnectAttempts++
     const delay = this.reconnectDelay * this.reconnectAttempts
-    console.log(`${delay}ms后进行第${this.reconnectAttempts}次重连...`)
 
     this.reconnectTimer = setTimeout(() => {
       this.connect()
@@ -135,8 +127,8 @@ class MonitorWebSocket {
     this.listeners.forEach(callback => {
       try {
         callback(event)
-      } catch (e) {
-        console.error('监听器回调错误:', e)
+      } catch {
+        // 监听器回调错误，静默处理
       }
     })
   }
@@ -151,4 +143,3 @@ class MonitorWebSocket {
 
 // 单例导出
 export const monitorWs = new MonitorWebSocket()
-

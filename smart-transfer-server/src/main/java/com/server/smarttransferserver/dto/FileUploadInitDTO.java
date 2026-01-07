@@ -44,5 +44,10 @@ public class FileUploadInitDTO {
     @NotNull(message = "总分片数不能为空")
     @Min(value = 1, message = "总分片数必须大于0")
     private Integer totalChunks;
+    
+    /**
+     * 目标文件夹ID，0表示根目录
+     */
+    private Long folderId;
 }
 

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -27,14 +28,45 @@ public class FileStorageServiceImpl implements IFileStorageService {
     /**
      * 文件存储根路径
      */
-    @Value("${transfer.storage-path}")
+    @Value("${transfer.storage-path:./file-storage}")
     private String storagePath;
     
     /**
      * 临时文件路径
      */
-    @Value("${transfer.temp-path}")
+    @Value("${transfer.temp-path:./file-storage/temp}")
     private String tempPath;
+
+    /**
+     * 初始化：将相对路径转为绝对路径，并创建目录
+     */
+    @PostConstruct
+    public void init() {
+        // 获取项目根目录（用户工作目录）
+        String userDir = System.getProperty("user.dir");
+        
+        // 转换为绝对路径
+        if (storagePath.startsWith("./") || storagePath.startsWith(".\\")) {
+            storagePath = Paths.get(userDir, storagePath.substring(2)).toString();
+        } else if (!Paths.get(storagePath).isAbsolute()) {
+            storagePath = Paths.get(userDir, storagePath).toString();
+        }
+        
+        if (tempPath.startsWith("./") || tempPath.startsWith(".\\")) {
+            tempPath = Paths.get(userDir, tempPath.substring(2)).toString();
+        } else if (!Paths.get(tempPath).isAbsolute()) {
+            tempPath = Paths.get(userDir, tempPath).toString();
+        }
+        
+        // 创建目录
+        try {
+            Files.createDirectories(Paths.get(storagePath));
+            Files.createDirectories(Paths.get(tempPath));
+            log.info("文件存储路径初始化完成 - 存储路径: {}, 临时路径: {}", storagePath, tempPath);
+        } catch (IOException e) {
+            log.error("创建存储目录失败", e);
+        }
+    }
     
     /**
      * 保存分片文件

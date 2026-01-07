@@ -280,7 +280,7 @@ const startDownload = async (item) => {
     // window.open(downloadUrl, '_blank')
     
   } catch (error) {
-    console.error('下载失败', error)
+    // 下载失败
     item.status = 'failed'
     item.speed = 0
     ElMessage.error(`${item.fileName} 下载失败: ${error.message || '未知错误'}`)

@@ -35,6 +35,12 @@ public class FileInfo implements Serializable {
     private String fileName;
 
     /**
+     * 文件扩展名
+     */
+    @TableField("extend_name")
+    private String extendName;
+
+    /**
      * 文件大小（字节）
      */
     @TableField("file_size")
@@ -53,6 +59,12 @@ public class FileInfo implements Serializable {
     private String filePath;
 
     /**
+     * 是否目录（0文件 1目录）
+     */
+    @TableField("is_dir")
+    private Integer isDir;
+
+    /**
      * 所属文件夹ID，0表示根目录
      */
     @TableField("folder_id")
@@ -63,6 +75,13 @@ public class FileInfo implements Serializable {
      */
     @TableField("upload_status")
     private String uploadStatus;
+
+    /**
+     * 删除标志（0正常 1已删除）
+     */
+    @TableField("del_flag")
+    @TableLogic(value = "0", delval = "1")
+    private Integer delFlag;
 
     /**
      * 创建时间

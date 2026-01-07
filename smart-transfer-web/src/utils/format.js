@@ -1,149 +1,113 @@
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import 'dayjs/locale/zh-cn'
-
-dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
-
 /**
  * 格式化工具函数
  */
 
 /**
+ * 格式化文件大小
+ * @param {number} size 文件大小（字节）
+ * @returns {string} 格式化后的文件大小
+ */
+export function formatFileSize(size) {
+  if (size === null || size === undefined) return '-'
+  if (size < 1024) return size + ' B'
+  if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB'
+  if (size < 1024 * 1024 * 1024) return (size / 1024 / 1024).toFixed(2) + ' MB'
+  return (size / 1024 / 1024 / 1024).toFixed(2) + ' GB'
+}
+
+/**
  * 格式化日期时间
- * @param {String|Date} date - 日期
- * @param {String} format - 格式
- * @returns {String}
+ * @param {string|Date} dateStr 日期字符串或Date对象
+ * @returns {string} 格式化后的日期时间
  */
-export function formatDateTime(date, format = 'YYYY-MM-DD HH:mm:ss') {
-  if (!date) return '-'
-  return dayjs(date).format(format)
-}
-
-/**
- * 格式化相对时间
- * @param {String|Date} date - 日期
- * @returns {String}
- */
-export function formatRelativeTime(date) {
-  if (!date) return '-'
-  return dayjs(date).fromNow()
-}
-
-/**
- * 格式化数字（千分位）
- * @param {Number} num - 数字
- * @returns {String}
- */
-export function formatNumber(num) {
-  if (num === null || num === undefined) return '0'
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
-
-/**
- * 格式化百分比
- * @param {Number} value - 值
- * @param {Number} digits - 小数位数
- * @returns {String}
- */
-export function formatPercent(value, digits = 2) {
-  if (value === null || value === undefined) return '0%'
-  return (value * 100).toFixed(digits) + '%'
-}
-
-/**
- * 格式化带宽（bps）
- * @param {Number} bps - 比特每秒
- * @returns {String}
- */
-export function formatBandwidth(bps) {
-  if (bps === 0) return '0 bps'
+export function formatDateTime(dateStr) {
+  if (!dateStr) return '-'
   
-  const k = 1000
-  const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps']
-  const i = Math.floor(Math.log(bps) / Math.log(k))
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return '-'
   
-  return (bps / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
 /**
- * 格式化延迟（ms）
- * @param {Number} ms - 毫秒
- * @returns {String}
+ * 格式化日期
+ * @param {string|Date} dateStr 日期字符串或Date对象
+ * @returns {string} 格式化后的日期
  */
-export function formatLatency(ms) {
-  if (ms === null || ms === undefined) return '-'
-  if (ms < 1) return '<1ms'
-  return Math.round(ms) + 'ms'
+export function formatDate(dateStr) {
+  if (!dateStr) return '-'
+  
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return '-'
+  
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  
+  return `${year}-${month}-${day}`
 }
 
 /**
- * 获取上传状态文本
- * @param {String} status - 状态码
- * @returns {String}
+ * 格式化传输速度
+ * @param {number} speed 速度（字节/秒）
+ * @returns {string} 格式化后的速度
  */
-export function getUploadStatusText(status) {
-  const statusMap = {
-    'PENDING': '待上传',
-    'UPLOADING': '上传中',
-    'COMPLETED': '已完成',
-    'FAILED': '失败',
-    'PAUSED': '已暂停'
+export function formatSpeed(speed) {
+  if (!speed || speed <= 0) return '0 B/s'
+  return formatFileSize(speed) + '/s'
+}
+
+/**
+ * 格式化时长
+ * @param {number} seconds 秒数
+ * @returns {string} 格式化后的时长
+ */
+export function formatDuration(seconds) {
+  if (!seconds || seconds < 0) return '-'
+  
+  if (seconds < 60) return `${seconds}秒`
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}分${secs}秒`
   }
-  return statusMap[status] || status
+  
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+  return `${hours}时${mins}分${secs}秒`
 }
 
 /**
- * 获取任务类型文本
- * @param {String} type - 类型码
- * @returns {String}
+ * 获取相对时间
+ * @param {string|Date} dateStr 日期字符串或Date对象
+ * @returns {string} 相对时间描述
  */
-export function getTaskTypeText(type) {
-  const typeMap = {
-    'UPLOAD': '上传',
-    'DOWNLOAD': '下载'
-  }
-  return typeMap[type] || type
+export function getRelativeTime(dateStr) {
+  if (!dateStr) return '-'
+  
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return '-'
+  
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  
+  if (seconds < 60) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 30) return `${days}天前`
+  
+  return formatDate(dateStr)
 }
-
-/**
- * 获取算法名称
- * @param {String} algorithm - 算法代码
- * @returns {String}
- */
-export function getAlgorithmName(algorithm) {
-  const algorithmMap = {
-    'CUBIC': 'CUBIC 算法',
-    'BBR': 'BBR 算法',
-    'ADAPTIVE': '自适应算法'
-  }
-  return algorithmMap[algorithm] || algorithm
-}
-
-/**
- * 获取网络质量文本和颜色
- * @param {String} quality - 质量等级
- * @returns {Object}
- */
-export function getNetworkQualityInfo(quality) {
-  const qualityMap = {
-    '优秀': { text: '优秀', color: 'success', icon: 'SuccessFilled' },
-    '良好': { text: '良好', color: 'primary', icon: 'CircleCheckFilled' },
-    '一般': { text: '一般', color: 'warning', icon: 'WarningFilled' },
-    '差': { text: '差', color: 'danger', icon: 'CircleCloseFilled' }
-  }
-  return qualityMap[quality] || { text: quality, color: 'info', icon: 'QuestionFilled' }
-}
-
-/**
- * 截断文本
- * @param {String} text - 文本
- * @param {Number} maxLength - 最大长度
- * @returns {String}
- */
-export function truncateText(text, maxLength = 50) {
-  if (!text) return ''
-  if (text.length <= maxLength) return text
-  return text.substring(0, maxLength) + '...'
-}
-

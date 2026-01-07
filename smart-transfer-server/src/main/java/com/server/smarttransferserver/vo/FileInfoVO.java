@@ -27,6 +27,11 @@ public class FileInfoVO {
     private String fileName;
     
     /**
+     * 文件扩展名
+     */
+    private String extendName;
+    
+    /**
      * 文件大小
      */
     private Long fileSize;
@@ -45,6 +50,11 @@ public class FileInfoVO {
      * 所属文件夹ID
      */
     private Long folderId;
+    
+    /**
+     * 是否目录（0文件 1目录）
+     */
+    private Integer isDir;
     
     /**
      * 上传状态

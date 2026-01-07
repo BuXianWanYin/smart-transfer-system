@@ -135,7 +135,7 @@ const fetchMetrics = async () => {
     currentMetrics.value = res
     congestionStore.updateMetrics(res)
   } catch (error) {
-    console.error('获取指标失败', error)
+    // 获取指标失败
   }
 }
 

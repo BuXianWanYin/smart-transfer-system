@@ -21,6 +21,17 @@ public interface FileUploadService {
     FileUploadInitVO initUpload(FileUploadInitDTO dto);
     
     /**
+     * 检查分片是否已上传（秒传/断点续传）
+     *
+     * @param identifier 文件唯一标识（MD5）
+     * @param totalSize 文件总大小
+     * @param filename 文件名
+     * @param totalChunks 总分片数
+     * @return 检查结果
+     */
+    FileUploadInitVO checkChunk(String identifier, Long totalSize, String filename, Integer totalChunks);
+    
+    /**
      * 上传文件分片
      *
      * @param fileId 文件ID

@@ -22,6 +22,12 @@ public class FileUploadInitVO {
     private Long fileId;
     
     /**
+     * 是否跳过上传（文件已存在，秒传）
+     * 兼容 vue-simple-uploader
+     */
+    private Boolean skipUpload;
+    
+    /**
      * 是否秒传（文件已存在）
      */
     private Boolean quickUpload;
@@ -29,7 +35,7 @@ public class FileUploadInitVO {
     /**
      * 已上传的分片列表（断点续传）
      */
-    private List<Integer> uploadedChunks;
+    private List<Integer> uploaded;
     
     /**
      * 文件路径（秒传时返回）

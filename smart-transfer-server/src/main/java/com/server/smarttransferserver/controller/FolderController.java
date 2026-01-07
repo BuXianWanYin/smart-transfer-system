@@ -43,16 +43,21 @@ public class FolderController {
 
     /**
      * 获取文件夹内容（文件夹+文件列表）
+     * @param parentId 父文件夹ID
+     * @param fileType 文件类型筛选：0-全部, 1-图片, 2-文档, 3-视频, 4-音乐, 5-其他
+     * @param pageNum 页码
+     * @param pageSize 每页数量
      */
     @GetMapping("/content")
     public Result<FolderContentVO> getFolderContent(
-            @RequestParam(required = false, defaultValue = "0") Long folderId,
+            @RequestParam(required = false, defaultValue = "0") Long parentId,
+            @RequestParam(required = false, defaultValue = "0") Integer fileType,
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "20") Integer pageSize) {
         
-        log.info("获取文件夹内容 - 文件夹ID: {}", folderId);
+        log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}", parentId, fileType);
         try {
-            FolderContentVO content = folderService.getFolderContent(folderId, pageNum, pageSize);
+            FolderContentVO content = folderService.getFolderContent(parentId, fileType, pageNum, pageSize);
             return Result.success(content);
         } catch (Exception e) {
             log.error("获取文件夹内容失败", e);

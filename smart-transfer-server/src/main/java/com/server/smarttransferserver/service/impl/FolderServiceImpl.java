@@ -16,10 +16,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.server.smarttransferserver.util.FileTypeUtil;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -77,9 +80,12 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public FolderContentVO getFolderContent(Long folderId, Integer pageNum, Integer pageSize) {
+    public FolderContentVO getFolderContent(Long folderId, Integer fileType, Integer pageNum, Integer pageSize) {
         Long currentFolderId = folderId == null ? 0L : folderId;
         String currentFolderName = "全部文件";
+        
+        // 是否按类型筛选（非全部类型时，在所有目录中搜索该类型文件）
+        boolean filterByType = fileType != null && fileType > 0 && fileType < 6;
 
         if (currentFolderId > 0) {
             Folder current = folderMapper.selectById(currentFolderId);
@@ -88,23 +94,46 @@ public class FolderServiceImpl implements FolderService {
             }
         }
 
-        // 获取子文件夹
-        List<Folder> subFolders = getFoldersByParentId(currentFolderId);
-        List<FolderVO> folderVOs = subFolders.stream().map(f -> {
-            FolderVO vo = new FolderVO();
-            BeanUtils.copyProperties(f, vo);
-            vo.setType("folder");
-            // 统计子文件夹和文件数量
-            vo.setSubFolderCount(countSubFolders(f.getId()));
-            vo.setFileCount(countFiles(f.getId()));
-            return vo;
-        }).collect(Collectors.toList());
+        // 获取子文件夹（仅在"全部"类型时显示文件夹）
+        List<FolderVO> folderVOs = new ArrayList<>();
+        if (!filterByType) {
+            List<Folder> subFolders = getFoldersByParentId(currentFolderId);
+            folderVOs = subFolders.stream().map(f -> {
+                FolderVO vo = new FolderVO();
+                BeanUtils.copyProperties(f, vo);
+                vo.setType("folder");
+                // 统计子文件夹和文件数量
+                vo.setSubFolderCount(countSubFolders(f.getId()));
+                vo.setFileCount(countFiles(f.getId()));
+                return vo;
+            }).collect(Collectors.toList());
+        }
 
-        // 获取文件（分页）
+        // 获取文件（分页）- 只查询未删除的文件
         Page<FileInfo> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<FileInfo> fileWrapper = new LambdaQueryWrapper<>();
-        fileWrapper.eq(FileInfo::getFolderId, currentFolderId)
-                   .orderByDesc(FileInfo::getCreateTime);
+        fileWrapper.eq(FileInfo::getDelFlag, 0); // 过滤已删除文件
+        
+        if (filterByType) {
+            // 按类型筛选：从所有目录搜索该类型的文件
+            Set<String> extensions = FileTypeUtil.getExtensionsByType(fileType);
+            if (!extensions.isEmpty()) {
+                fileWrapper.in(FileInfo::getExtendName, extensions);
+            } else if (fileType == FileTypeUtil.TYPE_OTHER) {
+                // "其他"类型：排除所有已知类型的扩展名
+                Set<String> allKnownExt = new java.util.HashSet<>();
+                allKnownExt.addAll(FileTypeUtil.getExtensionsByType(FileTypeUtil.TYPE_IMAGE));
+                allKnownExt.addAll(FileTypeUtil.getExtensionsByType(FileTypeUtil.TYPE_DOCUMENT));
+                allKnownExt.addAll(FileTypeUtil.getExtensionsByType(FileTypeUtil.TYPE_VIDEO));
+                allKnownExt.addAll(FileTypeUtil.getExtensionsByType(FileTypeUtil.TYPE_AUDIO));
+                fileWrapper.notIn(FileInfo::getExtendName, allKnownExt);
+            }
+        } else {
+            // 全部类型：只查询当前目录
+            fileWrapper.eq(FileInfo::getFolderId, currentFolderId);
+        }
+        
+        fileWrapper.orderByDesc(FileInfo::getCreateTime);
         Page<FileInfo> filePage = fileInfoMapper.selectPage(page, fileWrapper);
 
         List<FileInfoVO> fileVOs = filePage.getRecords().stream().map(f -> {
@@ -114,11 +143,11 @@ public class FolderServiceImpl implements FolderService {
         }).collect(Collectors.toList());
 
         // 获取面包屑
-        List<Folder> breadcrumb = getBreadcrumb(currentFolderId);
+        List<Folder> breadcrumb = filterByType ? new ArrayList<>() : getBreadcrumb(currentFolderId);
 
         return FolderContentVO.builder()
                 .currentFolderId(currentFolderId)
-                .currentFolderName(currentFolderName)
+                .currentFolderName(filterByType ? getFileTypeName(fileType) : currentFolderName)
                 .breadcrumb(breadcrumb)
                 .folders(folderVOs)
                 .files(fileVOs)
@@ -126,6 +155,21 @@ public class FolderServiceImpl implements FolderService {
                 .pageNum(pageNum)
                 .pageSize(pageSize)
                 .build();
+    }
+    
+    /**
+     * 获取文件类型名称
+     */
+    private String getFileTypeName(Integer fileType) {
+        if (fileType == null) return "全部文件";
+        switch (fileType) {
+            case 1: return "图片";
+            case 2: return "文档";
+            case 3: return "视频";
+            case 4: return "音乐";
+            case 5: return "其他";
+            default: return "全部文件";
+        }
     }
 
     @Override

@@ -218,6 +218,8 @@ const startUpload = async (item) => {
     item.status = 'uploading'
     item.fileId = initRes.fileId
     item.uploadedChunks = initRes.uploadedChunks || []
+    // 同步状态到store用于监控面板显示
+    fileStore.updateUploadStatus(item.id, 'uploading')
     
     // 上传分片
     await uploadChunks(item, chunks, fileHash)
@@ -237,7 +239,7 @@ const startUpload = async (item) => {
     fileStore.moveToCompleted(item)
     
   } catch (error) {
-    console.error('上传失败', error)
+    // 上传失败
     item.status = 'failed'
     item.speed = 0
     fileStore.updateUploadSpeed(item.id, 0)

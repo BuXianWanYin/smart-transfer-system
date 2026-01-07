@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.vo.FileInfoVO;
 
+import java.util.List;
+
 /**
  * 文件信息服务接口
  * 提供文件信息的查询、更新等功能
@@ -53,5 +55,44 @@ public interface FileInfoService extends IService<FileInfo> {
      * @param id 文件ID
      */
     void deleteFile(Long id);
+    
+    /**
+     * 搜索文件
+     *
+     * @param fileName 文件名关键词
+     * @return 文件列表
+     */
+    List<FileInfoVO> searchByFileName(String fileName);
+    
+    /**
+     * 重命名文件
+     *
+     * @param id 文件ID
+     * @param newFileName 新文件名
+     */
+    void renameFile(Long id, String newFileName);
+    
+    /**
+     * 移动文件到指定文件夹
+     *
+     * @param id 文件ID
+     * @param targetFolderId 目标文件夹ID
+     */
+    void moveFile(Long id, Long targetFolderId);
+    
+    /**
+     * 批量移动文件
+     *
+     * @param fileIds 文件ID列表
+     * @param targetFolderId 目标文件夹ID
+     */
+    void batchMoveFiles(List<Long> fileIds, Long targetFolderId);
+    
+    /**
+     * 批量删除文件（移动到回收站）
+     *
+     * @param ids 文件ID列表
+     */
+    void batchDeleteFiles(List<Long> ids);
 }
 

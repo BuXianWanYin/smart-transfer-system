@@ -115,7 +115,7 @@ public class BandwidthEstimator {
         // 计算估算带宽（使用指数加权移动平均）
         updateEstimatedBandwidth();
         
-        log.debug("带宽估算 - 当前带宽: {}字节/秒, 估算带宽: {}字节/秒", 
+        log.trace("带宽估算 - 当前带宽: {}字节/秒, 估算带宽: {}字节/秒", 
                   bandwidth, estimatedBandwidth);
     }
     

@@ -166,9 +166,14 @@ import {
 import { useCongestionStore } from '@/store/congestionStore'
 import { useFileStore } from '@/store/fileStore'
 import { monitorWs } from '@/utils/websocket'
-import { formatFileSize, formatSpeed } from '@/utils/file'
-import { formatPercent } from '@/utils/format'
+import { formatFileSize, formatSpeed } from '@/utils/format'
 import UploadPanel from './transfer/UploadPanel.vue'
+
+// 格式化百分比
+const formatPercent = (value) => {
+  if (value === null || value === undefined) return '0%'
+  return (value * 100).toFixed(2) + '%'
+}
 import DownloadPanel from './transfer/DownloadPanel.vue'
 import CompletedPanel from './transfer/CompletedPanel.vue'
 
@@ -263,8 +268,8 @@ const stopMonitoring = () => {
   monitorWs.disconnect()
 }
 
-const handleTabClick = (tab) => {
-  console.log('切换到标签:', tab.paneName)
+const handleTabClick = () => {
+  // 标签切换处理
 }
 
 const getQualityType = (quality) => {

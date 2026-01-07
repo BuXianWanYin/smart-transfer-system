@@ -46,7 +46,7 @@ export const useConfigStore = defineStore('config', () => {
       try {
         systemConfig.value = JSON.parse(saved)
       } catch (e) {
-        console.error('加载系统配置失败', e)
+        // 加载配置失败
       }
     }
   }

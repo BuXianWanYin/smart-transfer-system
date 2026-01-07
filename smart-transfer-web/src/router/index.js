@@ -13,8 +13,8 @@ const routes = [
   },
   {
     path: '/files',
-    name: 'FileList',
-    component: () => import('@/views/FileList.vue'),
+    name: 'File',
+    component: () => import('@/views/File.vue'),
     meta: { title: '文件管理' }
   },
   {
@@ -23,7 +23,7 @@ const routes = [
     component: () => import('@/views/CongestionConfig.vue'),
     meta: { title: '系统配置' }
   },
-  // 保留旧路由以兼容
+  // 兼容旧路由
   {
     path: '/upload',
     redirect: '/transfer'
@@ -31,6 +31,10 @@ const routes = [
   {
     path: '/monitor',
     redirect: '/transfer'
+  },
+  {
+    path: '/recovery',
+    redirect: '/files?fileType=6'
   }
 ]
 
