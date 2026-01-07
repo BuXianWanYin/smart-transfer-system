@@ -14,10 +14,21 @@
       <!-- 选择列 -->
       <el-table-column type="selection" width="55" v-if="fileType !== 6" />
       
-      <!-- 图标列 -->
+      <!-- 图标列（支持图片缩略图） -->
       <el-table-column label="" prop="isDir" width="56" align="center" class-name="file-icon-column">
         <template #default="{ row }">
+          <!-- 图片文件显示缩略图 -->
           <img
+            v-if="isImageFile(row)"
+            :src="getThumbnailUrl(row)"
+            class="file-thumbnail"
+            :title="'点击预览'"
+            @click="handleFileClick(row)"
+            @error="handleThumbnailError($event, row)"
+          />
+          <!-- 其他文件显示图标 -->
+          <img
+            v-else
             :src="getFileIcon(row)"
             class="file-icon"
             :title="row.isDir ? '' : '点击预览'"
@@ -35,42 +46,56 @@
         </template>
       </el-table-column>
       
-      <!-- 类型列（桌面端显示） -->
-      <el-table-column prop="extendName" label="类型" width="100" sortable show-overflow-tooltip v-if="!isMobile">
+      <!-- 类型列（可配置显示） -->
+      <el-table-column 
+        prop="extendName" 
+        label="类型" 
+        width="100" 
+        sortable 
+        show-overflow-tooltip 
+        v-if="!isMobile && visibleColumns.includes('extendName')"
+      >
         <template #default="{ row }">
           <span>{{ getFileType(row) }}</span>
         </template>
       </el-table-column>
       
-      <!-- 大小列 -->
-      <el-table-column prop="fileSize" label="大小" width="100" sortable align="right">
+      <!-- 大小列（可配置显示） -->
+      <el-table-column 
+        prop="fileSize" 
+        label="大小" 
+        width="100" 
+        sortable 
+        align="right"
+        v-if="visibleColumns.includes('fileSize')"
+      >
         <template #default="{ row }">
           {{ row.isDir === 1 ? '-' : formatSize(row.fileSize) }}
         </template>
       </el-table-column>
       
-      <!-- 修改日期列（桌面端显示） -->
+      <!-- 修改日期列（可配置显示） -->
       <el-table-column
         prop="updateTime"
         label="修改日期"
         width="180"
         sortable
         align="center"
-        v-if="fileType !== 6 && !isMobile"
+        v-if="fileType !== 6 && !isMobile && visibleColumns.includes('updateTime')"
       >
         <template #default="{ row }">
           {{ formatDate(row.updateTime || row.createTime) }}
         </template>
       </el-table-column>
       
-      <!-- 删除日期列（回收站，桌面端显示） -->
+      <!-- 删除日期列（回收站，可配置显示） -->
       <el-table-column
         prop="deleteTime"
         label="删除日期"
         width="180"
         sortable
         align="center"
-        v-if="fileType === 6 && !isMobile"
+        v-if="fileType === 6 && !isMobile && visibleColumns.includes('deleteTime')"
       >
         <template #default="{ row }">
           {{ formatDate(row.deleteTime) }}
@@ -107,9 +132,25 @@
           <el-icon><Edit /></el-icon>
           重命名
         </div>
+        <div class="right-menu-item" @click="handleMenuCopy">
+          <el-icon><CopyDocument /></el-icon>
+          复制到
+        </div>
         <div class="right-menu-item" @click="handleMenuMove">
           <el-icon><FolderOpened /></el-icon>
           移动到
+        </div>
+        <div class="right-menu-item" @click="handleMenuCodePreview" v-if="isCodeFile(contextMenuRow)">
+          <el-icon><Document /></el-icon>
+          代码预览
+        </div>
+        <div class="right-menu-item" @click="handleMenuUnzip" v-if="canUnzip(contextMenuRow)">
+          <el-icon><Files /></el-icon>
+          解压
+        </div>
+        <div class="right-menu-item" @click="handleMenuDetail">
+          <el-icon><InfoFilled /></el-icon>
+          详情
         </div>
         <div class="right-menu-item danger" @click="handleMenuDelete">
           <el-icon><Delete /></el-icon>
@@ -145,24 +186,58 @@
     
     <!-- 移动文件对话框 -->
     <MoveFileDialog v-model="moveDialogVisible" @confirm="confirmMove" />
+    
+    <!-- 复制文件对话框 -->
+    <CopyFileDialog v-model="copyDialogVisible" :files="[contextMenuRow]" @success="handleRefresh" />
+    
+    <!-- 解压文件对话框 -->
+    <UnzipDialog v-model="unzipDialogVisible" :file="contextMenuRow" @success="handleRefresh" />
+    
+    <!-- 增强版图片预览 -->
+    <ImagePreview
+      v-model="imagePreviewVisible"
+      :image-list="imageListForPreview"
+      :initial-index="imagePreviewIndex"
+    />
+    
+    <!-- 文件详情弹窗 -->
+    <FileDetailDialog
+      v-model="detailDialogVisible"
+      :file="contextMenuRow"
+      :file-type="fileType"
+      @preview="handleFileClick"
+    />
+    
+    <!-- 代码预览 -->
+    <CodePreview
+      v-model="codePreviewVisible"
+      :file="codePreviewFile"
+      :read-only="true"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { More, Download, View, Edit, FolderOpened, Delete, RefreshLeft } from '@element-plus/icons-vue'
+import { More, Download, View, Edit, FolderOpened, Delete, RefreshLeft, CopyDocument, Files, InfoFilled, Document } from '@element-plus/icons-vue'
 import MoveFileDialog from './MoveFileDialog.vue'
+import CopyFileDialog from './CopyFileDialog.vue'
+import UnzipDialog from './UnzipDialog.vue'
+import ImagePreview from './ImagePreview.vue'
+import FileDetailDialog from './FileDetailDialog.vue'
+import CodePreview from './CodePreview.vue'
 import { formatFileSize, formatDateTime } from '@/utils/format'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
-import { renameFile, moveFile, deleteFile } from '@/api/fileApi'
+import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 
 const props = defineProps({
   fileType: { type: Number, required: true },
   filePath: { type: String, required: true },
   fileList: { type: Array, required: true },
-  loading: { type: Boolean, required: true }
+  loading: { type: Boolean, required: true },
+  visibleColumns: { type: Array, default: () => ['extendName', 'fileSize', 'updateTime'] }
 })
 
 const emit = defineEmits(['refresh', 'row-click', 'selection-change'])
@@ -215,6 +290,25 @@ const formatDate = (date) => formatDateTime(date)
 const getFileIcon = (row) => {
   if (row.isDir === 1) return '/icons/folder.svg'
   return getFileIconByType(row.extendName)
+}
+
+// 判断是否是图片文件
+const isImageFile = (row) => {
+  if (row.isDir === 1) return false
+  const ext = (row.extendName || '').toLowerCase()
+  return imageExtensions.includes(ext)
+}
+
+// 获取缩略图 URL
+const getThumbnailUrl = (row) => {
+  return getPreviewUrl(row.id)
+}
+
+// 缩略图加载失败时显示图标
+const handleThumbnailError = (event, row) => {
+  event.target.src = getFileIconByType(row.extendName)
+  event.target.classList.remove('file-thumbnail')
+  event.target.classList.add('file-icon')
 }
 
 // 获取文件名
@@ -375,6 +469,89 @@ const confirmMove = async (targetFolderId) => {
   }
 }
 
+// 复制文件
+const copyDialogVisible = ref(false)
+const handleMenuCopy = () => {
+  copyDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 解压文件
+const unzipDialogVisible = ref(false)
+const zipExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2']
+
+const canUnzip = (row) => {
+  if (!row || row.isDir === 1) return false
+  const ext = (row.extendName || '').toLowerCase()
+  return zipExtensions.includes(ext)
+}
+
+const handleMenuUnzip = () => {
+  unzipDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 文件详情
+const detailDialogVisible = ref(false)
+const handleMenuDetail = () => {
+  detailDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 代码预览菜单
+const handleMenuCodePreview = () => {
+  openCodePreview(contextMenuRow.value)
+  closeContextMenu()
+}
+
+// 代码预览
+const codePreviewVisible = ref(false)
+const codePreviewFile = ref(null)
+const codeExtensions = ['js', 'ts', 'vue', 'jsx', 'tsx', 'json', 'html', 'css', 'scss', 'less', 
+  'java', 'py', 'go', 'c', 'cpp', 'h', 'hpp', 'sql', 'sh', 'bash', 'xml', 'yml', 'yaml', 'md', 
+  'txt', 'ini', 'conf', 'properties', 'php', 'rb', 'rs', 'swift', 'kt']
+
+const isCodeFile = (row) => {
+  if (!row || row.isDir === 1) return false
+  const ext = (row.extendName || '').toLowerCase()
+  return codeExtensions.includes(ext)
+}
+
+const openCodePreview = (file) => {
+  codePreviewFile.value = file
+  codePreviewVisible.value = true
+}
+
+// 图片预览增强
+const imagePreviewVisible = ref(false)
+const imagePreviewIndex = ref(0)
+const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg']
+
+const imageListForPreview = computed(() => {
+  return props.fileList.filter(item => {
+    if (item.isDir === 1) return false
+    const ext = (item.extendName || '').toLowerCase()
+    return imageExtensions.includes(ext)
+  }).map(item => ({
+    ...item,
+    fileUrl: getPreviewUrl(item.id)
+  }))
+})
+
+// 打开增强版图片预览
+const openImagePreview = (file) => {
+  const index = imageListForPreview.value.findIndex(img => img.id === file.id)
+  if (index >= 0) {
+    imagePreviewIndex.value = index
+    imagePreviewVisible.value = true
+  }
+}
+
+// 刷新
+const handleRefresh = () => {
+  emit('refresh')
+}
+
 // 窗口大小变化
 const handleResize = () => {
   screenWidth.value = window.innerWidth
@@ -450,6 +627,21 @@ defineExpose({
     height: 32px;
     cursor: pointer;
     vertical-align: middle;
+  }
+  
+  .file-thumbnail {
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    vertical-align: middle;
+    object-fit: cover;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+    
+    &:hover {
+      transform: scale(1.1);
+    }
   }
   
   .file-name {

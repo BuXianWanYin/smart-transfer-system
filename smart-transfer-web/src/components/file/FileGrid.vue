@@ -4,7 +4,7 @@
     <el-empty v-if="fileList.length === 0" description="暂无文件" />
     
     <!-- 网格列表 -->
-    <div class="grid-container" v-else>
+    <div class="grid-container" :style="gridStyle" v-else>
       <div
         class="grid-item"
         :class="{ selected: selectedIds.includes(item.id) }"
@@ -20,7 +20,7 @@
         </div>
         
         <!-- 图标 -->
-        <div class="icon-wrapper">
+        <div class="icon-wrapper" :style="iconStyle">
           <img :src="getFileIcon(item)" class="file-icon" />
         </div>
         
@@ -35,32 +35,59 @@
     <div
       v-if="contextMenuVisible"
       class="right-menu-list"
-      :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+      :style="menuStyle"
     >
-      <div class="right-menu-item" @click="handleMenuDownload" v-if="contextMenuRow?.isDir !== 1">
-        <el-icon><Download /></el-icon>
-        下载
-      </div>
-      <div class="right-menu-item" @click="handleMenuPreview" v-if="canPreview(contextMenuRow)">
-        <el-icon><View /></el-icon>
-        预览
-      </div>
-      <div class="right-menu-item" @click="handleMenuRename">
-        <el-icon><Edit /></el-icon>
-        重命名
-      </div>
-      <div class="right-menu-item" @click="handleMenuMove" v-if="fileType !== 6">
-        <el-icon><FolderOpened /></el-icon>
-        移动到
-      </div>
-      <div class="right-menu-item danger" @click="handleMenuDelete">
-        <el-icon><Delete /></el-icon>
-        {{ fileType === 6 ? '彻底删除' : '删除' }}
-      </div>
-      <div class="right-menu-item" @click="handleMenuRestore" v-if="fileType === 6">
-        <el-icon><RefreshLeft /></el-icon>
-        还原
-      </div>
+      <!-- 普通文件菜单 -->
+      <template v-if="fileType !== 6">
+        <div class="right-menu-item" @click="handleMenuDownload" v-if="contextMenuRow?.isDir !== 1">
+          <el-icon><Download /></el-icon>
+          下载
+        </div>
+        <div class="right-menu-item" @click="handleMenuPreview" v-if="canPreview(contextMenuRow)">
+          <el-icon><View /></el-icon>
+          预览
+        </div>
+        <div class="right-menu-item" @click="handleMenuCodePreview" v-if="isCodeFile(contextMenuRow)">
+          <el-icon><Document /></el-icon>
+          代码预览
+        </div>
+        <div class="right-menu-item" @click="handleMenuRename">
+          <el-icon><Edit /></el-icon>
+          重命名
+        </div>
+        <div class="right-menu-item" @click="handleMenuCopy">
+          <el-icon><CopyDocument /></el-icon>
+          复制到
+        </div>
+        <div class="right-menu-item" @click="handleMenuMove">
+          <el-icon><FolderOpened /></el-icon>
+          移动到
+        </div>
+        <div class="right-menu-item" @click="handleMenuUnzip" v-if="canUnzip(contextMenuRow)">
+          <el-icon><Files /></el-icon>
+          解压
+        </div>
+        <div class="right-menu-item" @click="handleMenuDetail">
+          <el-icon><InfoFilled /></el-icon>
+          详情
+        </div>
+        <div class="right-menu-item danger" @click="handleMenuDelete">
+          <el-icon><Delete /></el-icon>
+          删除
+        </div>
+      </template>
+      
+      <!-- 回收站菜单 -->
+      <template v-else>
+        <div class="right-menu-item" @click="handleMenuRestore">
+          <el-icon><RefreshLeft /></el-icon>
+          还原
+        </div>
+        <div class="right-menu-item danger" @click="handleMenuDelete">
+          <el-icon><Delete /></el-icon>
+          彻底删除
+        </div>
+      </template>
     </div>
     
     <!-- 重命名对话框 -->
@@ -78,14 +105,39 @@
     
     <!-- 移动文件对话框 -->
     <MoveFileDialog v-model="moveDialogVisible" @confirm="confirmMove" />
+    
+    <!-- 复制文件对话框 -->
+    <CopyFileDialog v-model="copyDialogVisible" :files="[contextMenuRow]" @success="handleRefresh" />
+    
+    <!-- 解压文件对话框 -->
+    <UnzipDialog v-model="unzipDialogVisible" :file="contextMenuRow" @success="handleRefresh" />
+    
+    <!-- 文件详情弹窗 -->
+    <FileDetailDialog
+      v-model="detailDialogVisible"
+      :file="contextMenuRow"
+      :file-type="fileType"
+      @preview="handleItemDblClick"
+    />
+    
+    <!-- 代码预览 -->
+    <CodePreview
+      v-model="codePreviewVisible"
+      :file="codePreviewFile"
+      :read-only="true"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, View, Edit, FolderOpened, Delete, RefreshLeft } from '@element-plus/icons-vue'
+import { Download, View, Edit, FolderOpened, Delete, RefreshLeft, CopyDocument, Files, InfoFilled, Document } from '@element-plus/icons-vue'
 import MoveFileDialog from './MoveFileDialog.vue'
+import CopyFileDialog from './CopyFileDialog.vue'
+import UnzipDialog from './UnzipDialog.vue'
+import FileDetailDialog from './FileDetailDialog.vue'
+import CodePreview from './CodePreview.vue'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
 import { renameFile, moveFile, deleteFile } from '@/api/fileApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
@@ -94,7 +146,8 @@ const props = defineProps({
   fileType: { type: Number, required: true },
   filePath: { type: String, required: true },
   fileList: { type: Array, required: true },
-  loading: { type: Boolean, required: true }
+  loading: { type: Boolean, required: true },
+  gridSize: { type: Number, default: 120 }
 })
 
 const emit = defineEmits(['refresh', 'row-click', 'selection-change'])
@@ -103,10 +156,69 @@ const emit = defineEmits(['refresh', 'row-click', 'selection-change'])
 const selectedIds = ref([])
 const selectedItems = computed(() => props.fileList.filter(item => selectedIds.value.includes(item.id)))
 
+// 网格样式 - 根据 gridSize 计算
+const gridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(auto-fill, minmax(${props.gridSize}px, 1fr))`
+}))
+
+// 图标样式
+const iconStyle = computed(() => ({
+  width: `${props.gridSize * 0.6}px`,
+  height: `${props.gridSize * 0.6}px`
+}))
+
 // 右键菜单
 const contextMenuVisible = ref(false)
 const contextMenuPos = ref({ x: 0, y: 0 })
 const contextMenuRow = ref(null)
+
+// 计算菜单位置，防止溢出屏幕
+const menuStyle = computed(() => {
+  const menuWidth = 140
+  const menuHeight = 300
+  let x = contextMenuPos.value.x
+  let y = contextMenuPos.value.y
+  
+  if (x + menuWidth > window.innerWidth) {
+    x = window.innerWidth - menuWidth - 10
+  }
+  if (y + menuHeight > window.innerHeight) {
+    y = window.innerHeight - menuHeight - 10
+  }
+  
+  return { left: x + 'px', top: y + 'px' }
+})
+
+// 复制对话框
+const copyDialogVisible = ref(false)
+
+// 解压对话框
+const unzipDialogVisible = ref(false)
+const zipExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2']
+
+// 文件详情
+const detailDialogVisible = ref(false)
+
+// 代码预览
+const codePreviewVisible = ref(false)
+const codePreviewFile = ref(null)
+const codeExtensions = ['js', 'ts', 'vue', 'jsx', 'tsx', 'json', 'html', 'css', 'scss', 'less', 
+  'java', 'py', 'go', 'c', 'cpp', 'h', 'hpp', 'sql', 'sh', 'bash', 'xml', 'yml', 'yaml', 'md', 
+  'txt', 'ini', 'conf', 'properties', 'php', 'rb', 'rs', 'swift', 'kt']
+
+// 判断是否可解压
+const canUnzip = (row) => {
+  if (!row || row.isDir === 1) return false
+  const ext = (row.extendName || '').toLowerCase()
+  return zipExtensions.includes(ext)
+}
+
+// 判断是否是代码文件
+const isCodeFile = (row) => {
+  if (!row || row.isDir === 1) return false
+  const ext = (row.extendName || '').toLowerCase()
+  return codeExtensions.includes(ext)
+}
 
 // 重命名
 const renameVisible = ref(false)
@@ -242,6 +354,36 @@ const handleMenuRestore = async () => {
   }
 }
 
+// 复制文件
+const handleMenuCopy = () => {
+  copyDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 解压文件
+const handleMenuUnzip = () => {
+  unzipDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 文件详情
+const handleMenuDetail = () => {
+  detailDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 代码预览
+const handleMenuCodePreview = () => {
+  codePreviewFile.value = contextMenuRow.value
+  codePreviewVisible.value = true
+  closeContextMenu()
+}
+
+// 刷新
+const handleRefresh = () => {
+  emit('refresh')
+}
+
 // 确认重命名
 const confirmRename = async () => {
   try {
@@ -297,7 +439,6 @@ onUnmounted(() => {
   
   .grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 16px;
     
     .grid-item {
@@ -333,11 +474,10 @@ onUnmounted(() => {
       }
       
       .icon-wrapper {
-        width: 64px;
-        height: 64px;
         display: flex;
         align-items: center;
         justify-content: center;
+        transition: all 0.2s;
         
         .file-icon {
           max-width: 100%;

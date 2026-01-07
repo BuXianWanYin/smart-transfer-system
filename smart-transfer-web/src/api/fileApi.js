@@ -247,3 +247,50 @@ export function deleteTask(taskId) {
     url: `/file/task/${taskId}`
   })
 }
+
+/**
+ * 复制文件
+ * @param {Object} data - 包含文件ID和目标文件夹ID
+ * @returns {Promise}
+ */
+export function copyFile(data) {
+  return request.post({
+    url: '/file/copy',
+    data
+  })
+}
+
+/**
+ * 批量复制文件
+ * @param {Object} data - 包含文件ID列表和目标文件夹ID
+ * @returns {Promise}
+ */
+export function batchCopyFiles(data) {
+  return request.post({
+    url: '/file/copy/batch',
+    data
+  })
+}
+
+/**
+ * 解压文件
+ * @param {Object} data - 解压参数
+ * @returns {Promise}
+ */
+export function unzipFile(data) {
+  return request.post({
+    url: '/file/unzip',
+    data,
+    timeout: 0 // 解压可能需要较长时间
+  })
+}
+
+/**
+ * 获取批量下载URL
+ * @param {Array<Number>} ids - 文件ID列表
+ * @returns {String} - 批量下载URL
+ */
+export function getBatchDownloadUrl(ids) {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  return `${baseURL}/file/download/batch?ids=${ids.join(',')}`
+}

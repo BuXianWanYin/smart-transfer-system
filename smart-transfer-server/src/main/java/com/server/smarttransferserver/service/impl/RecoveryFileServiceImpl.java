@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.server.smarttransferserver.util.UserContextHolder;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +33,11 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
 
     @Override
     public List<RecoveryFile> getRecoveryFileList() {
+        Long userId = UserContextHolder.getUserId();
         LambdaQueryWrapper<RecoveryFile> queryWrapper = new LambdaQueryWrapper<>();
+        if (userId != null) {
+            queryWrapper.eq(RecoveryFile::getUserId, userId);
+        }
         queryWrapper.orderByDesc(RecoveryFile::getDeleteTime);
         return list(queryWrapper);
     }
@@ -39,6 +45,7 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteFileToRecovery(Long fileId) {
+        Long userId = UserContextHolder.getUserId();
         FileInfo fileInfo = fileInfoMapper.selectById(fileId);
         if (fileInfo == null) {
             log.warn("文件不存在，fileId: {}", fileId);
@@ -47,6 +54,7 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
 
         // 创建回收站记录
         RecoveryFile recoveryFile = RecoveryFile.builder()
+                .userId(userId)
                 .fileId(fileInfo.getId())
                 .fileName(fileInfo.getFileName())
                 .extendName(fileInfo.getExtendName())
@@ -62,12 +70,13 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
         // 标记文件为已删除（使用原生SQL绕过@TableLogic）
         fileInfoMapper.updateDelFlag(fileId, 1);
 
-        log.info("文件已移至回收站，fileId: {}, fileName: {}", fileId, fileInfo.getFileName());
+        log.info("文件已移至回收站，fileId: {}, fileName: {}, userId: {}", fileId, fileInfo.getFileName(), userId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchDeleteToRecovery(List<Long> fileIds) {
+        Long userId = UserContextHolder.getUserId();
         String batchNum = UUID.randomUUID().toString().replace("-", "");
         for (Long fileId : fileIds) {
             FileInfo fileInfo = fileInfoMapper.selectById(fileId);
@@ -77,6 +86,7 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
 
             // 创建回收站记录
             RecoveryFile recoveryFile = RecoveryFile.builder()
+                    .userId(userId)
                     .fileId(fileInfo.getId())
                     .fileName(fileInfo.getFileName())
                     .extendName(fileInfo.getExtendName())
@@ -92,7 +102,7 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
             // 标记文件为已删除（使用原生SQL绕过@TableLogic）
             fileInfoMapper.updateDelFlag(fileId, 1);
         }
-        log.info("批量删除文件到回收站，数量: {}, batchNum: {}", fileIds.size(), batchNum);
+        log.info("批量删除文件到回收站，数量: {}, batchNum: {}, userId: {}", fileIds.size(), batchNum, userId);
     }
 
     @Override
@@ -132,14 +142,22 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void clearRecoveryBin() {
-        List<RecoveryFile> recoveryFiles = list();
+        Long userId = UserContextHolder.getUserId();
+        
+        // 只清空当前用户的回收站
+        LambdaQueryWrapper<RecoveryFile> wrapper = new LambdaQueryWrapper<>();
+        if (userId != null) {
+            wrapper.eq(RecoveryFile::getUserId, userId);
+        }
+        
+        List<RecoveryFile> recoveryFiles = list(wrapper);
         for (RecoveryFile recoveryFile : recoveryFiles) {
             // 彻底删除文件记录（物理删除）
             fileInfoMapper.deletePhysically(recoveryFile.getFileId());
         }
         // 清空回收站
-        remove(new LambdaQueryWrapper<>());
-        log.info("回收站已清空，删除文件数量: {}", recoveryFiles.size());
+        remove(wrapper);
+        log.info("回收站已清空，删除文件数量: {}, userId: {}", recoveryFiles.size(), userId);
     }
 }
 

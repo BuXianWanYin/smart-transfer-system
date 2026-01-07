@@ -54,5 +54,11 @@ public interface FolderService {
      * 移动文件夹
      */
     void moveFolderTo(Long folderId, Long targetFolderId);
+    
+    /**
+     * 获取文件夹树结构
+     * @return 文件夹树
+     */
+    Object getFolderTree();
 }
 

@@ -27,6 +27,13 @@ export default defineConfig(({ mode }) => {
       '@': resolve(__dirname, 'src')
     }
   },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern' // 使用新版 Sass API，消除弃用警告
+      }
+    }
+  },
   server: {
     port: Number(env.VITE_APP_PORT) || 3000,
     open: true,

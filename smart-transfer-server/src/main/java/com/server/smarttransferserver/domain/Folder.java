@@ -28,6 +28,9 @@ public class Folder implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
+    @TableField(value = "user_id")
+    private Long userId;
+
     @TableField(value = "folder_name")
     private String folderName;
 

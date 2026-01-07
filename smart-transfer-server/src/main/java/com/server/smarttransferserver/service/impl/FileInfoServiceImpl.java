@@ -17,9 +17,19 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * 文件信息服务实现
@@ -34,6 +44,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Lazy
     @Autowired
     private RecoveryFileService recoveryFileService;
+    
+    @Autowired
+    private com.server.smarttransferserver.service.FolderService folderService;
+    
+    @org.springframework.beans.factory.annotation.Value("${file.upload.path:./uploads}")
+    private String uploadPath;
     
     /**
      * 根据ID获取文件信息
@@ -214,6 +230,210 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     public void batchDeleteFiles(List<Long> ids) {
         recoveryFileService.batchDeleteToRecovery(ids);
         log.info("批量删除文件到回收站 - 数量: {}", ids.size());
+    }
+    
+    /**
+     * 复制文件
+     *
+     * @param fileId 文件ID
+     * @param targetFolderId 目标文件夹ID
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void copyFile(Long fileId, Long targetFolderId) {
+        FileInfo sourceFile = getById(fileId);
+        if (sourceFile == null) {
+            throw new RuntimeException("源文件不存在");
+        }
+        
+        try {
+            // 复制物理文件
+            File source = new File(sourceFile.getFilePath());
+            if (!source.exists()) {
+                throw new RuntimeException("源文件物理路径不存在");
+            }
+            
+            // 生成新的文件路径
+            String newFileName = generateCopyFileName(sourceFile.getFileName());
+            String newFilePath = uploadPath + File.separator + UUID.randomUUID() + 
+                    "_" + newFileName;
+            File dest = new File(newFilePath);
+            dest.getParentFile().mkdirs();
+            
+            // 复制文件内容
+            Files.copy(source.toPath(), dest.toPath());
+            
+            // 创建新的文件记录
+            FileInfo newFile = new FileInfo();
+            newFile.setFileName(newFileName);
+            newFile.setExtendName(sourceFile.getExtendName());
+            newFile.setFileSize(sourceFile.getFileSize());
+            newFile.setFileHash(sourceFile.getFileHash());
+            newFile.setFilePath(newFilePath);
+            newFile.setIsDir(0);
+            newFile.setFolderId(targetFolderId);
+            newFile.setUploadStatus("COMPLETED");
+            newFile.setDelFlag(0);
+            newFile.setCreateTime(LocalDateTime.now());
+            newFile.setUpdateTime(LocalDateTime.now());
+            
+            save(newFile);
+            log.info("文件复制成功 - 源ID: {}, 新ID: {}, 目标文件夹: {}", 
+                    fileId, newFile.getId(), targetFolderId);
+            
+        } catch (IOException e) {
+            log.error("复制文件失败", e);
+            throw new RuntimeException("复制文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 生成复制文件的新名称
+     */
+    private String generateCopyFileName(String originalName) {
+        int dotIndex = originalName.lastIndexOf('.');
+        if (dotIndex > 0) {
+            String baseName = originalName.substring(0, dotIndex);
+            String extension = originalName.substring(dotIndex);
+            return baseName + "_副本" + extension;
+        } else {
+            return originalName + "_副本";
+        }
+    }
+    
+    /**
+     * 批量复制文件
+     *
+     * @param fileIds 文件ID列表
+     * @param targetFolderId 目标文件夹ID
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchCopyFiles(List<Long> fileIds, Long targetFolderId) {
+        for (Long fileId : fileIds) {
+            copyFile(fileId, targetFolderId);
+        }
+        log.info("批量复制文件成功 - 数量: {}, 目标文件夹: {}", fileIds.size(), targetFolderId);
+    }
+    
+    /**
+     * 解压文件
+     *
+     * @param fileId 文件ID
+     * @param unzipMode 解压模式：1-当前文件夹，2-新建文件夹，3-指定路径
+     * @param folderName 新建的文件夹名称（模式2使用）
+     * @param targetFolderId 目标文件夹ID（模式3使用）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unzipFile(Long fileId, Integer unzipMode, String folderName, Long targetFolderId) {
+        FileInfo fileInfo = getById(fileId);
+        if (fileInfo == null) {
+            throw new RuntimeException("文件不存在");
+        }
+        
+        String extendName = fileInfo.getExtendName();
+        if (extendName == null || !extendName.equalsIgnoreCase("zip")) {
+            throw new RuntimeException("仅支持解压 ZIP 格式文件");
+        }
+        
+        File zipFile = new File(fileInfo.getFilePath());
+        if (!zipFile.exists()) {
+            throw new RuntimeException("压缩文件不存在");
+        }
+        
+        // 确定目标文件夹ID
+        Long destFolderId;
+        switch (unzipMode) {
+            case 1: // 当前文件夹
+                destFolderId = fileInfo.getFolderId();
+                break;
+            case 2: // 新建文件夹
+                com.server.smarttransferserver.domain.Folder newFolder = 
+                        folderService.createFolder(folderName, fileInfo.getFolderId());
+                destFolderId = newFolder.getId();
+                break;
+            case 3: // 指定路径
+                destFolderId = targetFolderId;
+                break;
+            default:
+                throw new RuntimeException("无效的解压模式");
+        }
+        
+        // 解压文件
+        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    // 跳过目录，可以后续扩展支持
+                    continue;
+                }
+                
+                String entryName = entry.getName();
+                // 处理嵌套目录中的文件名
+                int lastSlash = entryName.lastIndexOf('/');
+                if (lastSlash >= 0) {
+                    entryName = entryName.substring(lastSlash + 1);
+                }
+                
+                if (entryName.isEmpty()) {
+                    continue;
+                }
+                
+                // 创建解压后的文件
+                String newFilePath = uploadPath + File.separator + UUID.randomUUID() + 
+                        "_" + entryName;
+                File newFile = new File(newFilePath);
+                newFile.getParentFile().mkdirs();
+                
+                // 写入文件内容
+                try (FileOutputStream fos = new FileOutputStream(newFile)) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = zis.read(buffer)) > 0) {
+                        fos.write(buffer, 0, len);
+                    }
+                }
+                
+                // 创建文件记录
+                FileInfo extractedFile = new FileInfo();
+                extractedFile.setFileName(entryName);
+                extractedFile.setExtendName(extractExtendName(entryName));
+                extractedFile.setFileSize(newFile.length());
+                extractedFile.setFilePath(newFilePath);
+                extractedFile.setIsDir(0);
+                extractedFile.setFolderId(destFolderId);
+                extractedFile.setUploadStatus("COMPLETED");
+                extractedFile.setDelFlag(0);
+                extractedFile.setCreateTime(LocalDateTime.now());
+                extractedFile.setUpdateTime(LocalDateTime.now());
+                
+                save(extractedFile);
+                log.info("解压文件 - 文件名: {}, ID: {}", entryName, extractedFile.getId());
+                
+                zis.closeEntry();
+            }
+            
+            log.info("解压完成 - 源文件ID: {}, 目标文件夹: {}", fileId, destFolderId);
+            
+        } catch (IOException e) {
+            log.error("解压文件失败", e);
+            throw new RuntimeException("解压文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 从文件名中提取扩展名
+     */
+    private String extractExtendName(String fileName) {
+        if (fileName == null || fileName.isEmpty()) {
+            return null;
+        }
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex > 0 && dotIndex < fileName.length() - 1) {
+            return fileName.substring(dotIndex + 1).toLowerCase();
+        }
+        return null;
     }
 }
 

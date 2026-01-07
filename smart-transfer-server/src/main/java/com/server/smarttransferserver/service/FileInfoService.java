@@ -94,5 +94,31 @@ public interface FileInfoService extends IService<FileInfo> {
      * @param ids 文件ID列表
      */
     void batchDeleteFiles(List<Long> ids);
+    
+    /**
+     * 复制文件
+     *
+     * @param fileId 文件ID
+     * @param targetFolderId 目标文件夹ID
+     */
+    void copyFile(Long fileId, Long targetFolderId);
+    
+    /**
+     * 批量复制文件
+     *
+     * @param fileIds 文件ID列表
+     * @param targetFolderId 目标文件夹ID
+     */
+    void batchCopyFiles(List<Long> fileIds, Long targetFolderId);
+    
+    /**
+     * 解压文件
+     *
+     * @param fileId 文件ID
+     * @param unzipMode 解压模式：1-当前文件夹，2-新建文件夹，3-指定路径
+     * @param folderName 新建的文件夹名称（模式2使用）
+     * @param targetFolderId 目标文件夹ID（模式3使用）
+     */
+    void unzipFile(Long fileId, Integer unzipMode, String folderName, Long targetFolderId);
 }
 

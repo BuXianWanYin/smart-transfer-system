@@ -168,5 +168,20 @@ public class FolderController {
             return Result.error(e.getMessage());
         }
     }
+    
+    /**
+     * 获取文件夹树
+     */
+    @GetMapping("/tree")
+    public Result<Object> getFolderTree() {
+        log.info("获取文件夹树");
+        try {
+            Object tree = folderService.getFolderTree();
+            return Result.success(tree);
+        } catch (Exception e) {
+            log.error("获取文件夹树失败", e);
+            return Result.error(e.getMessage());
+        }
+    }
 }
 

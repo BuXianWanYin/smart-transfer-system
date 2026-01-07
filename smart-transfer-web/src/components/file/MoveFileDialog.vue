@@ -1,59 +1,90 @@
 <template>
+  <!-- 移动文件-选择目标路径 -->
   <el-dialog
     v-model="visible"
-    title="移动到"
+    title="选择目标路径"
     width="500px"
     :close-on-click-modal="false"
-    @open="loadFolders"
+    @open="handleDialogOpen"
   >
     <div class="move-dialog-content">
-      <!-- 面包屑 -->
-      <div class="folder-breadcrumb">
-        <span class="breadcrumb-item" @click="navigateToRoot">
-          <el-icon><HomeFilled /></el-icon>
-          全部文件
-        </span>
-        <template v-for="(folder, index) in currentPath" :key="folder.id">
-          <span class="separator">/</span>
-          <span 
-            class="breadcrumb-item"
-            :class="{ 'is-current': index === currentPath.length - 1 }"
-            @click="navigateTo(index)"
-          >
-            {{ folder.folderName }}
-          </span>
-        </template>
+      <!-- 选择的目标路径 -->
+      <div class="target-path">
+        <span class="label">目标路径：</span>
+        <el-input
+          class="content"
+          v-model="targetPath"
+          readonly
+          size="small"
+          placeholder="请选择目标文件夹"
+        />
       </div>
       
-      <!-- 文件夹列表 -->
-      <div class="folder-list" v-loading="loading">
-        <el-empty v-if="folderList.length === 0" description="暂无文件夹" />
-        <div
-          class="folder-item"
-          v-for="folder in folderList"
-          :key="folder.id"
-          @click="selectFolder(folder)"
-          @dblclick="enterFolder(folder)"
+      <!-- 文件目录树 -->
+      <div class="tree-wrapper" v-loading="loading">
+        <el-tree
+          ref="treeRef"
+          :data="fileTree"
+          :props="treeProps"
+          :highlight-current="true"
+          :expand-on-click-node="false"
+          :default-expanded-keys="defaultExpandedKeys"
+          node-key="id"
+          @node-click="handleNodeClick"
         >
-          <el-icon class="folder-icon"><Folder /></el-icon>
-          <span class="folder-name">{{ folder.folderName }}</span>
-        </div>
+          <template #default="{ node, data }">
+            <span class="custom-tree-node">
+              <el-icon class="folder-icon"><Folder /></el-icon>
+              <span class="label">{{ node.label }}</span>
+              <el-button
+                class="add-folder-btn"
+                type="primary"
+                link
+                size="small"
+                @click.stop="handleAddFolder(data)"
+              >
+                新建文件夹
+              </el-button>
+            </span>
+          </template>
+        </el-tree>
       </div>
     </div>
     
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" @click="confirmMove">
-        移动到此处
+      <el-button type="primary" :loading="confirmLoading" @click="handleConfirm">
+        确定
       </el-button>
     </template>
+    
+    <!-- 新建文件夹对话框 -->
+    <el-dialog
+      v-model="addFolderVisible"
+      title="新建文件夹"
+      width="400px"
+      append-to-body
+    >
+      <el-form ref="addFolderFormRef" :model="addFolderForm" :rules="addFolderRules">
+        <el-form-item label="文件夹名称" prop="folderName">
+          <el-input v-model="addFolderForm.folderName" placeholder="请输入文件夹名称" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addFolderVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addFolderLoading" @click="confirmAddFolder">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { HomeFilled, Folder } from '@element-plus/icons-vue'
-import { getFolderList } from '@/api/folderApi'
+import { ref, computed, nextTick } from 'vue'
+import { Folder } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { getFolderTree, createFolder } from '@/api/folderApi'
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true }
@@ -66,129 +97,183 @@ const visible = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
-// 文件夹列表
-const folderList = ref([])
+// 树形组件配置
+const treeRef = ref(null)
+const treeProps = {
+  children: 'children',
+  label: 'label'
+}
+
+// 数据
 const loading = ref(false)
+const confirmLoading = ref(false)
+const fileTree = ref([])
+const defaultExpandedKeys = ref([0])
+const targetPath = ref('/')
+const selectedFolderId = ref(0)
 
-// 当前路径
-const currentPath = ref([])
-const currentFolderId = computed(() => {
-  if (currentPath.value.length === 0) return 0
-  return currentPath.value[currentPath.value.length - 1].id
-})
+// 新建文件夹
+const addFolderVisible = ref(false)
+const addFolderLoading = ref(false)
+const addFolderFormRef = ref(null)
+const addFolderForm = ref({ folderName: '' })
+const addFolderRules = {
+  folderName: [{ required: true, message: '请输入文件夹名称', trigger: 'blur' }]
+}
+const addFolderParentId = ref(0)
 
-// 加载文件夹
-const loadFolders = async () => {
+// 对话框打开时初始化
+const handleDialogOpen = () => {
+  targetPath.value = '/'
+  selectedFolderId.value = 0
+  initFileTree()
+}
+
+// 初始化文件夹树
+const initFileTree = async () => {
   loading.value = true
   try {
-    const res = await getFolderList({ parentId: currentFolderId.value })
-    // http工具自动解包 res.data，所以 res 直接就是文件夹数组
-    folderList.value = Array.isArray(res) ? res : []
+    const tree = await getFolderTree()
+    // 后端返回的就是完整的树结构
+    fileTree.value = tree ? [tree] : []
+    defaultExpandedKeys.value = [0]
   } catch (error) {
-    folderList.value = []
+    ElMessage.error('加载文件夹失败')
+    fileTree.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 导航到根目录
-const navigateToRoot = () => {
-  currentPath.value = []
-  loadFolders()
+// 节点点击
+const handleNodeClick = (data) => {
+  targetPath.value = data.path || '/'
+  selectedFolderId.value = data.id
+  
+  // 高亮选中节点
+  nextTick(() => {
+    treeRef.value?.setCurrentKey(data.id)
+  })
 }
 
-// 导航到指定层级
-const navigateTo = (index) => {
-  currentPath.value = currentPath.value.slice(0, index + 1)
-  loadFolders()
+// 新建文件夹按钮点击
+const handleAddFolder = (data) => {
+  addFolderParentId.value = data.id
+  addFolderForm.value.folderName = ''
+  addFolderVisible.value = true
 }
 
-// 选择文件夹
-const selectFolder = (folder) => {
-  // 单击选中高亮（可选实现）
-}
-
-// 进入文件夹
-const enterFolder = (folder) => {
-  currentPath.value.push(folder)
-  loadFolders()
+// 确认新建文件夹
+const confirmAddFolder = async () => {
+  try {
+    await addFolderFormRef.value.validate()
+    addFolderLoading.value = true
+    
+    await createFolder({
+      folderName: addFolderForm.value.folderName,
+      parentId: addFolderParentId.value
+    })
+    
+    ElMessage.success('文件夹创建成功')
+    addFolderVisible.value = false
+    
+    // 刷新树
+    await initFileTree()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '创建文件夹失败')
+    }
+  } finally {
+    addFolderLoading.value = false
+  }
 }
 
 // 确认移动
-const confirmMove = () => {
-  emit('confirm', currentFolderId.value)
+const handleConfirm = () => {
+  emit('confirm', selectedFolderId.value)
   visible.value = false
 }
-
-// 监听显示状态
-watch(visible, (val) => {
-  if (val) {
-    currentPath.value = []
-    loadFolders()
-  }
-})
 </script>
 
 <style lang="scss" scoped>
 .move-dialog-content {
-  .folder-breadcrumb {
+  .target-path {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 8px 12px;
-    background: #f5f7fa;
-    border-radius: 4px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     
-    .breadcrumb-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
+    .label {
+      width: 80px;
       color: #606266;
-      cursor: pointer;
-      
-      &:hover:not(.is-current) {
-        color: var(--el-color-primary);
-      }
-      
-      &.is-current {
-        color: #303133;
-        font-weight: 500;
-        cursor: default;
-      }
+      flex-shrink: 0;
     }
     
-    .separator {
-      color: #909399;
+    .content {
+      flex: 1;
     }
   }
   
-  .folder-list {
+  .tree-wrapper {
     height: 300px;
-    overflow-y: auto;
+    overflow: auto;
     border: 1px solid #ebeef5;
     border-radius: 4px;
+    padding: 8px;
     
-    .folder-item {
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background: #c0c4cc;
+      border-radius: 3px;
+    }
+    
+    :deep(.el-tree) {
+      background: transparent;
+      
+      .el-tree-node__content {
+        height: 36px;
+        
+        &:hover {
+          background-color: #f5f7fa;
+          
+          .add-folder-btn {
+            display: inline-flex;
+          }
+        }
+      }
+      
+      .el-tree-node.is-current > .el-tree-node__content {
+        background-color: #ecf5ff;
+        color: var(--el-color-primary);
+        
+        .folder-icon {
+          color: var(--el-color-primary);
+        }
+      }
+    }
+    
+    .custom-tree-node {
+      flex: 1;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
-      cursor: pointer;
-      transition: background 0.2s;
-      
-      &:hover {
-        background: #f5f7fa;
-      }
+      font-size: 14px;
+      padding-right: 8px;
       
       .folder-icon {
-        font-size: 24px;
+        font-size: 18px;
         color: #e6a23c;
+        margin-right: 6px;
       }
       
-      .folder-name {
-        color: #303133;
+      .label {
+        flex: 1;
+      }
+      
+      .add-folder-btn {
+        display: none;
+        font-size: 12px;
       }
     }
   }

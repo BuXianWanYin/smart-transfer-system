@@ -17,11 +17,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.server.smarttransferserver.util.FileTypeUtil;
+import com.server.smarttransferserver.util.UserContextHolder;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,9 +44,15 @@ public class FolderServiceImpl implements FolderService {
     @Override
     @Transactional
     public Folder createFolder(String folderName, Long parentId) {
-        // 检查同名文件夹
+        Long userId = UserContextHolder.getUserId();
+        if (userId == null) {
+            throw new RuntimeException("请先登录");
+        }
+        
+        // 检查同名文件夹（同一用户下）
         LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Folder::getParentId, parentId)
+        wrapper.eq(Folder::getUserId, userId)
+               .eq(Folder::getParentId, parentId)
                .eq(Folder::getFolderName, folderName);
         if (folderMapper.selectCount(wrapper) > 0) {
             throw new RuntimeException("同名文件夹已存在");
@@ -59,6 +68,7 @@ public class FolderServiceImpl implements FolderService {
         }
 
         Folder folder = Folder.builder()
+                .userId(userId)
                 .folderName(folderName)
                 .parentId(parentId == null ? 0L : parentId)
                 .path(path)
@@ -67,13 +77,17 @@ public class FolderServiceImpl implements FolderService {
                 .build();
 
         folderMapper.insert(folder);
-        log.info("创建文件夹成功 - ID: {}, 名称: {}", folder.getId(), folderName);
+        log.info("创建文件夹成功 - ID: {}, 名称: {}, 用户: {}", folder.getId(), folderName, userId);
         return folder;
     }
 
     @Override
     public List<Folder> getFoldersByParentId(Long parentId) {
+        Long userId = UserContextHolder.getUserId();
         LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
+        if (userId != null) {
+            wrapper.eq(Folder::getUserId, userId);
+        }
         wrapper.eq(Folder::getParentId, parentId == null ? 0L : parentId)
                .orderByDesc(Folder::getCreateTime);
         return folderMapper.selectList(wrapper);
@@ -81,6 +95,7 @@ public class FolderServiceImpl implements FolderService {
 
     @Override
     public FolderContentVO getFolderContent(Long folderId, Integer fileType, Integer pageNum, Integer pageSize) {
+        Long userId = UserContextHolder.getUserId();
         Long currentFolderId = folderId == null ? 0L : folderId;
         String currentFolderName = "全部文件";
         
@@ -103,16 +118,21 @@ public class FolderServiceImpl implements FolderService {
                 BeanUtils.copyProperties(f, vo);
                 vo.setType("folder");
                 // 统计子文件夹和文件数量
-                vo.setSubFolderCount(countSubFolders(f.getId()));
-                vo.setFileCount(countFiles(f.getId()));
+                vo.setSubFolderCount(countSubFolders(f.getId(), userId));
+                vo.setFileCount(countFiles(f.getId(), userId));
                 return vo;
             }).collect(Collectors.toList());
         }
 
-        // 获取文件（分页）- 只查询未删除的文件
+        // 获取文件（分页）- 只查询未删除的、当前用户的文件
         Page<FileInfo> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<FileInfo> fileWrapper = new LambdaQueryWrapper<>();
         fileWrapper.eq(FileInfo::getDelFlag, 0); // 过滤已删除文件
+        
+        // 用户数据隔离
+        if (userId != null) {
+            fileWrapper.eq(FileInfo::getUserId, userId);
+        }
         
         if (filterByType) {
             // 按类型筛选：从所有目录搜索该类型的文件
@@ -281,15 +301,22 @@ public class FolderServiceImpl implements FolderService {
         folderMapper.updateById(folder);
     }
 
-    private Integer countSubFolders(Long folderId) {
+    private Integer countSubFolders(Long folderId, Long userId) {
         LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Folder::getParentId, folderId);
+        if (userId != null) {
+            wrapper.eq(Folder::getUserId, userId);
+        }
         return Math.toIntExact(folderMapper.selectCount(wrapper));
     }
 
-    private Integer countFiles(Long folderId) {
+    private Integer countFiles(Long folderId, Long userId) {
         LambdaQueryWrapper<FileInfo> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(FileInfo::getFolderId, folderId);
+        wrapper.eq(FileInfo::getFolderId, folderId)
+               .eq(FileInfo::getDelFlag, 0);
+        if (userId != null) {
+            wrapper.eq(FileInfo::getUserId, userId);
+        }
         return Math.toIntExact(fileInfoMapper.selectCount(wrapper));
     }
 
@@ -309,6 +336,56 @@ public class FolderServiceImpl implements FolderService {
             currentId = folder.getParentId();
         }
         return false;
+    }
+    
+    @Override
+    public Object getFolderTree() {
+        Long userId = UserContextHolder.getUserId();
+        
+        // 获取当前用户的所有文件夹
+        LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
+        if (userId != null) {
+            wrapper.eq(Folder::getUserId, userId);
+        }
+        List<Folder> allFolders = folderMapper.selectList(wrapper);
+        
+        // 构建根节点
+        Map<String, Object> root = new HashMap<>();
+        root.put("id", 0L);
+        root.put("label", "全部文件");
+        root.put("path", "/");
+        root.put("children", buildTreeChildren(allFolders, 0L, "/"));
+        
+        return root;
+    }
+    
+    /**
+     * 递归构建子节点
+     */
+    private List<Map<String, Object>> buildTreeChildren(List<Folder> allFolders, Long parentId, String parentPath) {
+        List<Map<String, Object>> children = new ArrayList<>();
+        
+        for (Folder folder : allFolders) {
+            if (folder.getParentId().equals(parentId)) {
+                String currentPath = "/".equals(parentPath) 
+                    ? "/" + folder.getFolderName() 
+                    : parentPath + "/" + folder.getFolderName();
+                
+                Map<String, Object> node = new HashMap<>();
+                node.put("id", folder.getId());
+                node.put("label", folder.getFolderName());
+                node.put("path", currentPath);
+                
+                List<Map<String, Object>> subChildren = buildTreeChildren(allFolders, folder.getId(), currentPath);
+                if (!subChildren.isEmpty()) {
+                    node.put("children", subChildren);
+                }
+                
+                children.add(node);
+            }
+        }
+        
+        return children;
     }
 }
 

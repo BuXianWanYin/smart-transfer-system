@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.server.smarttransferserver.util.UserContextHolder;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -119,7 +121,11 @@ public class FileUploadServiceImpl implements FileUploadService {
         // 提取文件扩展名
         String extendName = extractExtendName(dto.getFileName());
         
+        // 获取当前用户ID
+        Long userId = UserContextHolder.getUserId();
+        
         FileInfo fileInfo = FileInfo.builder()
+                .userId(userId)  // 设置用户ID
                 .fileName(dto.getFileName())
                 .extendName(extendName)  // 设置文件扩展名
                 .fileSize(dto.getFileSize())

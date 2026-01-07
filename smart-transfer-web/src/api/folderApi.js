@@ -103,3 +103,13 @@ export function moveFolderTo(data) {
     data
   })
 }
+
+/**
+ * 获取文件夹树
+ * @returns {Promise}
+ */
+export function getFolderTree() {
+  return request.get({
+    url: '/folder/tree'
+  })
+}

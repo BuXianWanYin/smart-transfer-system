@@ -29,6 +29,12 @@ public class FileInfo implements Serializable {
     private Long id;
 
     /**
+     * 用户ID
+     */
+    @TableField("user_id")
+    private Long userId;
+
+    /**
      * 文件名
      */
     @TableField("file_name")

@@ -1,5 +1,30 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import router from '@/router'
+
+// 是否正在跳转登录页（防止重复跳转）
+let isRedirectingToLogin = false
+
+/**
+ * 跳转到登录页
+ */
+const redirectToLogin = () => {
+  if (isRedirectingToLogin) return
+  
+  isRedirectingToLogin = true
+  localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
+  
+  const currentPath = router.currentRoute.value.fullPath
+  if (currentPath !== '/login') {
+    router.push({ path: '/login', query: { redirect: currentPath } })
+  }
+  
+  // 1秒后重置状态，允许再次跳转
+  setTimeout(() => {
+    isRedirectingToLogin = false
+  }, 1000)
+}
 
 /**
  * 创建 axios 实例
@@ -38,29 +63,34 @@ service.interceptors.response.use(
     
     // 如果返回的状态码不是 200，则认为是错误
     if (res.code !== 200) {
-      ElMessage.error(res.message || res.msg || '请求失败')
-      
       // 401: 未登录或 token 过期
       if (res.code === 401) {
         ElMessage.error('登录已过期，请重新登录')
-        localStorage.removeItem('token')
-        window.location.href = '/login'
+        redirectToLogin()
+        return Promise.reject(new Error('未登录或登录已过期'))
       }
       
+      ElMessage.error(res.message || res.msg || '请求失败')
       return Promise.reject(new Error(res.message || res.msg || '请求失败'))
     }
     
     // 返回响应数据的 data 字段（实际业务数据）
-    // 后端返回格式：{ code: 200, message: '...', data: {...} }
-    // 其中 data 可能是：
-    // - 普通对象：{ quickUpload: false, fileId: 1, ... }
-    // - 分页对象：{ records: [...], total: 10, size: 10, current: 1 }
-    // 我们直接返回 data 字段
     return res.data
   },
   error => {
-    // 请求错误
-    ElMessage.error(error.response?.data?.message || error.message || '网络错误')
+    // HTTP 状态码错误
+    const status = error.response?.status
+    
+    if (status === 401) {
+      // 401 未授权
+      ElMessage.error('登录已过期，请重新登录')
+      redirectToLogin()
+      return Promise.reject(new Error('未登录或登录已过期'))
+    }
+    
+    // 其他错误
+    const message = error.response?.data?.message || error.response?.data?.msg || error.message || '网络错误'
+    ElMessage.error(message)
     return Promise.reject(error)
   }
 )

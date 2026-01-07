@@ -33,6 +33,12 @@ public class RecoveryFile implements Serializable {
     private Long id;
 
     /**
+     * 用户ID
+     */
+    @TableField(value = "user_id")
+    private Long userId;
+
+    /**
      * 文件ID
      */
     @TableField(value = "file_id")

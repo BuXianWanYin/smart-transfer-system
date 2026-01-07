@@ -23,13 +23,17 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.io.File;
+import java.io.FileInputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * 文件传输Controller
@@ -484,6 +488,142 @@ public class FileController {
                 return "application/json";
             default:
                 return "application/octet-stream";
+        }
+    }
+    
+    /**
+     * 复制文件
+     *
+     * @param params 包含fileId和targetFolderId
+     * @return 复制结果
+     */
+    @PostMapping("/copy")
+    public Result<String> copyFile(@RequestBody Map<String, Object> params) {
+        Long fileId = Long.valueOf(params.get("fileId").toString());
+        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
+        log.info("复制文件 - ID: {}, 目标文件夹: {}", fileId, targetFolderId);
+        try {
+            fileInfoService.copyFile(fileId, targetFolderId);
+            return Result.success("复制成功");
+        } catch (Exception e) {
+            log.error("复制文件失败", e);
+            return Result.error("复制文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 批量复制文件
+     *
+     * @param params 包含fileIds和targetFolderId
+     * @return 复制结果
+     */
+    @PostMapping("/copy/batch")
+    public Result<String> batchCopyFiles(@RequestBody Map<String, Object> params) {
+        @SuppressWarnings("unchecked")
+        List<Long> fileIds = ((List<Integer>) params.get("fileIds"))
+                .stream().map(Long::valueOf).collect(Collectors.toList());
+        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
+        log.info("批量复制文件 - 数量: {}, 目标文件夹: {}", fileIds.size(), targetFolderId);
+        try {
+            fileInfoService.batchCopyFiles(fileIds, targetFolderId);
+            return Result.success("批量复制成功");
+        } catch (Exception e) {
+            log.error("批量复制文件失败", e);
+            return Result.error("批量复制文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 解压文件
+     *
+     * @param params 解压参数
+     * @return 解压结果
+     */
+    @PostMapping("/unzip")
+    public Result<String> unzipFile(@RequestBody Map<String, Object> params) {
+        Long fileId = Long.valueOf(params.get("fileId").toString());
+        Integer unzipMode = Integer.valueOf(params.get("unzipMode").toString());
+        String folderName = params.get("folderName") != null ? params.get("folderName").toString() : null;
+        Long targetFolderId = params.get("targetFolderId") != null ? 
+                Long.valueOf(params.get("targetFolderId").toString()) : null;
+        
+        log.info("解压文件 - ID: {}, 模式: {}, 文件夹名: {}, 目标: {}", 
+                fileId, unzipMode, folderName, targetFolderId);
+        try {
+            fileInfoService.unzipFile(fileId, unzipMode, folderName, targetFolderId);
+            return Result.success("解压成功");
+        } catch (Exception e) {
+            log.error("解压文件失败", e);
+            return Result.error("解压文件失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 批量下载文件（打包为ZIP）
+     *
+     * @param ids 文件ID列表
+     * @param response HTTP响应
+     */
+    @GetMapping("/download/batch")
+    public void batchDownload(
+            @RequestParam("ids") List<Long> ids,
+            HttpServletResponse response) {
+        
+        log.info("批量下载文件 - 数量: {}", ids.size());
+        
+        try {
+            // 设置响应头
+            String fileName = "files_" + System.currentTimeMillis() + ".zip";
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8.toString())
+                    .replaceAll("\\+", "%20");
+            
+            response.setContentType("application/zip");
+            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
+            
+            // 创建ZIP输出流
+            try (ZipOutputStream zipOut = new ZipOutputStream(response.getOutputStream())) {
+                for (Long id : ids) {
+                    FileInfoVO fileInfo = fileInfoService.getFileById(id);
+                    if (fileInfo == null || fileInfo.getIsDir() == 1) {
+                        continue;
+                    }
+                    
+                    File file = new File(fileInfo.getFilePath());
+                    if (!file.exists()) {
+                        log.warn("文件不存在 - ID: {}, 路径: {}", id, fileInfo.getFilePath());
+                        continue;
+                    }
+                    
+                    // 添加文件到ZIP
+                    String entryName = fileInfo.getFileName();
+                    if (fileInfo.getExtendName() != null && !fileInfo.getFileName().contains(".")) {
+                        entryName = fileInfo.getFileName() + "." + fileInfo.getExtendName();
+                    }
+                    
+                    ZipEntry zipEntry = new ZipEntry(entryName);
+                    zipOut.putNextEntry(zipEntry);
+                    
+                    try (FileInputStream fis = new FileInputStream(file)) {
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        while ((bytesRead = fis.read(buffer)) != -1) {
+                            zipOut.write(buffer, 0, bytesRead);
+                        }
+                    }
+                    
+                    zipOut.closeEntry();
+                }
+                
+                zipOut.finish();
+            }
+            
+        } catch (Exception e) {
+            log.error("批量下载失败", e);
+            try {
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "批量下载失败");
+            } catch (Exception ex) {
+                log.error("发送错误响应失败", ex);
+            }
         }
     }
 }
