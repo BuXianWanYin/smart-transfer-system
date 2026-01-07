@@ -101,7 +101,7 @@ onUnmounted(() => {
   -webkit-text-size-adjust: none;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: #fff;
 }
 
 .main-container {
@@ -117,8 +117,8 @@ onUnmounted(() => {
   top: 60px;
   left: 0;
   height: calc(100vh - 60px);
-  background: #fff;
-  border-right: 1px solid #ebeef5;
+  background: transparent;
+  border-right: 1px solid #e6e6e6;
   transition: all 0.3s ease;
   z-index: 100;
   overflow: hidden;

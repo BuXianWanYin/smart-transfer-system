@@ -172,8 +172,9 @@ const handleCopy = async () => {
     align-items: center;
     gap: 8px;
     padding: 12px 16px;
-    background: #f5f7fa;
-    border-radius: 6px;
+    background: #fafbfc;
+    border-radius: 8px;
+    border: 1px solid #ebeef5;
     margin-bottom: 16px;
     
     .file-icon {

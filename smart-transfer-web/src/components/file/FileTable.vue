@@ -188,10 +188,10 @@
     <MoveFileDialog v-model="moveDialogVisible" @confirm="confirmMove" />
     
     <!-- 复制文件对话框 -->
-    <CopyFileDialog v-model="copyDialogVisible" :files="[contextMenuRow]" @success="handleRefresh" />
+    <CopyFileDialog v-model="copyDialogVisible" :files="copyFileData ? [copyFileData] : []" @success="handleRefresh" />
     
     <!-- 解压文件对话框 -->
-    <UnzipDialog v-model="unzipDialogVisible" :file="contextMenuRow" @success="handleRefresh" />
+    <UnzipDialog v-model="unzipDialogVisible" :file="unzipFileData" @success="handleRefresh" />
     
     <!-- 增强版图片预览 -->
     <ImagePreview
@@ -203,7 +203,7 @@
     <!-- 文件详情弹窗 -->
     <FileDetailDialog
       v-model="detailDialogVisible"
-      :file="contextMenuRow"
+      :file="detailFileData"
       :file-type="fileType"
       @preview="handleFileClick"
     />
@@ -471,13 +471,16 @@ const confirmMove = async (targetFolderId) => {
 
 // 复制文件
 const copyDialogVisible = ref(false)
+const copyFileData = ref(null)
 const handleMenuCopy = () => {
+  copyFileData.value = { ...contextMenuRow.value }
   copyDialogVisible.value = true
   closeContextMenu()
 }
 
 // 解压文件
 const unzipDialogVisible = ref(false)
+const unzipFileData = ref(null)
 const zipExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2']
 
 const canUnzip = (row) => {
@@ -487,13 +490,16 @@ const canUnzip = (row) => {
 }
 
 const handleMenuUnzip = () => {
+  unzipFileData.value = { ...contextMenuRow.value }
   unzipDialogVisible.value = true
   closeContextMenu()
 }
 
 // 文件详情
 const detailDialogVisible = ref(false)
+const detailFileData = ref(null)
 const handleMenuDetail = () => {
+  detailFileData.value = { ...contextMenuRow.value }
   detailDialogVisible.value = true
   closeContextMenu()
 }

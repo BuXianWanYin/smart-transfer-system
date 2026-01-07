@@ -235,10 +235,11 @@ const handleDownload = () => {
       margin-bottom: 12px;
       
       .el-input__inner {
-        border: none;
-        background: #f5f7fa;
+        border: 1px solid #ebeef5;
+        background: #fafbfc;
         font-size: 14px;
         color: #606266;
+        border-radius: 4px;
       }
     }
   }

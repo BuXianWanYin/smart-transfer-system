@@ -172,7 +172,7 @@ watch(() => props.file, (newFile) => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #f5f7fa;
+  background: #fafbfc;
   
   .preview-image {
     max-width: 100%;

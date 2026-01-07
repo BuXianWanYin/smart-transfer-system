@@ -169,16 +169,67 @@
   min-width: 300px;
 }
 
-/* 对话框样式 */
+/* 对话框样式 - 全局覆盖 */
+.el-overlay-dialog .el-dialog,
 .el-dialog {
-  border-radius: 12px;
-  overflow: hidden;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12) !important;
+  background: #fff !important;
 }
 
+.el-overlay-dialog .el-dialog__header,
 .el-dialog__header {
-  background-color: rgb(var(--art-grey100));
-  padding: 20px;
-  font-weight: 600;
+  background-color: #fff !important;
+  padding: 16px 20px !important;
+  border-bottom: 1px solid #ebeef5 !important;
+  margin-right: 0 !important;
+}
+
+.el-overlay-dialog .el-dialog__title,
+.el-dialog__title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #303133 !important;
+  line-height: 24px !important;
+}
+
+.el-overlay-dialog .el-dialog__headerbtn,
+.el-dialog__headerbtn {
+  top: 16px !important;
+  right: 16px !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.el-overlay-dialog .el-dialog__headerbtn .el-dialog__close,
+.el-dialog__headerbtn .el-dialog__close {
+  font-size: 16px !important;
+  color: #909399 !important;
+}
+
+.el-overlay-dialog .el-dialog__headerbtn:hover .el-dialog__close,
+.el-dialog__headerbtn:hover .el-dialog__close {
+  color: var(--el-color-primary) !important;
+}
+
+.el-overlay-dialog .el-dialog__body,
+.el-dialog__body {
+  padding: 20px !important;
+  color: #606266 !important;
+  background: #fff !important;
+}
+
+.el-overlay-dialog .el-dialog__footer,
+.el-dialog__footer {
+  padding: 12px 20px !important;
+  border-top: 1px solid #ebeef5 !important;
+  background-color: #fafbfc !important;
+}
+
+/* 对话框遮罩层 */
+.el-overlay {
+  background-color: rgba(0, 0, 0, 0.5) !important;
 }
 
 /* 分页器样式 */

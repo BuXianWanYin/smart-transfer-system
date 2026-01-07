@@ -202,7 +202,7 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: transparent;
   transition: width 0.3s ease;
   
   &.is-collapsed {
@@ -226,9 +226,14 @@ onMounted(() => {
     flex: 1;
     border-right: none;
     overflow-y: auto;
+    background: transparent;
     
     &:not(.el-menu--collapse) {
       width: 100%;
+    }
+    
+    :deep(.el-menu) {
+      background: transparent;
     }
     
     :deep(.el-sub-menu__title),
@@ -236,12 +241,17 @@ onMounted(() => {
       height: 52px;
       line-height: 52px;
       font-size: 15px;
+      background: transparent;
       
       .el-icon {
         margin-right: 12px;
         font-size: 22px;
         width: 22px;
         height: 22px;
+      }
+      
+      &:hover {
+        background-color: #f5f7fa;
       }
     }
     
@@ -252,7 +262,8 @@ onMounted(() => {
   
   .storage-info {
     padding: 16px;
-    border-top: 1px solid #ebeef5;
+    border-top: 1px solid #e6e6e6;
+    background: transparent;
     
     .storage-header {
       display: flex;
@@ -277,7 +288,8 @@ onMounted(() => {
   .storage-icon {
     padding: 16px;
     text-align: center;
-    border-top: 1px solid #ebeef5;
+    border-top: 1px solid #e6e6e6;
+    background: transparent;
     
     .el-icon {
       font-size: 20px;

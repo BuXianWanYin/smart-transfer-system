@@ -641,8 +641,13 @@ const handleClose = () => {
   .upload-area {
     min-height: 200px;
     border: 2px dashed #dcdfe6;
-    border-radius: 6px;
+    border-radius: 8px;
     transition: all 0.3s;
+    background: #fafbfc;
+    
+    &:hover {
+      border-color: #c0c4cc;
+    }
     
     &.drag-over {
       border-color: var(--el-color-primary);
@@ -651,24 +656,24 @@ const handleClose = () => {
   }
   
   .upload-content {
-    padding: 40px 20px;
+    padding: 50px 20px;
     text-align: center;
     
     .upload-icon {
-      font-size: 48px;
-      color: #c0c4cc;
-      margin-bottom: 16px;
+      font-size: 56px;
+      color: #909399;
+      margin-bottom: 20px;
     }
     
     .upload-text {
       .main-text {
         font-size: 16px;
         color: #606266;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
       }
       
       .sub-text {
-        font-size: 12px;
+        font-size: 13px;
         color: #909399;
       }
     }
@@ -681,7 +686,8 @@ const handleClose = () => {
       align-items: center;
       padding: 12px 16px;
       border-bottom: 1px solid #ebeef5;
-      background: #fafafa;
+      background: #fff;
+      border-radius: 8px 8px 0 0;
       
       span {
         font-weight: 500;
