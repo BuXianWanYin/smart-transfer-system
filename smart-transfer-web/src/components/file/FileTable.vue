@@ -623,24 +623,30 @@ defineExpose({
   }
   
   .file-icon {
-    width: 32px;
-    height: 32px;
-    cursor: pointer;
-    vertical-align: middle;
-  }
-  
-  .file-thumbnail {
     width: 36px;
     height: 36px;
     cursor: pointer;
     vertical-align: middle;
-    object-fit: cover;
-    border-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s;
     
     &:hover {
       transform: scale(1.1);
+    }
+  }
+  
+  .file-thumbnail {
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    vertical-align: middle;
+    object-fit: cover;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s;
+    
+    &:hover {
+      transform: scale(1.15);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
   }
   
@@ -689,26 +695,26 @@ defineExpose({
   flex-direction: column;
   background: #fff;
   border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.12);
   z-index: 9999;
-  padding: 6px 0;
-  min-width: 120px;
+  padding: 8px 0;
+  min-width: 140px;
   
   .right-menu-item {
-    padding: 0 16px;
-    height: 34px;
-    line-height: 34px;
+    padding: 0 20px;
+    height: 40px;
+    line-height: 40px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     color: #606266;
     font-size: 14px;
-    transition: all 0.2s;
+    transition: all 0.15s;
     
     .el-icon {
-      font-size: 16px;
+      font-size: 18px;
     }
     
     &:hover {
@@ -716,11 +722,100 @@ defineExpose({
       color: var(--el-color-primary);
     }
     
+    &:active {
+      background: #d9ecff;
+    }
+    
     &.danger {
       color: var(--el-color-danger);
       
       &:hover {
         background: #fef0f0;
+      }
+      
+      &:active {
+        background: #fde2e2;
+      }
+    }
+  }
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .file-table-wrapper {
+    .file-table {
+      :deep(.el-table__header-wrapper th),
+      :deep(.el-table__body-wrapper td) {
+        padding: 6px 0;
+      }
+    }
+    
+    .file-icon {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .file-thumbnail {
+      width: 36px;
+      height: 36px;
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .file-table-wrapper {
+    .file-table {
+      :deep(.el-table__header-wrapper th),
+      :deep(.el-table__body-wrapper td) {
+        padding: 4px 0;
+        font-size: 13px;
+      }
+      
+      :deep(.el-table-column--selection) {
+        width: 40px !important;
+        
+        .cell {
+          padding: 0 8px;
+        }
+      }
+      
+      :deep(.file-icon-column) {
+        width: 44px !important;
+        
+        .cell {
+          padding: 0 6px;
+        }
+      }
+    }
+    
+    .file-icon {
+      width: 28px;
+      height: 28px;
+    }
+    
+    .file-thumbnail {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .file-name {
+      font-size: 14px;
+    }
+  }
+  
+  // 移动端右键菜单
+  .right-menu-list {
+    min-width: 120px;
+    
+    .right-menu-item {
+      padding: 0 14px;
+      height: 44px;
+      line-height: 44px;
+      font-size: 15px;
+      
+      .el-icon {
+        font-size: 20px;
       }
     }
   }

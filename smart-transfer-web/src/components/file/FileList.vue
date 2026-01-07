@@ -424,4 +424,51 @@ const handleSearchFile = async (keyword) => {
     border-top: 1px solid #ebeef5;
   }
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .file-list-wrapper {
+    .pagination-wrapper {
+      padding: 12px;
+      
+      :deep(.el-pagination) {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        
+        .el-pagination__sizes,
+        .el-pagination__jump {
+          display: none;
+        }
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .file-list-wrapper {
+    .pagination-wrapper {
+      padding: 10px;
+      justify-content: center;
+      
+      :deep(.el-pagination) {
+        .el-pagination__total {
+          display: none;
+        }
+        
+        .btn-prev,
+        .btn-next {
+          padding: 0 8px;
+        }
+      }
+    }
+    
+    // 移动端新建文件夹对话框全屏
+    :deep(.el-dialog) {
+      width: 90% !important;
+      margin: 5vh auto !important;
+    }
+  }
+}
 </style>

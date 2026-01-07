@@ -1,9 +1,32 @@
 <template>
   <div class="header-wrapper">
-    <!-- Logo -->
-    <div class="logo-area" @click="$router.push({ name: 'TransferCenter' })">
-      <el-icon class="logo-icon"><Promotion /></el-icon>
-      <span class="logo-text">智能传输系统</span>
+    <!-- 左侧区域 -->
+    <div class="header-left">
+      <!-- 移动端菜单按钮 -->
+      <el-icon 
+        v-if="appStore.isMobile" 
+        class="menu-toggle"
+        @click="appStore.toggleSidebarVisible"
+      >
+        <Fold v-if="appStore.sidebarVisible" />
+        <Expand v-else />
+      </el-icon>
+      
+      <!-- 桌面端折叠按钮 -->
+      <el-icon 
+        v-if="!appStore.isMobile" 
+        class="collapse-toggle"
+        @click="appStore.toggleSidebarCollapse"
+      >
+        <Fold v-if="!appStore.sidebarCollapsed" />
+        <Expand v-else />
+      </el-icon>
+      
+      <!-- Logo -->
+      <div class="logo-area" @click="$router.push({ name: 'TransferCenter' })">
+        <el-icon class="logo-icon"><Promotion /></el-icon>
+        <span class="logo-text" v-if="!appStore.isMobile">智能传输系统</span>
+      </div>
     </div>
     
     <!-- 右侧用户信息 -->
@@ -13,8 +36,8 @@
           <el-avatar :size="32" :src="userStore.avatar || undefined">
             <el-icon><UserFilled /></el-icon>
           </el-avatar>
-          <span class="user-name">{{ userStore.nickname || userStore.username }}</span>
-          <el-icon class="arrow-icon"><ArrowDown /></el-icon>
+          <span class="user-name" v-if="!appStore.isMobile">{{ userStore.nickname || userStore.username }}</span>
+          <el-icon class="arrow-icon" v-if="!appStore.isMobile"><ArrowDown /></el-icon>
         </div>
         <template #dropdown>
           <el-dropdown-menu>
@@ -35,12 +58,14 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { Promotion, UserFilled, ArrowDown, User, SwitchButton } from '@element-plus/icons-vue'
+import { Promotion, UserFilled, ArrowDown, User, SwitchButton, Fold, Expand } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/store/userStore'
+import { useAppStore } from '@/store/appStore'
 
 const router = useRouter()
 const userStore = useUserStore()
+const appStore = useAppStore()
 
 const handleCommand = async (command) => {
   if (command === 'profile') {
@@ -60,15 +85,47 @@ const handleCommand = async (command) => {
 
 <style lang="scss" scoped>
 .header-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   width: 100%;
   height: 60px;
-  padding: 0 20px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-  flex-shrink: 0;
+  z-index: 200;
+  
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    
+    .menu-toggle,
+    .collapse-toggle {
+      font-size: 22px;
+      color: #606266;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 6px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      &:hover {
+        background: #f5f7fa;
+        color: var(--el-color-primary);
+      }
+      
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+  }
   
   .logo-area {
     display: flex;
@@ -118,6 +175,19 @@ const handleCommand = async (command) => {
       .arrow-icon {
         font-size: 12px;
         color: #909399;
+      }
+    }
+  }
+}
+
+/* 移动端样式 */
+@media (max-width: 768px) {
+  .header-wrapper {
+    padding: 0 12px;
+    
+    .logo-area {
+      .logo-icon {
+        font-size: 24px;
       }
     }
   }

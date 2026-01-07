@@ -58,6 +58,17 @@ const navigateTo = (path, folderId) => {
 <style lang="scss" scoped>
 .breadcrumb-wrapper {
   padding: 12px 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #dcdfe6;
+    border-radius: 2px;
+  }
   
   .breadcrumb-item {
     display: inline-flex;
@@ -80,6 +91,26 @@ const navigateTo = (path, folderId) => {
   :deep(.el-breadcrumb__inner) {
     display: inline-flex;
     align-items: center;
+  }
+  
+  :deep(.el-breadcrumb) {
+    display: flex;
+    flex-wrap: nowrap;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .breadcrumb-wrapper {
+    padding: 10px 0;
+    
+    .breadcrumb-item {
+      font-size: 13px;
+    }
+    
+    :deep(.el-breadcrumb__separator) {
+      margin: 0 6px;
+    }
   }
 }
 </style>

@@ -397,24 +397,34 @@ onUnmounted(() => {
   .toolbar-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     
     .tool-btn {
-      font-size: 20px;
+      font-size: 24px;
       cursor: pointer;
-      padding: 8px;
-      border-radius: 4px;
+      padding: 10px;
+      border-radius: 6px;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
       
       &:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.15);
+        transform: scale(1.05);
+      }
+      
+      &:active {
+        transform: scale(0.95);
       }
       
       &.close-btn {
-        margin-left: 16px;
+        margin-left: 12px;
         
         &:hover {
-          background: rgba(255, 0, 0, 0.3);
+          background: rgba(255, 0, 0, 0.4);
         }
       }
     }
@@ -505,28 +515,33 @@ onUnmounted(() => {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 50px;
-    height: 80px;
+    width: 60px;
+    height: 100px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.4);
     color: #fff;
-    font-size: 32px;
+    font-size: 48px;
     cursor: pointer;
     transition: all 0.2s;
-    border-radius: 4px;
+    border-radius: 8px;
     
     &:hover {
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0, 0, 0, 0.7);
+      transform: translateY(-50%) scale(1.05);
+    }
+    
+    &:active {
+      transform: translateY(-50%) scale(0.95);
     }
     
     &.prev-btn {
-      left: 20px;
+      left: 30px;
     }
     
     &.next-btn {
-      right: 20px;
+      right: 30px;
     }
   }
   
@@ -565,6 +580,130 @@ onUnmounted(() => {
       font-size: 14px;
       width: 50px;
       text-align: right;
+    }
+  }
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .thumbnail-list {
+    width: 100px;
+  }
+  
+  .preview-area {
+    left: 100px;
+    
+    &.full-width {
+      left: 0;
+    }
+    
+    .nav-btn {
+      width: 50px;
+      height: 80px;
+      font-size: 36px;
+      
+      &.prev-btn {
+        left: 20px;
+      }
+      
+      &.next-btn {
+        right: 20px;
+      }
+    }
+    
+    .zoom-bar {
+      width: 320px;
+      padding: 10px 16px;
+    }
+  }
+  
+  .toolbar {
+    .toolbar-center {
+      .file-name {
+        max-width: 250px;
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .thumbnail-list {
+    display: none;
+  }
+  
+  .preview-area {
+    left: 0 !important;
+    
+    .main-image {
+      max-width: 95%;
+      max-height: 70%;
+    }
+    
+    .nav-btn {
+      width: 40px;
+      height: 60px;
+      font-size: 28px;
+      background: rgba(0, 0, 0, 0.5);
+      
+      &.prev-btn {
+        left: 10px;
+      }
+      
+      &.next-btn {
+        right: 10px;
+      }
+    }
+    
+    .zoom-bar {
+      width: calc(100% - 32px);
+      bottom: 20px;
+      padding: 8px 12px;
+      gap: 10px;
+      
+      .zoom-value {
+        font-size: 12px;
+        width: 40px;
+      }
+    }
+  }
+  
+  .toolbar {
+    height: 44px;
+    padding: 0 12px;
+    
+    .toolbar-left {
+      width: auto;
+      
+      .fold-icon {
+        display: none;
+      }
+    }
+    
+    .toolbar-center {
+      .file-name {
+        max-width: 150px;
+        font-size: 13px;
+      }
+      
+      .image-count {
+        font-size: 12px;
+      }
+    }
+    
+    .toolbar-right {
+      gap: 2px;
+      
+      .tool-btn {
+        font-size: 20px;
+        padding: 8px;
+        min-width: 36px;
+        min-height: 36px;
+        
+        &.close-btn {
+          margin-left: 8px;
+        }
+      }
     }
   }
 }

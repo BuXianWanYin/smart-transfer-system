@@ -1,19 +1,20 @@
 <template>
-  <div class="aside-menu-wrapper">
+  <div class="aside-menu-wrapper" :class="{ 'is-collapsed': collapsed }">
     <el-menu
       :default-active="activeIndex"
-      :default-openeds="['files']"
+      :default-openeds="collapsed ? [] : ['files']"
+      :collapse="collapsed"
       class="file-menu"
       @select="handleMenuSelect"
     >
       <!-- 传输中心 -->
       <el-menu-item index="transfer">
         <el-icon><Upload /></el-icon>
-        <span>传输中心</span>
+        <template #title><span>传输中心</span></template>
       </el-menu-item>
       
       <!-- 我的文件 -->
-      <el-sub-menu index="files">
+      <el-sub-menu index="files" v-if="!collapsed">
         <template #title>
           <el-icon><Files /></el-icon>
           <span>我的文件</span>
@@ -50,21 +51,27 @@
         </el-menu-item>
       </el-sub-menu>
       
+      <!-- 折叠模式下的文件菜单 -->
+      <el-menu-item index="file-0" v-if="collapsed">
+        <el-icon><FolderOpened /></el-icon>
+        <template #title><span>全部文件</span></template>
+      </el-menu-item>
+      
       <!-- 回收站 -->
       <el-menu-item index="file-6">
         <el-icon><Delete /></el-icon>
-        <span>回收站</span>
+        <template #title><span>回收站</span></template>
       </el-menu-item>
       
       <!-- 系统配置 -->
       <el-menu-item index="config">
         <el-icon><Setting /></el-icon>
-        <span>系统配置</span>
+        <template #title><span>系统配置</span></template>
       </el-menu-item>
     </el-menu>
     
-    <!-- 存储空间 -->
-    <div class="storage-info">
+    <!-- 存储空间（非折叠模式显示） -->
+    <div class="storage-info" v-if="!collapsed">
       <div class="storage-header">
         <el-icon><Coin /></el-icon>
         <span>存储空间</span>
@@ -78,19 +85,32 @@
         {{ formatSize(usedStorage) }} / {{ formatSize(totalStorage) }}
       </div>
     </div>
+    
+    <!-- 折叠模式下的存储图标 -->
+    <div class="storage-icon" v-else>
+      <el-tooltip :content="`${formatSize(usedStorage)} / ${formatSize(totalStorage)}`" placement="right">
+        <el-icon><Coin /></el-icon>
+      </el-tooltip>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   Files, FolderOpened, Picture, Document, VideoPlay, 
   Headset, MoreFilled, Delete, Coin, Upload, Setting 
 } from '@element-plus/icons-vue'
+import { useAppStore } from '@/store/appStore'
+
+const props = defineProps({
+  collapsed: { type: Boolean, default: false }
+})
 
 const route = useRoute()
 const router = useRouter()
+const appStore = useAppStore()
 
 // 当前激活的菜单项
 const activeIndex = computed(() => {
@@ -134,6 +154,11 @@ const formatSize = (size) => {
 
 // 菜单选择
 const handleMenuSelect = (index) => {
+  // 移动端点击菜单后隐藏侧边栏
+  if (appStore.isMobile) {
+    appStore.hideSidebar()
+  }
+  
   // 传输中心
   if (index === 'transfer') {
     router.push({ name: 'TransferCenter' })
@@ -173,17 +198,38 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .aside-menu-wrapper {
-  width: 200px;
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   background: #fff;
-  border-right: 1px solid #ebeef5;
+  transition: width 0.3s ease;
+  
+  &.is-collapsed {
+    .file-menu {
+      :deep(.el-menu-item),
+      :deep(.el-sub-menu__title) {
+        padding: 0 20px !important;
+        
+        .el-icon {
+          margin-right: 0;
+        }
+        
+        span {
+          display: none;
+        }
+      }
+    }
+  }
   
   .file-menu {
     flex: 1;
     border-right: none;
     overflow-y: auto;
+    
+    &:not(.el-menu--collapse) {
+      width: 100%;
+    }
     
     :deep(.el-sub-menu__title),
     :deep(.el-menu-item) {
@@ -192,6 +238,7 @@ onMounted(() => {
       
       .el-icon {
         margin-right: 8px;
+        font-size: 18px;
       }
     }
     
@@ -221,6 +268,22 @@ onMounted(() => {
       font-size: 12px;
       color: #909399;
       text-align: center;
+    }
+  }
+  
+  .storage-icon {
+    padding: 16px;
+    text-align: center;
+    border-top: 1px solid #ebeef5;
+    
+    .el-icon {
+      font-size: 20px;
+      color: #909399;
+      cursor: pointer;
+      
+      &:hover {
+        color: var(--el-color-primary);
+      }
     }
   }
 }

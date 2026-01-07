@@ -319,37 +319,61 @@ watch(currentMode, (mode) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  padding: 14px 0;
   border-bottom: 1px solid #ebeef5;
+  flex-wrap: wrap;
+  gap: 12px;
   
   .left-operations {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     flex-wrap: wrap;
+    
+    :deep(.el-button) {
+      padding: 10px 16px;
+      font-size: 14px;
+      
+      .el-icon {
+        font-size: 16px;
+        margin-right: 6px;
+      }
+    }
   }
   
   .right-operations {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     
     .action-icon {
-      font-size: 20px;
+      font-size: 22px;
       color: #606266;
       cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
+      padding: 8px;
+      border-radius: 6px;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       
       &:hover {
         color: var(--el-color-primary);
-        background: #f5f7fa;
+        background: #ecf5ff;
+        transform: scale(1.05);
+      }
+      
+      &:active {
+        transform: scale(0.95);
       }
     }
     
     .mode-switch {
       :deep(.el-radio-button__inner) {
-        padding: 8px 12px;
+        padding: 10px 14px;
+        
+        .el-icon {
+          font-size: 16px;
+        }
       }
     }
   }
@@ -372,6 +396,98 @@ watch(currentMode, (mode) => {
     
     :deep(.el-slider) {
       margin-top: 8px;
+    }
+  }
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .operation-menu-wrapper {
+    padding: 12px 0;
+    
+    .left-operations {
+      :deep(.el-button) {
+        padding: 8px 12px;
+        font-size: 13px;
+        
+        // 隐藏部分按钮文字，只显示图标
+        span {
+          display: none;
+        }
+        
+        .el-icon {
+          margin-right: 0;
+          font-size: 18px;
+        }
+      }
+    }
+    
+    .right-operations {
+      gap: 10px;
+      
+      :deep(.el-input) {
+        width: 160px !important;
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .operation-menu-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 0;
+    gap: 10px;
+    
+    .left-operations {
+      justify-content: flex-start;
+      gap: 8px;
+      
+      :deep(.el-button) {
+        padding: 8px 10px;
+        flex: 0 0 auto;
+        min-width: 42px;
+        
+        span {
+          display: none;
+        }
+        
+        .el-icon {
+          margin-right: 0;
+          font-size: 18px;
+        }
+      }
+    }
+    
+    .right-operations {
+      justify-content: space-between;
+      gap: 8px;
+      
+      :deep(.el-input) {
+        flex: 1;
+        width: auto !important;
+        min-width: 0;
+      }
+      
+      :deep(.el-divider--vertical) {
+        display: none;
+      }
+      
+      .action-icon {
+        font-size: 20px;
+        padding: 6px;
+      }
+      
+      .mode-switch {
+        :deep(.el-radio-button__inner) {
+          padding: 8px 10px;
+          
+          .el-icon {
+            font-size: 14px;
+          }
+        }
+      }
     }
   }
 }

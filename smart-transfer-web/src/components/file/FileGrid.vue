@@ -535,4 +535,64 @@ onUnmounted(() => {
     }
   }
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .file-grid-wrapper {
+    padding: 6px;
+    
+    .grid-container {
+      gap: 12px;
+      
+      .grid-item {
+        padding: 10px 6px;
+        
+        .file-name {
+          font-size: 11px;
+        }
+      }
+    }
+  }
+}
+
+/* 移动端适配 - 两列显示 */
+@media (max-width: 768px) {
+  .file-grid-wrapper {
+    padding: 4px;
+    
+    .grid-container {
+      gap: 8px;
+      grid-template-columns: repeat(2, 1fr) !important;
+      
+      .grid-item {
+        padding: 8px 4px;
+        
+        .checkbox-wrapper {
+          opacity: 1;
+        }
+        
+        .file-name {
+          font-size: 12px;
+          margin-top: 6px;
+        }
+      }
+    }
+  }
+  
+  // 移动端右键菜单
+  .right-menu-list {
+    min-width: 120px;
+    
+    .right-menu-item {
+      padding: 0 12px;
+      height: 44px;
+      line-height: 44px;
+      font-size: 15px;
+      
+      .el-icon {
+        font-size: 18px;
+      }
+    }
+  }
+}
 </style>

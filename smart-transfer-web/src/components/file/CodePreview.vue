@@ -412,19 +412,29 @@ onBeforeUnmount(() => {
   .toolbar-right {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 6px;
     flex: 1;
     justify-content: flex-end;
     
     .tool-btn {
-      font-size: 20px;
+      font-size: 22px;
       cursor: pointer;
-      padding: 8px;
-      border-radius: 4px;
+      padding: 10px;
+      border-radius: 6px;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      min-height: 42px;
       
       &:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.15);
+        transform: scale(1.05);
+      }
+      
+      &:active {
+        transform: scale(0.95);
       }
       
       &.save-btn {
@@ -435,7 +445,7 @@ onBeforeUnmount(() => {
         margin-left: 8px;
         
         &:hover {
-          background: rgba(255, 0, 0, 0.3);
+          background: rgba(255, 0, 0, 0.4);
         }
       }
     }
@@ -478,6 +488,92 @@ onBeforeUnmount(() => {
       :deep(.CodeMirror) {
         height: 100%;
         font-family: 'Consolas', 'Monaco', 'Source Code Pro', monospace;
+      }
+    }
+  }
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .toolbar {
+    padding: 0 16px;
+    
+    .toolbar-left {
+      .file-name {
+        max-width: 280px;
+      }
+    }
+  }
+  
+  .editor-wrapper {
+    width: 94vw;
+    margin: 6px auto;
+    
+    .editor-toolbar {
+      gap: 12px;
+      padding: 10px 12px;
+      flex-wrap: wrap;
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .toolbar {
+    height: 44px;
+    padding: 0 12px;
+    flex-wrap: wrap;
+    
+    .toolbar-left {
+      .file-name {
+        max-width: 180px;
+        font-size: 14px;
+      }
+      
+      .unsaved-tip {
+        font-size: 12px;
+      }
+    }
+    
+    .toolbar-center {
+      display: none;
+    }
+    
+    .toolbar-right {
+      gap: 2px;
+      
+      .tool-btn {
+        font-size: 18px;
+        padding: 8px;
+        min-width: 36px;
+        min-height: 36px;
+      }
+    }
+  }
+  
+  .editor-wrapper {
+    width: 100%;
+    margin: 4px 0;
+    border-radius: 0;
+    
+    .editor-toolbar {
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 0;
+      flex-wrap: wrap;
+      
+      :deep(.el-select) {
+        width: 100px;
+      }
+    }
+    
+    .codemirror-container {
+      border-radius: 0;
+      
+      .editor-area {
+        :deep(.CodeMirror) {
+          font-size: 13px;
+        }
       }
     }
   }
