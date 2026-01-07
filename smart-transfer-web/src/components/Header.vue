@@ -25,7 +25,7 @@
       <!-- Logo -->
       <div class="logo-area" @click="$router.push({ name: 'TransferCenter' })">
         <el-icon class="logo-icon"><Promotion /></el-icon>
-        <span class="logo-text" v-if="!appStore.isMobile">智能传输系统</span>
+        <span class="logo-text" v-if="!appStore.isMobile">基于Java+Vue的TCP拥塞控制优化大文件传输工具</span>
       </div>
     </div>
     

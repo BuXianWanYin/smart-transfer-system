@@ -9,8 +9,8 @@
     <div class="login-card">
       <div class="login-header">
         <el-icon class="logo-icon"><Promotion /></el-icon>
-        <h1 class="title">智能传输系统</h1>
-        <p class="subtitle">基于TCP拥塞控制优化的大文件传输工具</p>
+        <h1 class="title">大文件传输工具</h1>
+        <p class="subtitle">基于Java+Vue的TCP拥塞控制优化大文件传输工具</p>
       </div>
       
       <!-- 登录表单 -->
@@ -131,7 +131,7 @@
     </div>
     
     <div class="copyright">
-      © 2024 智能传输系统 | 毕业设计作品
+      © 2026 基于Java+Vue的TCP拥塞控制优化大文件传输工具 | 毕业设计作品
     </div>
   </div>
 </template>

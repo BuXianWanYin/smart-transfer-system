@@ -2,10 +2,12 @@
   <div class="file-list-wrapper">
     <!-- 操作菜单 -->
     <OperationMenu
+      ref="operationMenuRef"
       :file-type="fileType"
       :file-path="filePath"
       :operation-file-list="selectedFiles"
       :is-batch-operation="selectedFiles.length > 1"
+      :file-list="fileList"
       @refresh="loadFileList"
       @upload-file="handleUploadFile"
       @new-folder="handleNewFolder"
@@ -40,6 +42,7 @@
       <!-- 网格视图 -->
       <FileGrid
         v-else-if="displayMode === 1"
+        ref="fileGridRef"
         :file-type="fileType"
         :file-path="filePath"
         :file-list="fileList"
@@ -173,6 +176,10 @@ const visibleColumns = ref(initVisibleColumns())
 
 // 选中的文件
 const selectedFiles = ref([])
+
+// 组件引用
+const operationMenuRef = ref(null)
+const fileGridRef = ref(null)
 
 // 上传组件
 const showUploader = ref(false)
@@ -337,6 +344,25 @@ const handleRowClick = (row) => {
 // 选择变化
 const handleSelectionChange = (selection) => {
   selectedFiles.value = selection
+}
+
+// 全选
+const handleSelectAll = (val) => {
+  if (fileGridRef.value) {
+    if (val) {
+      fileGridRef.value.selectAll()
+    } else {
+      fileGridRef.value.clearSelection()
+    }
+  }
+}
+
+// 清除选择
+const handleClearSelection = () => {
+  if (fileGridRef.value) {
+    fileGridRef.value.clearSelection()
+  }
+  selectedFiles.value = []
 }
 
 // 分页

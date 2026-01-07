@@ -233,12 +233,15 @@ onMounted(() => {
     
     :deep(.el-sub-menu__title),
     :deep(.el-menu-item) {
-      height: 48px;
-      line-height: 48px;
+      height: 52px;
+      line-height: 52px;
+      font-size: 15px;
       
       .el-icon {
-        margin-right: 8px;
-        font-size: 18px;
+        margin-right: 12px;
+        font-size: 22px;
+        width: 22px;
+        height: 22px;
       }
     }
     

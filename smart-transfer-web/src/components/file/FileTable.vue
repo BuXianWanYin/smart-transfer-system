@@ -12,10 +12,10 @@
       @row-dblclick="handleRowDblClick"
     >
       <!-- 选择列 -->
-      <el-table-column type="selection" width="55" v-if="fileType !== 6" />
+      <el-table-column type="selection" width="55" />
       
       <!-- 图标列（支持图片缩略图） -->
-      <el-table-column label="" prop="isDir" width="56" align="center" class-name="file-icon-column">
+      <el-table-column label="" width="56" align="center" class-name="file-icon-column">
         <template #default="{ row }">
           <!-- 图片文件显示缩略图 -->
           <img
@@ -581,6 +581,24 @@ defineExpose({
   
   .file-table {
     width: 100%;
+    
+    // 图标列样式 - 清除多余内容
+    :deep(.file-icon-column) {
+      .cell {
+        padding: 0 !important;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        
+        // 隐藏所有文本节点
+        font-size: 0;
+        line-height: 0;
+        
+        img {
+          font-size: 14px; // 恢复 img 的 alt 文字大小
+        }
+      }
+    }
     
     :deep(.el-table__header-wrapper th) {
       padding: 8px 0;

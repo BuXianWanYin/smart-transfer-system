@@ -86,7 +86,7 @@ const visible = computed({
 const treeRef = ref(null)
 const treeProps = {
   children: 'children',
-  label: 'folderName'
+  label: 'label'
 }
 
 // 数据
@@ -109,22 +109,12 @@ const loadFolderTree = async () => {
   loading.value = true
   try {
     const tree = await getFolderTree()
-    // 添加根目录节点
-    folderTree.value = [{
-      id: 0,
-      folderName: '全部文件',
-      path: '/',
-      children: Array.isArray(tree) ? tree : (tree?.children || [])
-    }]
+    // 后端返回的就是完整的树结构
+    folderTree.value = tree ? [tree] : []
     defaultExpandedKeys.value = [0]
   } catch (error) {
     ElMessage.error('加载文件夹失败')
-    folderTree.value = [{
-      id: 0,
-      folderName: '全部文件',
-      path: '/',
-      children: []
-    }]
+    folderTree.value = []
   } finally {
     loading.value = false
   }

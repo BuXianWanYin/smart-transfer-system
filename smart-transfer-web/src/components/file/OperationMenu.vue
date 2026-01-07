@@ -151,7 +151,8 @@ const props = defineProps({
   fileType: { type: Number, required: true },
   filePath: { type: String, required: true },
   operationFileList: { type: Array, default: () => [] },
-  isBatchOperation: { type: Boolean, default: false }
+  isBatchOperation: { type: Boolean, default: false },
+  fileList: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['refresh', 'upload-file', 'new-folder', 'search-file', 'show-upload', 'change-mode', 'change-grid-size', 'change-columns'])
@@ -346,15 +347,17 @@ watch(currentMode, (mode) => {
     gap: 14px;
     
     .action-icon {
-      font-size: 22px;
+      font-size: 24px;
       color: #606266;
       cursor: pointer;
-      padding: 8px;
+      padding: 10px;
       border-radius: 6px;
       transition: all 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
       
       &:hover {
         color: var(--el-color-primary);
@@ -369,10 +372,10 @@ watch(currentMode, (mode) => {
     
     .mode-switch {
       :deep(.el-radio-button__inner) {
-        padding: 10px 14px;
+        padding: 10px 16px;
         
         .el-icon {
-          font-size: 16px;
+          font-size: 18px;
         }
       }
     }

@@ -3,8 +3,20 @@
     <!-- 空状态 -->
     <el-empty v-if="fileList.length === 0" description="暂无文件" />
     
+    <!-- 文件列表头部（全选） -->
+    <div class="grid-header" v-if="fileList.length > 0">
+      <el-checkbox
+        v-model="isSelectAll"
+        :indeterminate="isIndeterminate"
+        @change="handleSelectAllChange"
+      >
+        全选
+      </el-checkbox>
+      <span class="file-count">共 {{ fileList.length }} 项</span>
+    </div>
+    
     <!-- 网格列表 -->
-    <div class="grid-container" :style="gridStyle" v-else>
+    <div class="grid-container" :style="gridStyle" v-if="fileList.length > 0">
       <div
         class="grid-item"
         :class="{ selected: selectedIds.includes(item.id) }"
@@ -19,9 +31,17 @@
           <el-checkbox v-model="item._checked" @change="handleCheckChange(item)" />
         </div>
         
-        <!-- 图标 -->
+        <!-- 图标/缩略图 -->
         <div class="icon-wrapper" :style="iconStyle">
-          <img :src="getFileIcon(item)" class="file-icon" />
+          <!-- 图片文件显示缩略图 -->
+          <img
+            v-if="isImageFile(item)"
+            :src="getThumbnailUrl(item)"
+            class="file-thumbnail"
+            @error="handleThumbnailError($event, item)"
+          />
+          <!-- 其他文件显示图标 -->
+          <img v-else :src="getFileIcon(item)" class="file-icon" />
         </div>
         
         <!-- 文件名 -->
@@ -139,7 +159,7 @@ import UnzipDialog from './UnzipDialog.vue'
 import FileDetailDialog from './FileDetailDialog.vue'
 import CodePreview from './CodePreview.vue'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
-import { renameFile, moveFile, deleteFile } from '@/api/fileApi'
+import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 
 const props = defineProps({
@@ -155,6 +175,24 @@ const emit = defineEmits(['refresh', 'row-click', 'selection-change'])
 // 选中的项
 const selectedIds = ref([])
 const selectedItems = computed(() => props.fileList.filter(item => selectedIds.value.includes(item.id)))
+
+// 全选状态
+const isSelectAll = computed(() => {
+  return props.fileList.length > 0 && selectedIds.value.length === props.fileList.length
+})
+
+const isIndeterminate = computed(() => {
+  return selectedIds.value.length > 0 && selectedIds.value.length < props.fileList.length
+})
+
+// 全选/取消全选
+const handleSelectAllChange = (val) => {
+  if (val) {
+    selectAll()
+  } else {
+    clearSelection()
+  }
+}
 
 // 网格样式 - 根据 gridSize 计算
 const gridStyle = computed(() => ({
@@ -229,6 +267,28 @@ const renameLoading = ref(false)
 
 // 移动
 const moveDialogVisible = ref(false)
+
+// 图片扩展名
+const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg']
+
+// 判断是否是图片文件
+const isImageFile = (item) => {
+  if (item.isDir === 1) return false
+  const ext = (item.extendName || '').toLowerCase()
+  return imageExtensions.includes(ext)
+}
+
+// 获取缩略图 URL
+const getThumbnailUrl = (item) => {
+  return getPreviewUrl(item.id)
+}
+
+// 缩略图加载失败时显示图标
+const handleThumbnailError = (event, item) => {
+  event.target.src = getFileIconByType(item.extendName)
+  event.target.classList.remove('file-thumbnail')
+  event.target.classList.add('file-icon')
+}
 
 // 获取文件图标
 const getFileIcon = (item) => {
@@ -421,6 +481,26 @@ const confirmMove = async (targetFolderId) => {
   }
 }
 
+// 全选
+const selectAll = () => {
+  props.fileList.forEach(item => {
+    item._checked = true
+    if (!selectedIds.value.includes(item.id)) {
+      selectedIds.value.push(item.id)
+    }
+  })
+  emit('selection-change', selectedItems.value)
+}
+
+// 取消全选
+const clearSelection = () => {
+  props.fileList.forEach(item => {
+    item._checked = false
+  })
+  selectedIds.value = []
+  emit('selection-change', [])
+}
+
 // 点击其他地方关闭菜单
 onMounted(() => {
   document.addEventListener('click', closeContextMenu)
@@ -429,6 +509,12 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeContextMenu)
 })
+
+// 暴露方法给父组件
+defineExpose({
+  selectAll,
+  clearSelection
+})
 </script>
 
 <style lang="scss" scoped>
@@ -436,6 +522,20 @@ onUnmounted(() => {
   flex: 1;
   overflow: auto;
   padding: 8px;
+  
+  .grid-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 8px;
+    border-bottom: 1px solid #ebeef5;
+    margin-bottom: 8px;
+    
+    .file-count {
+      font-size: 13px;
+      color: #909399;
+    }
+  }
   
   .grid-container {
     display: grid;
@@ -464,13 +564,8 @@ onUnmounted(() => {
         position: absolute;
         top: 4px;
         left: 4px;
-        opacity: 0;
-        transition: opacity 0.2s;
-      }
-      
-      &:hover .checkbox-wrapper,
-      &.selected .checkbox-wrapper {
         opacity: 1;
+        transition: opacity 0.2s;
       }
       
       .icon-wrapper {
@@ -478,10 +573,20 @@ onUnmounted(() => {
         align-items: center;
         justify-content: center;
         transition: all 0.2s;
+        overflow: hidden;
+        border-radius: 8px;
         
         .file-icon {
           max-width: 100%;
           max-height: 100%;
+        }
+        
+        .file-thumbnail {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
       }
       
