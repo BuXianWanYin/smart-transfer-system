@@ -668,5 +668,140 @@ defineExpose({
   background: var(--el-fill-color-lighter);
   border-top: 1px solid var(--el-border-color);
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .filter-toolbar {
+    flex-direction: column;
+    gap: 12px;
+    
+    :deep(.el-form) {
+      width: 100%;
+    }
+    
+    :deep(.el-form-item) {
+      margin-bottom: 8px;
+    }
+    
+    .toolbar-actions {
+      width: 100%;
+    }
+  }
+  
+  .list-header,
+  .list-item {
+    grid-template-columns: 40px 1fr 100px 80px 150px 120px;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .filter-toolbar {
+    padding: 12px;
+    
+    :deep(.el-date-picker) {
+      width: 100% !important;
+    }
+    
+    :deep(.el-input) {
+      width: 100% !important;
+    }
+    
+    :deep(.el-select) {
+      width: 100% !important;
+    }
+    
+    :deep(.el-form--inline .el-form-item) {
+      display: flex;
+      width: 100%;
+      margin-right: 0;
+    }
+    
+    :deep(.el-form--inline .el-form-item__content) {
+      flex: 1;
+    }
+    
+    .toolbar-actions {
+      justify-content: center;
+    }
+  }
+  
+  .list-header {
+    display: none;
+  }
+  
+  .list-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    
+    .el-checkbox {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+    }
+    
+    position: relative;
+    padding-left: 40px;
+  }
+  
+  .item-file {
+    width: 100%;
+    
+    .file-icon {
+      font-size: 28px;
+    }
+    
+    .file-name {
+      font-size: 13px;
+    }
+  }
+  
+  .item-size,
+  .item-type,
+  .item-time {
+    text-align: left;
+    font-size: 12px;
+  }
+  
+  .item-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  
+  .batch-actions {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+    
+    .selected-info {
+      width: 100%;
+      text-align: center;
+      margin-right: 0;
+      margin-bottom: 4px;
+    }
+    
+    .el-button {
+      flex: 1;
+    }
+  }
+  
+  .pagination {
+    padding: 10px 12px;
+    justify-content: center;
+    
+    :deep(.el-pagination) {
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      
+      .el-pagination__sizes,
+      .el-pagination__jump {
+        display: none;
+      }
+    }
+  }
+}
 </style>
 

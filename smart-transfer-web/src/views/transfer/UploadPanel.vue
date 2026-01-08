@@ -657,5 +657,107 @@ defineExpose({
 .time-remaining {
   color: var(--el-text-color-regular);
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .upload-dragger :deep(.el-upload-dragger) {
+    padding: 30px;
+  }
+  
+  .upload-icon {
+    font-size: 50px;
+  }
+  
+  .upload-title {
+    font-size: 15px;
+  }
+  
+  .queue-header {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  
+  .queue-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .upload-area {
+    margin-bottom: 20px;
+  }
+  
+  .upload-dragger :deep(.el-upload-dragger) {
+    padding: 24px 16px;
+  }
+  
+  .upload-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+  }
+  
+  .upload-title {
+    font-size: 14px;
+  }
+  
+  .upload-hint {
+    font-size: 12px;
+  }
+  
+  .queue-header {
+    padding: 10px 12px;
+  }
+  
+  .queue-title {
+    font-size: 14px;
+  }
+  
+  .queue-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+    
+    .el-button {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+  }
+  
+  .queue-item {
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  
+  .item-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .file-icon {
+    font-size: 28px;
+    margin-right: 10px;
+  }
+  
+  .file-name {
+    font-size: 13px;
+  }
+  
+  .file-meta {
+    font-size: 11px;
+  }
+  
+  .item-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .progress-details {
+    font-size: 11px;
+  }
+}
 </style>
 

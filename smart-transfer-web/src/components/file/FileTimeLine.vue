@@ -541,4 +541,64 @@ onUnmounted(() => {
     }
   }
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .file-timeline-wrapper {
+    padding: 12px;
+    
+    .timeline-container {
+      .timeline-group {
+        .image-grid {
+          grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+          gap: 6px;
+        }
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .file-timeline-wrapper {
+    padding: 10px;
+    
+    .timeline-container {
+      .timeline-group {
+        margin-bottom: 16px;
+        
+        .group-header {
+          margin-bottom: 8px;
+          
+          .date-text {
+            font-size: 14px;
+          }
+          
+          .count-text {
+            font-size: 12px;
+          }
+        }
+        
+        .image-grid {
+          grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+          gap: 4px;
+          
+          .image-item {
+            .checkbox-wrapper {
+              opacity: 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  .right-menu-list {
+    .right-menu-item {
+      height: 40px;
+      line-height: 40px;
+      font-size: 14px;
+    }
+  }
+}
 </style>

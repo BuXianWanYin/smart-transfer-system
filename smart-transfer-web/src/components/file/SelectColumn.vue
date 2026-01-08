@@ -120,5 +120,23 @@ watch(() => props.modelValue, (val) => {
     }
   }
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .select-column {
+    .title {
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+    
+    :deep(.el-checkbox-group) {
+      gap: 6px;
+      
+      .el-checkbox__label {
+        font-size: 13px;
+      }
+    }
+  }
+}
 </style>
 

@@ -468,5 +468,46 @@ defineExpose({
   padding: 40px;
   color: var(--text-secondary);
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .upload-panel {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-width: calc(100vw - 20px);
+  }
+  
+  .panel-header {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  
+  .panel-content {
+    max-height: 250px;
+  }
+  
+  .upload-item {
+    padding: 10px;
+  }
+  
+  .item-name {
+    font-size: 13px;
+  }
+  
+  .item-size {
+    font-size: 11px;
+  }
+  
+  .item-status {
+    font-size: 11px;
+  }
+  
+  .empty-upload {
+    padding: 24px;
+    font-size: 13px;
+  }
+}
 </style>
 

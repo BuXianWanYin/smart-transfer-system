@@ -131,5 +131,33 @@ defineExpose({ show, hide })
     color: #409eff;
   }
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .upload-mask {
+    border-width: 3px;
+  }
+  
+  .mask-content {
+    .upload-icon {
+      font-size: 60px;
+      margin-bottom: 16px;
+    }
+    
+    .main-text {
+      font-size: 18px;
+    }
+    
+    .sub-text {
+      font-size: 12px;
+    }
+  }
+  
+  .close-btn {
+    top: 12px;
+    right: 12px;
+    font-size: 28px;
+  }
+}
 </style>
 

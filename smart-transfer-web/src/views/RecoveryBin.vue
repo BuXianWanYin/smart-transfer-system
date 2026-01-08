@@ -285,12 +285,15 @@ onMounted(() => {
   align-items: center;
   padding: 16px 20px;
   border-bottom: 1px solid #ebeef5;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .left-actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .tip-text {
@@ -325,6 +328,91 @@ onMounted(() => {
 .action-btns {
   display: flex;
   gap: 8px;
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .operation-bar {
+    padding: 12px 16px;
+  }
+  
+  .left-actions :deep(.el-button) {
+    padding: 8px 12px;
+  }
+  
+  .tip-text {
+    font-size: 12px;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .operation-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  .left-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  
+  .left-actions :deep(.el-button) {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  
+  .left-actions :deep(.el-button span) {
+    display: none;
+  }
+  
+  .left-actions :deep(.el-button .el-icon) {
+    margin-right: 0;
+  }
+  
+  .right-actions {
+    width: 100%;
+  }
+  
+  .tip-text {
+    font-size: 11px;
+  }
+  
+  .file-content {
+    padding: 12px;
+  }
+  
+  .file-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+  }
+  
+  /* 隐藏移动端不必要的列 */
+  :deep(.el-table) {
+    .el-table__header-wrapper,
+    .el-table__body-wrapper {
+      th:nth-child(3),
+      td:nth-child(3),
+      th:nth-child(4),
+      td:nth-child(4) {
+        display: none;
+      }
+    }
+  }
+  
+  .action-btns {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .action-btns :deep(.el-button) {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
 }
 </style>
 

@@ -2,8 +2,9 @@
   <el-dialog
     v-model="visible"
     title="解压文件"
-    width="500px"
+    :width="dialogWidth"
     :close-on-click-modal="false"
+    :fullscreen="isMobile"
   >
     <div class="unzip-dialog-content">
       <div class="file-info">
@@ -61,7 +62,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, reactive } from 'vue'
+import { ref, computed, watch, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Files } from '@element-plus/icons-vue'
 import MoveFileDialog from './MoveFileDialog.vue'
@@ -78,6 +79,14 @@ const visible = computed({
   get: () => props.modelValue,
   set: val => emit('update:modelValue', val)
 })
+
+// 响应式
+const screenWidth = ref(window.innerWidth)
+const updateScreenWidth = () => { screenWidth.value = window.innerWidth }
+onMounted(() => window.addEventListener('resize', updateScreenWidth))
+onUnmounted(() => window.removeEventListener('resize', updateScreenWidth))
+const isMobile = computed(() => screenWidth.value < 768)
+const dialogWidth = computed(() => screenWidth.value < 768 ? '100%' : '500px')
 
 const formRef = ref(null)
 const loading = ref(false)
@@ -210,6 +219,37 @@ watch(visible, (val) => {
     
     &:last-child {
       margin-bottom: 0;
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .unzip-dialog-content {
+    .file-info {
+      padding: 12px;
+      
+      .file-icon {
+        font-size: 28px;
+      }
+      
+      .file-details {
+        .file-name {
+          font-size: 13px;
+        }
+        
+        .file-size {
+          font-size: 11px;
+        }
+      }
+    }
+    
+    :deep(.el-form-item__label) {
+      font-size: 13px;
+    }
+    
+    :deep(.el-radio__label) {
+      font-size: 13px;
     }
   }
 }

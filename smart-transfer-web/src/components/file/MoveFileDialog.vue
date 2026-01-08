@@ -3,9 +3,10 @@
   <el-dialog
     v-model="visible"
     title="选择目标路径"
-    width="500px"
+    :width="dialogWidth"
     :close-on-click-modal="false"
     @open="handleDialogOpen"
+    :fullscreen="isMobile"
   >
     <div class="move-dialog-content">
       <!-- 选择的目标路径 -->
@@ -62,7 +63,7 @@
     <el-dialog
       v-model="addFolderVisible"
       title="新建文件夹"
-      width="400px"
+      :width="isMobile ? '90%' : '400px'"
       append-to-body
     >
       <el-form ref="addFolderFormRef" :model="addFolderForm" :rules="addFolderRules">
@@ -81,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderTree, createFolder } from '@/api/folderApi'
@@ -96,6 +97,14 @@ const visible = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
 })
+
+// 响应式
+const screenWidth = ref(window.innerWidth)
+const updateScreenWidth = () => { screenWidth.value = window.innerWidth }
+onMounted(() => window.addEventListener('resize', updateScreenWidth))
+onUnmounted(() => window.removeEventListener('resize', updateScreenWidth))
+const isMobile = computed(() => screenWidth.value < 768)
+const dialogWidth = computed(() => screenWidth.value < 768 ? '100%' : '500px')
 
 // 树形组件配置
 const treeRef = ref(null)
@@ -275,6 +284,40 @@ const handleConfirm = () => {
       .add-folder-btn {
         display: none;
         font-size: 12px;
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .move-dialog-content {
+    .target-path {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      
+      .label {
+        width: auto;
+        font-size: 13px;
+      }
+      
+      .content {
+        width: 100%;
+      }
+    }
+    
+    .tree-wrapper {
+      height: calc(100vh - 220px);
+      min-height: 200px;
+      
+      .custom-tree-node {
+        font-size: 13px;
+        
+        .add-folder-btn {
+          display: inline-flex;
+          font-size: 11px;
+        }
       }
     }
   }

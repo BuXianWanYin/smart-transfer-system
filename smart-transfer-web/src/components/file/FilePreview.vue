@@ -2,9 +2,10 @@
   <el-dialog
     v-model="visible"
     :title="file?.fileName || '文件预览'"
-    width="80%"
+    :width="dialogWidth"
     :close-on-click-modal="true"
     class="file-preview-dialog"
+    :fullscreen="isMobile"
   >
     <div class="preview-container" v-loading="loading">
       <!-- 图片预览 -->
@@ -67,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Headset, Document, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -87,6 +88,19 @@ const emit = defineEmits(['update:modelValue'])
 const visible = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
+})
+
+// 响应式
+const screenWidth = ref(window.innerWidth)
+const updateScreenWidth = () => { screenWidth.value = window.innerWidth }
+onMounted(() => window.addEventListener('resize', updateScreenWidth))
+onUnmounted(() => window.removeEventListener('resize', updateScreenWidth))
+
+const isMobile = computed(() => screenWidth.value < 768)
+const dialogWidth = computed(() => {
+  if (screenWidth.value < 768) return '100%'
+  if (screenWidth.value < 1024) return '90%'
+  return '80%'
 })
 
 const loading = ref(true)
@@ -251,6 +265,83 @@ watch(() => props.file, (newFile) => {
     
     p {
       font-size: 16px;
+    }
+  }
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .preview-container {
+    min-height: 300px;
+    
+    .audio-preview {
+      audio {
+        width: 300px;
+      }
+    }
+    
+    .preview-text {
+      padding: 12px;
+      
+      pre {
+        font-size: 13px;
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .preview-container {
+    min-height: 200px;
+    max-height: calc(100vh - 120px);
+    
+    .preview-image {
+      max-height: calc(100vh - 120px);
+    }
+    
+    .preview-video {
+      max-height: calc(100vh - 120px);
+    }
+    
+    .audio-preview {
+      gap: 16px;
+      padding: 20px;
+      
+      .audio-icon {
+        font-size: 60px;
+      }
+      
+      audio {
+        width: 100%;
+        max-width: 280px;
+      }
+    }
+    
+    .preview-pdf {
+      height: calc(100vh - 120px);
+    }
+    
+    .preview-text {
+      height: calc(100vh - 120px);
+      padding: 10px;
+      
+      pre {
+        font-size: 12px;
+      }
+    }
+    
+    .no-preview {
+      gap: 12px;
+      padding: 20px;
+      
+      .no-preview-icon {
+        font-size: 60px;
+      }
+      
+      p {
+        font-size: 14px;
+      }
     }
   }
 }

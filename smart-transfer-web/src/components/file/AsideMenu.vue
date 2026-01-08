@@ -327,4 +327,80 @@ onMounted(() => {
     }
   }
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .aside-menu-wrapper {
+    .file-menu {
+      :deep(.el-sub-menu__title),
+      :deep(.el-menu-item) {
+        height: 48px;
+        line-height: 48px;
+        font-size: 14px;
+        
+        .el-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+      }
+    }
+    
+    .storage-info {
+      padding: 12px;
+      
+      .storage-header {
+        font-size: 13px;
+      }
+      
+      .storage-text {
+        font-size: 11px;
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .aside-menu-wrapper {
+    background: #fff;
+    
+    .file-menu {
+      :deep(.el-sub-menu__title),
+      :deep(.el-menu-item) {
+        height: 52px;
+        line-height: 52px;
+        font-size: 15px;
+        padding-left: 16px !important;
+        
+        .el-icon {
+          font-size: 22px;
+          width: 22px;
+          height: 22px;
+          margin-right: 12px;
+        }
+        
+        // 移动端显示文字
+        span {
+          display: inline !important;
+        }
+      }
+      
+      // 传输徽章
+      .transfer-badge {
+        margin-left: auto;
+        margin-right: 12px;
+      }
+    }
+    
+    .storage-info {
+      padding: 16px;
+      border-top: 1px solid #ebeef5;
+      
+      .storage-header {
+        font-size: 14px;
+      }
+    }
+  }
+}
 </style>

@@ -3,6 +3,7 @@ package com.server.smarttransferserver.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
@@ -50,8 +51,10 @@ public class Folder implements Serializable {
 
     /**
      * 删除标记 0-正常 1-已删除
+     * 使用MyBatis Plus的逻辑删除注解
      */
     @TableField(value = "del_flag")
+    @TableLogic(value = "0", delval = "1")
     @Builder.Default
     private Integer delFlag = 0;
 

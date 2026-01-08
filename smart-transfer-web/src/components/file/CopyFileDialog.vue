@@ -2,9 +2,10 @@
   <el-dialog
     v-model="visible"
     title="复制到"
-    width="500px"
+    :width="dialogWidth"
     :close-on-click-modal="false"
     @open="handleDialogOpen"
+    :fullscreen="isMobile"
   >
     <div class="copy-dialog-content">
       <!-- 要复制的文件信息 -->
@@ -64,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Folder, Document, Files } from '@element-plus/icons-vue'
 import { getFolderTree } from '@/api/folderApi'
@@ -81,6 +82,14 @@ const visible = computed({
   get: () => props.modelValue,
   set: val => emit('update:modelValue', val)
 })
+
+// 响应式
+const screenWidth = ref(window.innerWidth)
+const updateScreenWidth = () => { screenWidth.value = window.innerWidth }
+onMounted(() => window.addEventListener('resize', updateScreenWidth))
+onUnmounted(() => window.removeEventListener('resize', updateScreenWidth))
+const isMobile = computed(() => screenWidth.value < 768)
+const dialogWidth = computed(() => screenWidth.value < 768 ? '100%' : '500px')
 
 // 树形组件配置
 const treeRef = ref(null)
@@ -252,6 +261,43 @@ const handleCopy = async () => {
         color: #e6a23c;
         margin-right: 6px;
       }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .copy-dialog-content {
+    .file-info {
+      padding: 10px 12px;
+      
+      .file-icon {
+        font-size: 20px;
+      }
+      
+      .file-name {
+        font-size: 13px;
+      }
+    }
+    
+    .target-path {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      
+      .label {
+        width: auto;
+        font-size: 13px;
+      }
+      
+      .content {
+        width: 100%;
+      }
+    }
+    
+    .tree-wrapper {
+      height: calc(100vh - 280px);
+      min-height: 200px;
     }
   }
 }

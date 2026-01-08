@@ -24,21 +24,21 @@
     
     <!-- 核心指标卡片 -->
     <el-row :gutter="20" class="metric-cards">
-      <el-col :span="8">
+      <el-col :xs="24" :sm="8" :md="8" :lg="8">
         <div class="stat-card" style="border-left-color: rgb(var(--art-primary))">
           <div class="stat-card-title">当前算法</div>
           <div class="stat-card-value text-primary">{{ currentMetrics.algorithm || '-' }}</div>
           <div class="stat-card-trend">拥塞控制算法</div>
         </div>
       </el-col>
-      <el-col :span="8">
+      <el-col :xs="24" :sm="8" :md="8" :lg="8">
         <div class="stat-card" style="border-left-color: rgb(var(--art-info))">
           <div class="stat-card-title">拥塞窗口 (CWND)</div>
           <div class="stat-card-value text-info">{{ formatFileSize(currentMetrics.cwnd) }}</div>
           <div class="stat-card-trend">当前拥塞窗口大小</div>
         </div>
       </el-col>
-      <el-col :span="8">
+      <el-col :xs="24" :sm="8" :md="8" :lg="8">
         <div class="stat-card" style="border-left-color: rgb(var(--art-success))">
           <div class="stat-card-title">传输速率</div>
           <div class="stat-card-value text-success">{{ formatSpeed(currentMetrics.rate) }}</div>
@@ -49,14 +49,14 @@
     
     <!-- 详细指标卡片 -->
     <el-row :gutter="20" class="metric-cards">
-      <el-col :span="6">
+      <el-col :xs="12" :sm="12" :md="6" :lg="6">
         <div class="stat-card">
           <div class="stat-card-title">RTT (往返时延)</div>
           <div class="stat-card-value">{{ currentMetrics.rtt || 0 }}<span style="font-size: 16px;">ms</span></div>
           <div class="stat-card-trend">Round-Trip Time</div>
         </div>
       </el-col>
-      <el-col :span="6">
+      <el-col :xs="12" :sm="12" :md="6" :lg="6">
         <div class="stat-card">
           <div class="stat-card-title">丢包率</div>
           <div class="stat-card-value" :class="currentMetrics.lossRate > 0.05 ? 'text-danger' : ''">
@@ -65,14 +65,14 @@
           <div class="stat-card-trend">Packet Loss Rate</div>
         </div>
       </el-col>
-      <el-col :span="6">
+      <el-col :xs="12" :sm="12" :md="6" :lg="6">
         <div class="stat-card">
           <div class="stat-card-title">带宽估计</div>
           <div class="stat-card-value">{{ formatSpeed(currentMetrics.bandwidth) }}</div>
           <div class="stat-card-trend">Bandwidth Estimate</div>
         </div>
       </el-col>
-      <el-col :span="6">
+      <el-col :xs="12" :sm="12" :md="6" :lg="6">
         <div class="stat-card">
           <div class="stat-card-title">网络质量</div>
           <div class="stat-card-value">
@@ -196,6 +196,79 @@ const getQualityType = (quality) => {
   border-radius: 8px;
   padding: 20px;
   box-shadow: var(--art-card-shadow);
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .toolbar {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start !important;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .congestion-monitor-page {
+    padding: 12px !important;
+  }
+  
+  .page-header {
+    margin-bottom: 16px;
+    
+    .page-title {
+      font-size: 18px;
+    }
+    
+    .page-description {
+      font-size: 13px;
+    }
+  }
+  
+  .toolbar {
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px !important;
+    align-items: stretch !important;
+    
+    .toolbar-left, .toolbar-right {
+      justify-content: center;
+    }
+  }
+  
+  .metric-cards {
+    margin-bottom: 12px;
+    
+    .el-col {
+      margin-bottom: 12px;
+    }
+  }
+  
+  .stat-card {
+    padding: 12px !important;
+    
+    .stat-card-title {
+      font-size: 12px !important;
+    }
+    
+    .stat-card-value {
+      font-size: 20px !important;
+    }
+    
+    .stat-card-trend {
+      font-size: 11px !important;
+    }
+  }
+  
+  :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    
+    .el-radio-button__inner {
+      padding: 8px 16px;
+    }
+  }
 }
 </style>
 

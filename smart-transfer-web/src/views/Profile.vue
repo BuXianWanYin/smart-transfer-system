@@ -422,5 +422,158 @@ onMounted(() => {
     max-width: 400px;
   }
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .profile-page {
+    padding: 16px;
+  }
+  
+  .profile-container {
+    gap: 16px;
+  }
+  
+  .info-card {
+    .user-info {
+      .info-form {
+        max-width: 100%;
+      }
+    }
+  }
+  
+  .storage-card {
+    .storage-stats {
+      .total-stats {
+        gap: 24px;
+        
+        .stat-item {
+          .stat-value {
+            font-size: 20px;
+          }
+        }
+      }
+      
+      .category-stats {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 12px;
+      }
+    }
+  }
+  
+  .password-card {
+    .password-form {
+      max-width: 100%;
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .profile-page {
+    padding: 12px;
+  }
+  
+  .profile-container {
+    gap: 12px;
+  }
+  
+  .card-header {
+    span {
+      font-size: 15px;
+    }
+  }
+  
+  .info-card {
+    .user-info {
+      .avatar-section {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        
+        .user-basic {
+          h3 {
+            font-size: 18px;
+          }
+        }
+      }
+      
+      .info-form {
+        :deep(.el-form-item__label) {
+          width: 70px !important;
+          font-size: 13px;
+        }
+        
+        :deep(.el-form-item) {
+          margin-bottom: 16px;
+        }
+      }
+    }
+  }
+  
+  .storage-card {
+    .storage-stats {
+      .total-stats {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+        
+        .stat-item {
+          text-align: left;
+          
+          .stat-value {
+            font-size: 22px;
+          }
+          
+          .stat-label {
+            font-size: 13px;
+          }
+        }
+      }
+      
+      .category-stats {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        
+        .category-item {
+          padding: 10px;
+          
+          .category-icon {
+            width: 36px;
+            height: 36px;
+            
+            .el-icon {
+              font-size: 18px;
+            }
+          }
+          
+          .category-info {
+            .category-name {
+              font-size: 13px;
+            }
+            
+            .category-detail {
+              font-size: 11px;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  .password-card {
+    .password-form {
+      :deep(.el-form-item__label) {
+        width: 80px !important;
+        font-size: 13px;
+      }
+      
+      :deep(.el-form-item) {
+        margin-bottom: 16px;
+      }
+    }
+  }
+}
 </style>
 

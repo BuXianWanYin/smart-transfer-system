@@ -334,11 +334,15 @@ const handleSave = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .input-with-unit {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .form-hint {
@@ -346,6 +350,83 @@ const handleSave = async () => {
   color: #909399;
   font-size: 13px;
   white-space: nowrap;
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .congestion-config-page {
+    padding: 16px;
+  }
+  
+  :deep(.el-form-item__label) {
+    width: 120px !important;
+  }
+  
+  .input-with-unit {
+    :deep(.el-input-number) {
+      width: 140px !important;
+    }
+  }
+  
+  .form-hint {
+    font-size: 12px;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .congestion-config-page {
+    padding: 12px;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    
+    span {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+  }
+  
+  :deep(.el-form-item__label) {
+    width: 100% !important;
+    text-align: left !important;
+    padding-bottom: 4px !important;
+  }
+  
+  :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+  
+  .input-with-unit {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    
+    :deep(.el-input-number) {
+      width: 100% !important;
+    }
+    
+    :deep(.el-select) {
+      width: 100% !important;
+      margin-left: 0 !important;
+      margin-top: 8px;
+    }
+  }
+  
+  .form-hint {
+    margin-left: 0;
+    margin-top: 4px;
+    font-size: 12px;
+  }
+  
+  :deep(.el-descriptions) {
+    .el-descriptions-item__label {
+      width: 100px;
+      min-width: 100px;
+    }
+  }
 }
 </style>
 

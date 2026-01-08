@@ -852,4 +852,92 @@ const handleClose = () => {
     }
   }
 }
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .chunk-uploader {
+    .upload-list {
+      .upload-item {
+        .file-status {
+          width: 140px;
+          margin: 0 12px;
+        }
+      }
+    }
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .chunk-uploader {
+    .upload-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      
+      .header-left {
+        justify-content: center;
+      }
+      
+      .header-right {
+        justify-content: center;
+        
+        :deep(.el-button) {
+          padding: 8px 12px;
+          font-size: 13px;
+        }
+      }
+    }
+    
+    .upload-list {
+      .upload-item {
+        flex-wrap: wrap;
+        padding: 10px;
+        
+        .file-info {
+          width: 100%;
+          margin-bottom: 8px;
+          
+          .file-icon {
+            width: 32px;
+            height: 32px;
+          }
+          
+          .file-details {
+            .file-name {
+              font-size: 13px;
+            }
+            
+            .file-size {
+              font-size: 11px;
+            }
+          }
+        }
+        
+        .file-status {
+          flex: 1;
+          width: auto;
+          margin: 0 8px 0 0;
+          min-width: 100px;
+          
+          .status-text {
+            font-size: 11px;
+          }
+          
+          .speed-text {
+            font-size: 11px;
+          }
+        }
+        
+        .file-actions {
+          gap: 4px;
+          
+          :deep(.el-button) {
+            padding: 4px 8px;
+          }
+        }
+      }
+    }
+  }
+}
 </style>

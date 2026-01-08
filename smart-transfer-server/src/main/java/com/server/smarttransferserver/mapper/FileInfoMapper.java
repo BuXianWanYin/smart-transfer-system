@@ -6,18 +6,22 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
 /**
  * 文件信息Mapper接口
+ * 
+ * 说明：
+ * 1. 逻辑删除：使用MyBatis Plus的@TableLogic注解，调用deleteById/deleteBatchIds自动触发
+ * 2. 还原/更新del_flag：使用LambdaUpdateWrapper在Service层实现
+ * 3. 物理删除：必须使用原生SQL，因为@TableLogic会拦截delete操作
  */
 @Mapper
 public interface FileInfoMapper extends BaseMapper<FileInfo> {
 
     /**
-     * 根据文件哈希查询文件
+     * 根据文件哈希查询文件（MyBatis Plus会自动加上del_flag=0条件）
      *
      * @param fileHash 文件哈希
      * @return 文件信息
@@ -44,17 +48,8 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
     Long countByUploadStatus(@Param("uploadStatus") String uploadStatus);
     
     /**
-     * 更新删除标志（跳过 @TableLogic 的限制）
-     *
-     * @param fileId 文件ID
-     * @param delFlag 删除标志
-     * @return 影响行数
-     */
-    @Update("UPDATE t_file_info SET del_flag = #{delFlag}, update_time = NOW() WHERE id = #{fileId}")
-    int updateDelFlag(@Param("fileId") Long fileId, @Param("delFlag") Integer delFlag);
-    
-    /**
-     * 物理删除文件（真正删除数据库记录）
+     * 物理删除文件（真正删除数据库记录，绕过@TableLogic）
+     * 用于回收站彻底删除功能
      *
      * @param fileId 文件ID
      * @return 影响行数
@@ -63,27 +58,8 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
     int deletePhysically(@Param("fileId") Long fileId);
 
     /**
-     * 更新删除标志并设置批次号（用于文件夹删除）
-     *
-     * @param fileId 文件ID
-     * @param delFlag 删除标志
-     * @param batchNum 删除批次号
-     * @return 影响行数
-     */
-    @Update("UPDATE t_file_info SET del_flag = #{delFlag}, delete_batch_num = #{batchNum}, update_time = NOW() WHERE id = #{fileId}")
-    int updateDelFlagWithBatch(@Param("fileId") Long fileId, @Param("delFlag") Integer delFlag, @Param("batchNum") String batchNum);
-
-    /**
-     * 根据批次号还原文件
-     *
-     * @param batchNum 删除批次号
-     * @return 影响行数
-     */
-    @Update("UPDATE t_file_info SET del_flag = 0, delete_batch_num = NULL, update_time = NOW() WHERE delete_batch_num = #{batchNum}")
-    int restoreByBatchNum(@Param("batchNum") String batchNum);
-
-    /**
-     * 根据批次号物理删除文件
+     * 根据批次号物理删除文件（真正删除数据库记录，绕过@TableLogic）
+     * 用于批量彻底删除功能
      *
      * @param batchNum 删除批次号
      * @return 影响行数

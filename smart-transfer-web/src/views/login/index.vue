@@ -110,11 +110,15 @@ function handleLogin() {
   justify-content: center;
   width: 100%;
   height: 100%;
+  min-height: 100vh;
+  padding: 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-sizing: border-box;
 }
 
 .login-container {
-  width: 400px;
+  width: 100%;
+  max-width: 400px;
   padding: 40px;
   background: #fff;
   border-radius: 10px;
@@ -140,6 +144,58 @@ function handleLogin() {
 
 .login-form .login-btn {
   width: 100%;
+}
+
+/* 平板适配 */
+@media (max-width: 1024px) {
+  .login-container {
+    padding: 32px;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .login-page {
+    padding: 16px;
+  }
+  
+  .login-container {
+    padding: 24px;
+    border-radius: 8px;
+  }
+  
+  .login-header {
+    margin-bottom: 24px;
+    
+    h2 {
+      font-size: 24px;
+    }
+    
+    p {
+      font-size: 13px;
+    }
+  }
+  
+  :deep(.el-input__inner) {
+    height: 44px;
+    font-size: 15px;
+  }
+  
+  :deep(.el-button) {
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* 超小屏幕适配 */
+@media (max-width: 375px) {
+  .login-container {
+    padding: 20px;
+  }
+  
+  .login-header h2 {
+    font-size: 22px;
+  }
 }
 </style>
 

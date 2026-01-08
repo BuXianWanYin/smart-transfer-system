@@ -2,9 +2,10 @@
   <el-dialog
     v-model="visible"
     title="文件详情"
-    width="500px"
+    :width="dialogWidth"
     :close-on-click-modal="true"
     class="file-detail-dialog"
+    :fullscreen="isMobile"
   >
     <!-- 有文件数据时显示 -->
     <div class="detail-content" v-if="file">
@@ -77,7 +78,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -100,6 +101,14 @@ const visible = computed({
   get: () => props.modelValue,
   set: val => emit('update:modelValue', val)
 })
+
+// 响应式
+const screenWidth = ref(window.innerWidth)
+const updateScreenWidth = () => { screenWidth.value = window.innerWidth }
+onMounted(() => window.addEventListener('resize', updateScreenWidth))
+onUnmounted(() => window.removeEventListener('resize', updateScreenWidth))
+const isMobile = computed(() => screenWidth.value < 768)
+const dialogWidth = computed(() => screenWidth.value < 768 ? '100%' : '500px')
 
 // 是否是回收站
 const isRecovery = computed(() => props.fileType === 6)
@@ -285,6 +294,51 @@ const handleDownload = () => {
 
 .empty-content {
   padding: 40px 0;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .detail-content {
+    .file-preview-area {
+      padding: 16px;
+      
+      .file-thumbnail {
+        max-width: 140px;
+        max-height: 140px;
+      }
+      
+      .file-icon-wrapper {
+        width: 80px;
+        height: 80px;
+      }
+      
+      .file-icon-large {
+        width: 48px;
+        height: 48px;
+      }
+    }
+    
+    .file-info-list {
+      .info-item {
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 0;
+        
+        .label {
+          width: auto;
+          font-size: 12px;
+        }
+        
+        .value {
+          font-size: 13px;
+        }
+      }
+    }
+  }
+  
+  .empty-content {
+    padding: 20px 0;
+  }
 }
 </style>
 

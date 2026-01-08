@@ -78,8 +78,12 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                 .build();
         save(recoveryFile);
 
-        // 标记文件为已删除（使用原生SQL绕过@TableLogic）
-        fileInfoMapper.updateDelFlag(fileId, 1);
+        // 使用MyBatis Plus的LambdaUpdateWrapper标记文件为已删除
+        LambdaUpdateWrapper<FileInfo> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(FileInfo::getId, fileId)
+                .set(FileInfo::getDelFlag, 1)
+                .set(FileInfo::getUpdateTime, LocalDateTime.now());
+        fileInfoMapper.update(null, updateWrapper);
 
         log.info("文件已移至回收站，fileId: {}, fileName: {}, userId: {}", fileId, fileInfo.getFileName(), userId);
     }
@@ -89,6 +93,8 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     public void batchDeleteToRecovery(List<Long> fileIds) {
         Long userId = UserContextHolder.getUserId();
         String batchNum = UUID.randomUUID().toString().replace("-", "");
+        LocalDateTime now = LocalDateTime.now();
+        
         for (Long fileId : fileIds) {
             FileInfo fileInfo = fileInfoMapper.selectById(fileId);
             if (fileInfo == null) {
@@ -105,13 +111,18 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                     .folderId(fileInfo.getFolderId())
                     .isDir(fileInfo.getIsDir())
                     .fileSize(fileInfo.getFileSize())
-                    .deleteTime(LocalDateTime.now())
+                    .deleteTime(now)
                     .deleteBatchNum(batchNum)
                     .build();
             save(recoveryFile);
 
-            // 标记文件为已删除（使用原生SQL绕过@TableLogic）
-            fileInfoMapper.updateDelFlag(fileId, 1);
+            // 使用MyBatis Plus的LambdaUpdateWrapper标记文件为已删除
+            LambdaUpdateWrapper<FileInfo> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(FileInfo::getId, fileId)
+                    .set(FileInfo::getDelFlag, 1)
+                    .set(FileInfo::getDeleteBatchNum, batchNum)
+                    .set(FileInfo::getUpdateTime, now);
+            fileInfoMapper.update(null, updateWrapper);
         }
         log.info("批量删除文件到回收站，数量: {}, batchNum: {}, userId: {}", fileIds.size(), batchNum, userId);
     }
@@ -158,15 +169,16 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
      * 递归标记文件夹及其子内容为已删除
      */
     private void markFolderAndChildrenDeleted(Long folderId, String batchNum, LocalDateTime deleteTime, Long userId) {
-        // 标记当前文件夹为已删除
+        // 使用MyBatis Plus的LambdaUpdateWrapper标记当前文件夹为已删除
         LambdaUpdateWrapper<Folder> folderUpdate = new LambdaUpdateWrapper<>();
         folderUpdate.eq(Folder::getId, folderId)
                 .set(Folder::getDelFlag, 1)
                 .set(Folder::getDeleteBatchNum, batchNum)
-                .set(Folder::getDeleteTime, deleteTime);
+                .set(Folder::getDeleteTime, deleteTime)
+                .set(Folder::getUpdateTime, deleteTime);
         folderMapper.update(null, folderUpdate);
 
-        // 标记该文件夹下的文件为已删除
+        // 使用MyBatis Plus的LambdaUpdateWrapper标记该文件夹下的文件为已删除
         LambdaQueryWrapper<FileInfo> fileQuery = new LambdaQueryWrapper<>();
         fileQuery.eq(FileInfo::getFolderId, folderId)
                 .eq(FileInfo::getDelFlag, 0);
@@ -175,7 +187,12 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
         }
         List<FileInfo> files = fileInfoMapper.selectList(fileQuery);
         for (FileInfo file : files) {
-            fileInfoMapper.updateDelFlagWithBatch(file.getId(), 1, batchNum);
+            LambdaUpdateWrapper<FileInfo> fileUpdate = new LambdaUpdateWrapper<>();
+            fileUpdate.eq(FileInfo::getId, file.getId())
+                    .set(FileInfo::getDelFlag, 1)
+                    .set(FileInfo::getDeleteBatchNum, batchNum)
+                    .set(FileInfo::getUpdateTime, deleteTime);
+            fileInfoMapper.update(null, fileUpdate);
         }
 
         // 递归处理子文件夹
@@ -207,8 +224,13 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
             restoreFolderAndChildren(batchNum);
             log.info("文件夹已还原，recoveryId: {}, folderName: {}", recoveryId, recoveryFile.getFileName());
         } else {
-            // 还原单个文件（使用原生SQL绕过@TableLogic）
-            fileInfoMapper.updateDelFlag(recoveryFile.getFileId(), 0);
+            // 使用MyBatis Plus的LambdaUpdateWrapper还原单个文件
+            LambdaUpdateWrapper<FileInfo> updateWrapper = new LambdaUpdateWrapper<>();
+            updateWrapper.eq(FileInfo::getId, recoveryFile.getFileId())
+                    .set(FileInfo::getDelFlag, 0)
+                    .set(FileInfo::getDeleteBatchNum, null)
+                    .set(FileInfo::getUpdateTime, LocalDateTime.now());
+            fileInfoMapper.update(null, updateWrapper);
             log.info("文件已还原，recoveryId: {}, fileName: {}", recoveryId, recoveryFile.getFileName());
         }
 
@@ -220,16 +242,24 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
      * 还原文件夹及其所有内容
      */
     private void restoreFolderAndChildren(String batchNum) {
-        // 还原所有标记为该批次号的文件夹
+        LocalDateTime now = LocalDateTime.now();
+        
+        // 使用MyBatis Plus的LambdaUpdateWrapper还原所有标记为该批次号的文件夹
         LambdaUpdateWrapper<Folder> folderUpdate = new LambdaUpdateWrapper<>();
         folderUpdate.eq(Folder::getDeleteBatchNum, batchNum)
                 .set(Folder::getDelFlag, 0)
                 .set(Folder::getDeleteBatchNum, null)
-                .set(Folder::getDeleteTime, null);
+                .set(Folder::getDeleteTime, null)
+                .set(Folder::getUpdateTime, now);
         folderMapper.update(null, folderUpdate);
 
-        // 还原所有标记为该批次号的文件
-        fileInfoMapper.restoreByBatchNum(batchNum);
+        // 使用MyBatis Plus的LambdaUpdateWrapper还原所有标记为该批次号的文件
+        LambdaUpdateWrapper<FileInfo> fileUpdate = new LambdaUpdateWrapper<>();
+        fileUpdate.eq(FileInfo::getDeleteBatchNum, batchNum)
+                .set(FileInfo::getDelFlag, 0)
+                .set(FileInfo::getDeleteBatchNum, null)
+                .set(FileInfo::getUpdateTime, now);
+        fileInfoMapper.update(null, fileUpdate);
     }
 
     @Override
