@@ -152,6 +152,7 @@ import {
 import { useFileStore } from '@/store/fileStore'
 import { formatFileSize, formatSpeed, createFileChunks, calculateFileHash } from '@/utils/file'
 import { initUpload, uploadChunk, mergeFile } from '@/api/fileApi'
+import { addHistory } from '@/api/historyApi'
 
 const fileStore = useFileStore()
 const uploadRef = ref()
@@ -212,12 +213,15 @@ const startUpload = async (item) => {
       item.status = 'completed'
       item.progress = 100
       fileStore.moveToCompleted(item)
+      // 记录传输历史
+      await recordHistory(item, fileHash, 0)
       return
     }
     
     item.status = 'uploading'
     item.fileId = initRes.fileId
     item.uploadedChunks = initRes.uploadedChunks || []
+    item.startTime = Date.now()
     // 同步状态到store用于监控面板显示
     fileStore.updateUploadStatus(item.id, 'uploading')
     
@@ -233,10 +237,14 @@ const startUpload = async (item) => {
     
     item.status = 'completed'
     item.progress = 100
+    item.endTime = Date.now()
     item.speed = 0
     fileStore.updateUploadSpeed(item.id, 0)
     ElMessage.success(`${item.fileName} 上传成功！`)
     fileStore.moveToCompleted(item)
+    // 记录传输历史
+    const duration = Math.floor((item.endTime - item.startTime) / 1000)
+    await recordHistory(item, fileHash, duration)
     
   } catch (error) {
     // 上传失败
@@ -397,6 +405,26 @@ const formatTime = (seconds) => {
   if (h > 0) return `${h}小时${m}分钟`
   if (m > 0) return `${m}分${s}秒`
   return `${s}秒`
+}
+
+// 记录传输历史
+const recordHistory = async (item, fileHash, duration) => {
+  try {
+    await addHistory({
+      fileId: item.fileId,
+      fileName: item.fileName,
+      fileSize: item.fileSize,
+      fileHash: fileHash,
+      transferType: 'UPLOAD',
+      transferStatus: 'COMPLETED',
+      avgSpeed: duration > 0 ? Math.floor(item.fileSize / duration) : 0,
+      duration: duration,
+      algorithm: 'CUBIC',
+      completedTime: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('记录传输历史失败', error)
+  }
 }
 
 // 暴露方法给父组件

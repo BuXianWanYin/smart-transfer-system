@@ -47,5 +47,25 @@ public class Folder implements Serializable {
     @TableField(value = "update_time")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updateTime;
+
+    /**
+     * 删除标记 0-正常 1-已删除
+     */
+    @TableField(value = "del_flag")
+    @Builder.Default
+    private Integer delFlag = 0;
+
+    /**
+     * 删除批次号
+     */
+    @TableField(value = "delete_batch_num")
+    private String deleteBatchNum;
+
+    /**
+     * 删除时间
+     */
+    @TableField(value = "delete_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime deleteTime;
 }
 

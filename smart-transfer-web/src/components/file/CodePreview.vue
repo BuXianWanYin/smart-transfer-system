@@ -73,9 +73,14 @@
 
 <script setup>
 import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check, Download, QuestionFilled, Close } from '@element-plus/icons-vue'
 import { getPreviewUrl, getDownloadUrl } from '@/api/fileApi'
+import { useTransferStore } from '@/store/transferStore'
+
+const router = useRouter()
+const transferStore = useTransferStore()
 
 // 动态导入 CodeMirror
 import CodeMirror from 'codemirror'
@@ -293,10 +298,19 @@ const handleSave = () => {
   ElMessage.success('保存成功')
 }
 
-// 下载
+// 下载 - 添加到传输列表
 const handleDownload = () => {
   if (props.file) {
-    window.open(getDownloadUrl(props.file.id))
+    const fileName = props.file.fileName + (props.file.extendName ? '.' + props.file.extendName : '')
+    transferStore.addDownloadTask({
+      fileId: props.file.id,
+      fileName: fileName,
+      fileSize: props.file.fileSize,
+      fileHash: props.file.fileHash
+    })
+    ElMessage.success(`已添加 "${fileName}" 到下载列表`)
+    router.push({ name: 'TransferCenter' })
+    visible.value = false
   }
 }
 

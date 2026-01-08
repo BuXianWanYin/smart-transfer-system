@@ -2,6 +2,7 @@ package com.server.smarttransferserver.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.server.smarttransferserver.entity.TransferTask;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -49,4 +50,22 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      */
     @Select("SELECT COUNT(*) FROM t_transfer_task WHERE transfer_status = #{transferStatus}")
     Long countByStatus(@Param("transferStatus") String transferStatus);
+    
+    /**
+     * 根据文件ID删除传输任务
+     *
+     * @param fileId 文件ID
+     * @return 删除的记录数
+     */
+    @Delete("DELETE FROM t_transfer_task WHERE file_id = #{fileId}")
+    int deleteByFileId(@Param("fileId") Long fileId);
+    
+    /**
+     * 根据批次号删除传输任务（通过文件ID关联）
+     *
+     * @param batchNum 删除批次号
+     * @return 删除的记录数
+     */
+    @Delete("DELETE FROM t_transfer_task WHERE file_id IN (SELECT id FROM t_file_info WHERE delete_batch_num = #{batchNum})")
+    int deleteByBatchNum(@Param("batchNum") String batchNum);
 }

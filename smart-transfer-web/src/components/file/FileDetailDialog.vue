@@ -2,10 +2,11 @@
   <el-dialog
     v-model="visible"
     title="文件详情"
-    width="550px"
+    width="500px"
     :close-on-click-modal="true"
     class="file-detail-dialog"
   >
+    <!-- 有文件数据时显示 -->
     <div class="detail-content" v-if="file">
       <!-- 文件图标/缩略图 -->
       <div class="file-preview-area">
@@ -14,56 +15,60 @@
           :src="thumbnailUrl"
           class="file-thumbnail"
           @click="handlePreview"
-          :title="file.isDir ? '' : '点击预览'"
+          title="点击预览"
         />
-        <img
-          v-else
-          :src="fileIcon"
-          class="file-icon-large"
-        />
+        <div v-else class="file-icon-wrapper">
+          <img :src="fileIcon" class="file-icon-large" />
+        </div>
       </div>
       
-      <!-- 文件信息表单 -->
-      <el-form
-        class="file-info-form"
-        label-width="82px"
-        label-position="right"
-        label-suffix="："
-        size="small"
-      >
-        <el-form-item label="文件名">
-          <el-input :value="fullFileName" readonly />
-        </el-form-item>
+      <!-- 文件信息列表 -->
+      <div class="file-info-list">
+        <div class="info-item">
+          <span class="label">文件名</span>
+          <span class="value">{{ fullFileName }}</span>
+        </div>
         
-        <el-form-item v-if="showPath" :label="isRecovery ? '原路径' : '路径'">
-          <el-input :value="file.filePath || '/'" readonly />
-        </el-form-item>
+        <div class="info-item" v-if="showPath">
+          <span class="label">{{ isRecovery ? '原路径' : '路径' }}</span>
+          <span class="value">{{ file.filePath || '/' }}</span>
+        </div>
         
-        <el-form-item label="类型">
-          <el-input :value="fileTypeText" readonly />
-        </el-form-item>
+        <div class="info-item">
+          <span class="label">类型</span>
+          <span class="value">{{ fileTypeText }}</span>
+        </div>
         
-        <el-form-item label="大小" v-if="!file.isDir">
-          <el-input :value="fileSizeText" readonly />
-        </el-form-item>
+        <div class="info-item" v-if="!file.isDir">
+          <span class="label">大小</span>
+          <span class="value">{{ fileSizeText }}</span>
+        </div>
         
-        <el-form-item label="修改日期" v-if="!isRecovery && file.updateTime">
-          <el-input :value="formatDate(file.updateTime)" readonly />
-        </el-form-item>
+        <div class="info-item" v-if="!isRecovery && file.updateTime">
+          <span class="label">修改日期</span>
+          <span class="value">{{ formatDate(file.updateTime) }}</span>
+        </div>
         
-        <el-form-item label="创建日期" v-if="file.createTime">
-          <el-input :value="formatDate(file.createTime)" readonly />
-        </el-form-item>
+        <div class="info-item" v-if="file.createTime">
+          <span class="label">创建日期</span>
+          <span class="value">{{ formatDate(file.createTime) }}</span>
+        </div>
         
-        <el-form-item label="删除日期" v-if="isRecovery && file.deleteTime">
-          <el-input :value="formatDate(file.deleteTime)" readonly />
-        </el-form-item>
-      </el-form>
+        <div class="info-item" v-if="isRecovery && file.deleteTime">
+          <span class="label">删除日期</span>
+          <span class="value">{{ formatDate(file.deleteTime) }}</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 无文件数据时显示 -->
+    <div class="empty-content" v-else>
+      <el-empty description="暂无文件信息" :image-size="80" />
     </div>
     
     <template #footer>
       <el-button @click="visible = false">关 闭</el-button>
-      <el-button v-if="!file?.isDir" type="primary" @click="handleDownload">
+      <el-button v-if="file && !file.isDir" type="primary" @click="handleDownload">
         <el-icon><Download /></el-icon>
         下载
       </el-button>
@@ -73,9 +78,15 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { getPreviewUrl, getDownloadUrl } from '@/api/fileApi'
 import { getFileIconByType } from '@/utils/fileType'
+import { useTransferStore } from '@/store/transferStore'
+
+const router = useRouter()
+const transferStore = useTransferStore()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -191,29 +202,33 @@ const handlePreview = () => {
   }
 }
 
-// 下载
+// 下载 - 添加到传输列表
 const handleDownload = () => {
   if (props.file && !props.file.isDir) {
-    window.open(getDownloadUrl(props.file.id))
+    transferStore.addDownloadTask({
+      fileId: props.file.id,
+      fileName: fullFileName.value,
+      fileSize: props.file.fileSize,
+      fileHash: props.file.fileHash
+    })
+    ElMessage.success(`已添加 "${fullFileName.value}" 到下载列表`)
+    router.push({ name: 'TransferCenter' })
   }
 }
 </script>
 
 <style lang="scss" scoped>
-.file-detail-dialog {
-  :deep(.el-dialog__body) {
-    padding-top: 10px;
-  }
-}
-
 .detail-content {
   .file-preview-area {
     text-align: center;
-    margin-bottom: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+    background: #fafbfc;
+    border-radius: 8px;
     
     .file-thumbnail {
-      max-width: 200px;
-      max-height: 200px;
+      max-width: 180px;
+      max-height: 180px;
       border-radius: 8px;
       cursor: pointer;
       transition: transform 0.2s;
@@ -224,25 +239,53 @@ const handleDownload = () => {
       }
     }
     
+    .file-icon-wrapper {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100px;
+      height: 100px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    
     .file-icon-large {
-      width: 80px;
-      height: 80px;
+      width: 64px;
+      height: 64px;
     }
   }
   
-  .file-info-form {
-    :deep(.el-form-item) {
-      margin-bottom: 12px;
+  .file-info-list {
+    .info-item {
+      display: flex;
+      padding: 12px 0;
+      border-bottom: 1px solid #f0f0f0;
       
-      .el-input__inner {
-        border: 1px solid #ebeef5;
-        background: #fafbfc;
+      &:last-child {
+        border-bottom: none;
+      }
+      
+      .label {
+        width: 80px;
+        flex-shrink: 0;
+        color: #909399;
         font-size: 14px;
-        color: #606266;
-        border-radius: 4px;
+      }
+      
+      .value {
+        flex: 1;
+        color: #303133;
+        font-size: 14px;
+        word-break: break-all;
       }
     }
   }
 }
+
+.empty-content {
+  padding: 40px 0;
+}
 </style>
+
 

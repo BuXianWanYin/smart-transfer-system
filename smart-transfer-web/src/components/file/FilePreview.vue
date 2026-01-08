@@ -68,8 +68,14 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Headset, Document, Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { getPreviewUrl, getDownloadUrl } from '@/api/fileApi'
+import { useTransferStore } from '@/store/transferStore'
+
+const router = useRouter()
+const transferStore = useTransferStore()
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
@@ -141,10 +147,18 @@ const loadTextContent = async () => {
   }
 }
 
-// 下载文件
+// 下载文件 - 添加到传输列表
 const downloadFile = () => {
   if (!props.file) return
-  window.open(getDownloadUrl(props.file.id))
+  const fileName = props.file.fileName + (props.file.extendName ? '.' + props.file.extendName : '')
+  transferStore.addDownloadTask({
+    fileId: props.file.id,
+    fileName: fileName,
+    fileSize: props.file.fileSize,
+    fileHash: props.file.fileHash
+  })
+  ElMessage.success(`已添加 "${fileName}" 到下载列表`)
+  router.push({ name: 'TransferCenter' })
 }
 
 // 监听文件变化

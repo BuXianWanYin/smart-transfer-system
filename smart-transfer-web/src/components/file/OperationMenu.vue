@@ -136,6 +136,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Upload, FolderAdd, Download, FolderOpened, Delete, 
@@ -146,6 +147,10 @@ import CopyFileDialog from './CopyFileDialog.vue'
 import SelectColumn from './SelectColumn.vue'
 import { batchDeleteFiles, batchMoveFiles, getBatchDownloadUrl } from '@/api/fileApi'
 import { batchRestoreRecoveryFiles, batchDeleteRecoveryFiles, clearAllRecoveryFiles } from '@/api/recoveryApi'
+import { useTransferStore } from '@/store/transferStore'
+
+const router = useRouter()
+const transferStore = useTransferStore()
 
 const props = defineProps({
   fileType: { type: Number, required: true },
@@ -202,20 +207,27 @@ const handleGridSizeChange = (size) => {
 // 批量下载（打包为ZIP）
 const handleBatchDownload = () => {
   // 过滤出文件（不包括文件夹）
-  const fileIds = props.operationFileList
-    .filter(file => file.isDir !== 1)
-    .map(file => file.id)
+  const files = props.operationFileList.filter(file => file.isDir !== 1)
   
-  if (fileIds.length === 0) {
+  if (files.length === 0) {
     ElMessage.warning('没有可下载的文件')
     return
   }
   
-  if (fileIds.length === 1) {
-    // 单个文件直接下载
-    window.open(`/api/file/download/${fileIds[0]}`)
+  if (files.length === 1) {
+    // 单个文件添加到传输列表
+    const file = files[0]
+    transferStore.addDownloadTask({
+      fileId: file.id,
+      fileName: file.fileName,
+      fileSize: file.fileSize,
+      fileHash: file.fileHash
+    })
+    ElMessage.success(`已添加 "${file.fileName}" 到下载列表`)
+    router.push({ name: 'TransferCenter' })
   } else {
-    // 多个文件打包下载
+    // 多个文件打包下载（服务端打包，直接下载）
+    const fileIds = files.map(file => file.id)
     const url = getBatchDownloadUrl(fileIds)
     window.open(url)
     ElMessage.success(`正在打包下载 ${fileIds.length} 个文件...`)

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.server.smarttransferserver.util.FileTypeUtil;
 import com.server.smarttransferserver.util.UserContextHolder;
+import com.server.smarttransferserver.service.RecoveryFileService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -40,6 +41,9 @@ public class FolderServiceImpl implements FolderService {
 
     @Autowired
     private FileInfoMapper fileInfoMapper;
+
+    @Autowired
+    private RecoveryFileService recoveryFileService;
 
     @Override
     @Transactional
@@ -89,6 +93,7 @@ public class FolderServiceImpl implements FolderService {
             wrapper.eq(Folder::getUserId, userId);
         }
         wrapper.eq(Folder::getParentId, parentId == null ? 0L : parentId)
+               .eq(Folder::getDelFlag, 0)  // 只查询未删除的文件夹
                .orderByDesc(Folder::getCreateTime);
         return folderMapper.selectList(wrapper);
     }
@@ -217,20 +222,9 @@ public class FolderServiceImpl implements FolderService {
     @Override
     @Transactional
     public void deleteFolder(Long folderId) {
-        // 递归删除子文件夹
-        List<Folder> subFolders = getFoldersByParentId(folderId);
-        for (Folder sub : subFolders) {
-            deleteFolder(sub.getId());
-        }
-
-        // 删除文件夹内的文件记录
-        LambdaQueryWrapper<FileInfo> fileWrapper = new LambdaQueryWrapper<>();
-        fileWrapper.eq(FileInfo::getFolderId, folderId);
-        fileInfoMapper.delete(fileWrapper);
-
-        // 删除文件夹
-        folderMapper.deleteById(folderId);
-        log.info("删除文件夹 - ID: {}", folderId);
+        // 使用回收站服务进行软删除（会递归删除子文件夹和子文件）
+        recoveryFileService.deleteFolderToRecovery(folderId);
+        log.info("文件夹已移至回收站 - ID: {}", folderId);
     }
 
     @Override
@@ -303,7 +297,8 @@ public class FolderServiceImpl implements FolderService {
 
     private Integer countSubFolders(Long folderId, Long userId) {
         LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Folder::getParentId, folderId);
+        wrapper.eq(Folder::getParentId, folderId)
+               .eq(Folder::getDelFlag, 0);  // 只统计未删除的
         if (userId != null) {
             wrapper.eq(Folder::getUserId, userId);
         }
@@ -342,11 +337,12 @@ public class FolderServiceImpl implements FolderService {
     public Object getFolderTree() {
         Long userId = UserContextHolder.getUserId();
         
-        // 获取当前用户的所有文件夹
+        // 获取当前用户的所有文件夹（只获取未删除的）
         LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
         if (userId != null) {
             wrapper.eq(Folder::getUserId, userId);
         }
+        wrapper.eq(Folder::getDelFlag, 0);  // 只获取未删除的文件夹
         List<Folder> allFolders = folderMapper.selectList(wrapper);
         
         // 构建根节点

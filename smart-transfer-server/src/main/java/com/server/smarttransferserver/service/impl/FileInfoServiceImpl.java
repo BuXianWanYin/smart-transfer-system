@@ -264,7 +264,9 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             Files.copy(source.toPath(), dest.toPath());
             
             // 创建新的文件记录
+            Long userId = com.server.smarttransferserver.util.UserContextHolder.getUserId();
             FileInfo newFile = new FileInfo();
+            newFile.setUserId(userId);
             newFile.setFileName(newFileName);
             newFile.setExtendName(sourceFile.getExtendName());
             newFile.setFileSize(sourceFile.getFileSize());
@@ -395,11 +397,18 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     }
                 }
                 
+                // 计算解压文件的MD5
+                String fileHash = org.apache.commons.codec.digest.DigestUtils.md5Hex(
+                        new java.io.FileInputStream(newFile));
+                
                 // 创建文件记录
+                Long userId = com.server.smarttransferserver.util.UserContextHolder.getUserId();
                 FileInfo extractedFile = new FileInfo();
+                extractedFile.setUserId(userId);
                 extractedFile.setFileName(entryName);
                 extractedFile.setExtendName(extractExtendName(entryName));
                 extractedFile.setFileSize(newFile.length());
+                extractedFile.setFileHash(fileHash);
                 extractedFile.setFilePath(newFilePath);
                 extractedFile.setIsDir(0);
                 extractedFile.setFolderId(destFolderId);

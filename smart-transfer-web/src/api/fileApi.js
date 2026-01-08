@@ -161,7 +161,7 @@ export function deleteFile(id) {
  */
 export function batchDeleteFiles(ids) {
   return request.del({
-    url: '/file/batchDelete',
+    url: '/file/batch',
     data: ids
   })
 }

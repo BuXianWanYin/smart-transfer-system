@@ -231,6 +231,8 @@ import { formatFileSize, formatDateTime } from '@/utils/format'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
 import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
+import { useTransferStore } from '@/store/transferStore'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   fileType: { type: Number, required: true },
@@ -242,6 +244,8 @@ const props = defineProps({
 
 const emit = defineEmits(['refresh', 'row-click', 'selection-change'])
 
+const transferStore = useTransferStore()
+const router = useRouter()
 const tableRef = ref(null)
 
 // 屏幕宽度检测
@@ -281,6 +285,7 @@ const renameLoading = ref(false)
 
 // 移动
 const moveDialogVisible = ref(false)
+const moveFileData = ref(null)
 
 // 格式化
 const formatSize = (size) => formatFileSize(size)
@@ -367,10 +372,20 @@ const closeContextMenu = () => {
   tableRef.value?.setCurrentRow()
 }
 
-// 右键菜单操作
+// 右键菜单操作 - 添加到下载列表
 const handleMenuDownload = () => {
   if (contextMenuRow.value) {
-    window.open(`/api/file/download/${contextMenuRow.value.id}`)
+    const file = contextMenuRow.value
+    // 添加到传输列表
+    transferStore.addDownloadTask({
+      fileId: file.id,
+      fileName: file.fileName,
+      fileSize: file.fileSize,
+      fileHash: file.fileHash
+    })
+    ElMessage.success(`已添加 "${file.fileName}" 到下载列表`)
+    // 跳转到传输中心
+    router.push({ name: 'TransferCenter' })
   }
   closeContextMenu()
 }
@@ -389,6 +404,7 @@ const handleMenuRename = () => {
 }
 
 const handleMenuMove = () => {
+  moveFileData.value = { ...contextMenuRow.value }
   moveDialogVisible.value = true
   closeContextMenu()
 }
@@ -457,15 +473,22 @@ const confirmRename = async () => {
 
 // 确认移动
 const confirmMove = async (targetFolderId) => {
+  if (!moveFileData.value) {
+    ElMessage.error('请选择要移动的文件')
+    return
+  }
   try {
     await moveFile({
-      id: contextMenuRow.value.id,
+      id: moveFileData.value.id,
       targetFolderId
     })
     ElMessage.success('移动成功')
     emit('refresh')
-  } catch {
+  } catch (error) {
+    console.error('移动失败', error)
     ElMessage.error('移动失败')
+  } finally {
+    moveFileData.value = null
   }
 }
 

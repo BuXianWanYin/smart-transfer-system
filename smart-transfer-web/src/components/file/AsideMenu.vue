@@ -10,7 +10,15 @@
       <!-- 传输中心 -->
       <el-menu-item index="transfer">
         <el-icon><Upload /></el-icon>
-        <template #title><span>传输中心</span></template>
+        <template #title>
+          <span>传输中心</span>
+          <el-badge 
+            v-if="transferCount > 0" 
+            :value="transferCount" 
+            :max="99"
+            class="transfer-badge"
+          />
+        </template>
       </el-menu-item>
       
       <!-- 我的文件 -->
@@ -103,6 +111,7 @@ import {
   Headset, MoreFilled, Delete, Coin, Upload, Setting 
 } from '@element-plus/icons-vue'
 import { useAppStore } from '@/store/appStore'
+import { useTransferStore } from '@/store/transferStore'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false }
@@ -111,6 +120,10 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
+const transferStore = useTransferStore()
+
+// 传输任务数量
+const transferCount = computed(() => transferStore.totalTransferCount)
 
 // 当前激活的菜单项
 const activeIndex = computed(() => {
@@ -257,6 +270,18 @@ onMounted(() => {
     
     :deep(.el-menu-item.is-active) {
       background-color: #ecf5ff;
+    }
+    
+    // 传输徽章样式
+    .transfer-badge {
+      margin-left: 8px;
+      
+      :deep(.el-badge__content) {
+        font-size: 10px;
+        height: 16px;
+        line-height: 16px;
+        padding: 0 5px;
+      }
     }
   }
   

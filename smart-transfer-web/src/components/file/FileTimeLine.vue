@@ -66,9 +66,21 @@
         <el-icon><View /></el-icon>
         预览
       </div>
+      <div class="right-menu-item" @click="handleMenuRename">
+        <el-icon><Edit /></el-icon>
+        重命名
+      </div>
+      <div class="right-menu-item" @click="handleMenuCopy">
+        <el-icon><CopyDocument /></el-icon>
+        复制到
+      </div>
       <div class="right-menu-item" @click="handleMenuMove">
         <el-icon><FolderOpened /></el-icon>
         移动到
+      </div>
+      <div class="right-menu-item" @click="handleMenuDetail">
+        <el-icon><InfoFilled /></el-icon>
+        详情
       </div>
       <div class="right-menu-item danger" @click="handleMenuDelete">
         <el-icon><Delete /></el-icon>
@@ -76,17 +88,48 @@
       </div>
     </div>
     
+    <!-- 重命名对话框 -->
+    <el-dialog v-model="renameVisible" title="重命名" width="400px" append-to-body>
+      <el-form ref="renameFormRef" :model="renameForm" :rules="renameRules">
+        <el-form-item prop="fileName">
+          <el-input v-model="renameForm.fileName" placeholder="请输入新名称" @keyup.enter="confirmRename" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="renameVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmRename" :loading="renameLoading">确定</el-button>
+      </template>
+    </el-dialog>
+    
     <!-- 移动文件对话框 -->
     <MoveFileDialog v-model="moveDialogVisible" @confirm="confirmMove" />
+    
+    <!-- 复制文件对话框 -->
+    <CopyFileDialog v-model="copyDialogVisible" :files="copyFileData ? [copyFileData] : []" @success="handleRefresh" />
+    
+    <!-- 文件详情弹窗 -->
+    <FileDetailDialog
+      v-model="detailDialogVisible"
+      :file="detailFileData"
+      :file-type="fileType"
+      @preview="handleItemClick"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, View, FolderOpened, Delete } from '@element-plus/icons-vue'
+import { Download, View, FolderOpened, Delete, Edit, CopyDocument, InfoFilled } from '@element-plus/icons-vue'
 import MoveFileDialog from './MoveFileDialog.vue'
-import { moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
+import CopyFileDialog from './CopyFileDialog.vue'
+import FileDetailDialog from './FileDetailDialog.vue'
+import { moveFile, deleteFile, renameFile, getPreviewUrl } from '@/api/fileApi'
+import { useTransferStore } from '@/store/transferStore'
+
+const router = useRouter()
+const transferStore = useTransferStore()
 
 const props = defineProps({
   fileType: { type: Number, required: true },
@@ -153,6 +196,28 @@ const contextMenuRow = ref(null)
 
 // 移动
 const moveDialogVisible = ref(false)
+const moveFileData = ref(null)
+
+// 复制
+const copyDialogVisible = ref(false)
+const copyFileData = ref(null)
+
+// 详情
+const detailDialogVisible = ref(false)
+const detailFileData = ref(null)
+
+// 重命名
+const renameVisible = ref(false)
+const renameLoading = ref(false)
+const renameFormRef = ref(null)
+const renameForm = ref({ fileName: '' })
+const renameFileData = ref(null)
+const renameRules = {
+  fileName: [
+    { required: true, message: '请输入文件名', trigger: 'blur' },
+    { min: 1, max: 255, message: '文件名长度在 1 到 255 个字符', trigger: 'blur' }
+  ]
+}
 
 // 格式化日期
 const formatDate = (dateStr) => {
@@ -211,10 +276,20 @@ const closeContextMenu = () => {
   contextMenuRow.value = null
 }
 
-// 右键菜单操作
+// 右键菜单操作 - 添加到下载列表
 const handleMenuDownload = () => {
   if (contextMenuRow.value) {
-    window.open(`/api/file/download/${contextMenuRow.value.id}`)
+    const file = contextMenuRow.value
+    // 添加到传输列表
+    transferStore.addDownloadTask({
+      fileId: file.id,
+      fileName: file.fileName,
+      fileSize: file.fileSize,
+      fileHash: file.fileHash
+    })
+    ElMessage.success(`已添加 "${file.fileName}" 到下载列表`)
+    // 跳转到传输中心
+    router.push({ name: 'TransferCenter' })
   }
   closeContextMenu()
 }
@@ -235,6 +310,7 @@ const handleMenuPreview = () => {
 }
 
 const handleMenuMove = () => {
+  moveFileData.value = { ...contextMenuRow.value }
   moveDialogVisible.value = true
   closeContextMenu()
 }
@@ -261,17 +337,77 @@ const handleMenuDelete = async () => {
   }
 }
 
+// 重命名
+const handleMenuRename = () => {
+  renameFileData.value = { ...contextMenuRow.value }
+  renameForm.value.fileName = contextMenuRow.value.fileName
+  renameVisible.value = true
+  closeContextMenu()
+}
+
+// 确认重命名
+const confirmRename = async () => {
+  if (!renameFormRef.value) return
+  
+  await renameFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    
+    renameLoading.value = true
+    try {
+      await renameFile({
+        id: renameFileData.value.id,
+        newFileName: renameForm.value.fileName
+      })
+      ElMessage.success('重命名成功')
+      renameVisible.value = false
+      emit('refresh')
+    } catch (error) {
+      console.error('重命名失败', error)
+      ElMessage.error('重命名失败')
+    } finally {
+      renameLoading.value = false
+      renameFileData.value = null
+    }
+  })
+}
+
+// 复制到
+const handleMenuCopy = () => {
+  copyFileData.value = { ...contextMenuRow.value }
+  copyDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 详情
+const handleMenuDetail = () => {
+  detailFileData.value = { ...contextMenuRow.value }
+  detailDialogVisible.value = true
+  closeContextMenu()
+}
+
+// 刷新
+const handleRefresh = () => {
+  emit('refresh')
+}
+
 // 确认移动
 const confirmMove = async (targetFolderId) => {
+  if (!moveFileData.value) {
+    ElMessage.error('请选择要移动的文件')
+    return
+  }
   try {
     await moveFile({
-      id: contextMenuRow.value.id,
+      id: moveFileData.value.id,
       targetFolderId
     })
     ElMessage.success('移动成功')
     emit('refresh')
   } catch (error) {
+    console.error('移动失败', error)
     ElMessage.error('移动失败')
+  } finally {
+    moveFileData.value = null
   }
 }
 

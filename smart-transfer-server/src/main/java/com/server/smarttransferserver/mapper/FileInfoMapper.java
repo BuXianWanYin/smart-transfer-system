@@ -61,4 +61,33 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
      */
     @Delete("DELETE FROM t_file_info WHERE id = #{fileId}")
     int deletePhysically(@Param("fileId") Long fileId);
+
+    /**
+     * 更新删除标志并设置批次号（用于文件夹删除）
+     *
+     * @param fileId 文件ID
+     * @param delFlag 删除标志
+     * @param batchNum 删除批次号
+     * @return 影响行数
+     */
+    @Update("UPDATE t_file_info SET del_flag = #{delFlag}, delete_batch_num = #{batchNum}, update_time = NOW() WHERE id = #{fileId}")
+    int updateDelFlagWithBatch(@Param("fileId") Long fileId, @Param("delFlag") Integer delFlag, @Param("batchNum") String batchNum);
+
+    /**
+     * 根据批次号还原文件
+     *
+     * @param batchNum 删除批次号
+     * @return 影响行数
+     */
+    @Update("UPDATE t_file_info SET del_flag = 0, delete_batch_num = NULL, update_time = NOW() WHERE delete_batch_num = #{batchNum}")
+    int restoreByBatchNum(@Param("batchNum") String batchNum);
+
+    /**
+     * 根据批次号物理删除文件
+     *
+     * @param batchNum 删除批次号
+     * @return 影响行数
+     */
+    @Delete("DELETE FROM t_file_info WHERE delete_batch_num = #{batchNum}")
+    int deletePhysicallyByBatchNum(@Param("batchNum") String batchNum);
 }

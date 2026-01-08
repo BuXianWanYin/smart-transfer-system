@@ -127,15 +127,15 @@
     <MoveFileDialog v-model="moveDialogVisible" @confirm="confirmMove" />
     
     <!-- 复制文件对话框 -->
-    <CopyFileDialog v-model="copyDialogVisible" :files="[contextMenuRow]" @success="handleRefresh" />
+    <CopyFileDialog v-model="copyDialogVisible" :files="copyFileData ? [copyFileData] : []" @success="handleRefresh" />
     
     <!-- 解压文件对话框 -->
-    <UnzipDialog v-model="unzipDialogVisible" :file="contextMenuRow" @success="handleRefresh" />
+    <UnzipDialog v-model="unzipDialogVisible" :file="unzipFileData" @success="handleRefresh" />
     
     <!-- 文件详情弹窗 -->
     <FileDetailDialog
       v-model="detailDialogVisible"
-      :file="contextMenuRow"
+      :file="detailFileData"
       :file-type="fileType"
       @preview="handleItemDblClick"
     />
@@ -151,6 +151,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, View, Edit, FolderOpened, Delete, RefreshLeft, CopyDocument, Files, InfoFilled, Document } from '@element-plus/icons-vue'
 import MoveFileDialog from './MoveFileDialog.vue'
@@ -161,6 +162,10 @@ import CodePreview from './CodePreview.vue'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
 import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
+import { useTransferStore } from '@/store/transferStore'
+
+const router = useRouter()
+const transferStore = useTransferStore()
 
 const props = defineProps({
   fileType: { type: Number, required: true },
@@ -229,13 +234,16 @@ const menuStyle = computed(() => {
 
 // 复制对话框
 const copyDialogVisible = ref(false)
+const copyFileData = ref(null)
 
 // 解压对话框
 const unzipDialogVisible = ref(false)
+const unzipFileData = ref(null)
 const zipExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2']
 
 // 文件详情
 const detailDialogVisible = ref(false)
+const detailFileData = ref(null)
 
 // 代码预览
 const codePreviewVisible = ref(false)
@@ -267,6 +275,7 @@ const renameLoading = ref(false)
 
 // 移动
 const moveDialogVisible = ref(false)
+const moveFileData = ref(null)
 
 // 图片扩展名
 const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg']
@@ -349,10 +358,20 @@ const closeContextMenu = () => {
   contextMenuRow.value = null
 }
 
-// 右键菜单操作
+// 右键菜单操作 - 添加到下载列表
 const handleMenuDownload = () => {
   if (contextMenuRow.value) {
-    window.open(`/api/file/download/${contextMenuRow.value.id}`)
+    const file = contextMenuRow.value
+    // 添加到传输列表
+    transferStore.addDownloadTask({
+      fileId: file.id,
+      fileName: file.fileName,
+      fileSize: file.fileSize,
+      fileHash: file.fileHash
+    })
+    ElMessage.success(`已添加 "${file.fileName}" 到下载列表`)
+    // 跳转到传输中心
+    router.push({ name: 'TransferCenter' })
   }
   closeContextMenu()
 }
@@ -371,6 +390,7 @@ const handleMenuRename = () => {
 }
 
 const handleMenuMove = () => {
+  moveFileData.value = { ...contextMenuRow.value }
   moveDialogVisible.value = true
   closeContextMenu()
 }
@@ -416,18 +436,21 @@ const handleMenuRestore = async () => {
 
 // 复制文件
 const handleMenuCopy = () => {
+  copyFileData.value = { ...contextMenuRow.value }
   copyDialogVisible.value = true
   closeContextMenu()
 }
 
 // 解压文件
 const handleMenuUnzip = () => {
+  unzipFileData.value = { ...contextMenuRow.value }
   unzipDialogVisible.value = true
   closeContextMenu()
 }
 
 // 文件详情
 const handleMenuDetail = () => {
+  detailFileData.value = { ...contextMenuRow.value }
   detailDialogVisible.value = true
   closeContextMenu()
 }
@@ -469,15 +492,22 @@ const confirmRename = async () => {
 
 // 确认移动
 const confirmMove = async (targetFolderId) => {
+  if (!moveFileData.value) {
+    ElMessage.error('请选择要移动的文件')
+    return
+  }
   try {
     await moveFile({
-      id: contextMenuRow.value.id,
+      id: moveFileData.value.id,
       targetFolderId
     })
     ElMessage.success('移动成功')
     emit('refresh')
   } catch (error) {
+    console.error('移动失败', error)
     ElMessage.error('移动失败')
+  } finally {
+    moveFileData.value = null
   }
 }
 

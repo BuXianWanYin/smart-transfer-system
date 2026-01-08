@@ -190,7 +190,8 @@ const confirmAddFolder = async () => {
 
 // 确认移动
 const handleConfirm = () => {
-  emit('confirm', selectedFolderId.value)
+  // 传递完整的文件夹信息（ID和路径）
+  emit('confirm', selectedFolderId.value, targetPath.value)
   visible.value = false
 }
 </script>

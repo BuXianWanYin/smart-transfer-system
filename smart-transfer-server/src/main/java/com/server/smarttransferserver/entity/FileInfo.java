@@ -90,6 +90,12 @@ public class FileInfo implements Serializable {
     private Integer delFlag;
 
     /**
+     * 删除批次号
+     */
+    @TableField("delete_batch_num")
+    private String deleteBatchNum;
+
+    /**
      * 创建时间
      */
     @TableField(value = "create_time", fill = FieldFill.INSERT)

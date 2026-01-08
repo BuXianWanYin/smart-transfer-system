@@ -32,6 +32,13 @@ public interface RecoveryFileService extends IService<RecoveryFile> {
     void batchDeleteToRecovery(List<Long> fileIds);
 
     /**
+     * 删除文件夹到回收站（包括子文件夹和子文件）
+     *
+     * @param folderId 文件夹ID
+     */
+    void deleteFolderToRecovery(Long folderId);
+
+    /**
      * 还原文件
      *
      * @param recoveryId 回收站记录ID

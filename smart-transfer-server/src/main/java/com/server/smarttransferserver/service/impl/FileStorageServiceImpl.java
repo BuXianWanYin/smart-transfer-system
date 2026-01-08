@@ -119,6 +119,8 @@ public class FileStorageServiceImpl implements IFileStorageService {
         try (FileOutputStream fos = new FileOutputStream(targetFile);
              FileChannel targetChannel = fos.getChannel()) {
             
+            long position = 0;
+            
             // 按顺序合并分片
             for (int i = 0; i < totalChunks; i++) {
                 Path chunkPath = Paths.get(tempPath, fileId.toString(), "chunk_" + i);
@@ -128,13 +130,16 @@ public class FileStorageServiceImpl implements IFileStorageService {
                     throw new IOException("分片文件不存在: chunk_" + i);
                 }
                 
-                // 使用FileChannel合并
+                // 使用FileChannel合并，手动维护位置
                 try (FileInputStream fis = new FileInputStream(chunkFile);
                      FileChannel sourceChannel = fis.getChannel()) {
-                    targetChannel.transferFrom(sourceChannel, targetChannel.position(), sourceChannel.size());
+                    long chunkSize = sourceChannel.size();
+                    // 从源通道传输到目标通道的正确位置
+                    sourceChannel.transferTo(0, chunkSize, targetChannel);
+                    position += chunkSize;
                 }
                 
-                log.debug("合并分片 - 文件ID: {}, 分片: {}/{}", fileId, i + 1, totalChunks);
+                log.debug("合并分片 - 文件ID: {}, 分片: {}/{}, 当前位置: {}", fileId, i + 1, totalChunks, position);
             }
         }
         

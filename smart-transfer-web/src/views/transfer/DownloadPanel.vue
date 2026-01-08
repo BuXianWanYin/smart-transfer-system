@@ -198,6 +198,7 @@ import {
 import { useFileStore } from '@/store/fileStore'
 import { formatFileSize, formatSpeed } from '@/utils/file'
 import { getDownloadUrl } from '@/api/fileApi'
+import { addHistory } from '@/api/historyApi'
 
 const fileStore = useFileStore()
 const downloadQueue = ref([])
@@ -247,6 +248,7 @@ const refreshFromFileList = () => {
 const startDownload = async (item) => {
   try {
     item.status = 'downloading'
+    item.startTime = Date.now()
     
     // 获取下载URL
     const downloadUrl = getDownloadUrl(item.fileId)
@@ -262,10 +264,14 @@ const startDownload = async (item) => {
       if (item.progress >= 100) {
         item.progress = 100
         item.status = 'completed'
+        item.endTime = Date.now()
         item.speed = 0
         clearInterval(interval)
         ElMessage.success(`${item.fileName} 下载完成！`)
         fileStore.moveDownloadToCompleted(item)
+        // 记录传输历史
+        const duration = Math.floor((item.endTime - item.startTime) / 1000)
+        recordHistory(item, duration)
       } else {
         item.speed = Math.random() * 5 * 1024 * 1024 // 模拟速度
         item.downloadedSize = Math.floor((item.progress / 100) * item.fileSize)
@@ -398,6 +404,26 @@ const formatTime = (seconds) => {
   if (h > 0) return `${h}小时${m}分钟`
   if (m > 0) return `${m}分${s}秒`
   return `${s}秒`
+}
+
+// 记录传输历史
+const recordHistory = async (item, duration) => {
+  try {
+    await addHistory({
+      fileId: item.fileId,
+      fileName: item.fileName,
+      fileSize: item.fileSize,
+      fileHash: item.fileHash || '',
+      transferType: 'DOWNLOAD',
+      transferStatus: 'COMPLETED',
+      avgSpeed: duration > 0 ? Math.floor(item.fileSize / duration) : 0,
+      duration: duration,
+      algorithm: 'CUBIC',
+      completedTime: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('记录传输历史失败', error)
+  }
 }
 
 // 暴露方法给父组件

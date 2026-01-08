@@ -92,5 +92,11 @@ public class RecoveryFile implements Serializable {
      */
     @TableField(value = "delete_batch_num")
     private String deleteBatchNum;
+
+    /**
+     * 原文件夹ID（用于文件夹删除时记录）
+     */
+    @TableField(value = "original_folder_id")
+    private Long originalFolderId;
 }
 

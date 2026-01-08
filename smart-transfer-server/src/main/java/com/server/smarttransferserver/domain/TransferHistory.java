@@ -36,6 +36,12 @@ public class TransferHistory implements Serializable {
     private Long id;
     
     /**
+     * 用户ID
+     */
+    @TableField(value = "user_id")
+    private Long userId;
+    
+    /**
      * 传输任务ID
      */
     @TableField(value = "task_id")

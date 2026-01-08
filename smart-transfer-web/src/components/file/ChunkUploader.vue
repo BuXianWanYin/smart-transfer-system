@@ -194,6 +194,9 @@ import { UploadFilled, Document, Folder, SuccessFilled, CircleCloseFilled } from
 import SparkMD5 from 'spark-md5'
 import { initUpload, uploadChunk, mergeFile } from '@/api/fileApi'
 import UploadMask from './UploadMask.vue'
+import { useTransferStore } from '@/store/transferStore'
+
+const transferStore = useTransferStore()
 
 const props = defineProps({
   folderId: { type: Number, default: 0 }
@@ -460,6 +463,18 @@ const uploadFile = async (item) => {
     item.status = 'hashing'
     item.hashProgress = 0
     
+    // 同步到 transferStore（添加或更新）
+    if (!item.storeTaskId) {
+      const storeTask = transferStore.addUploadTask({
+        id: item.id,
+        file: item.file,
+        fileName: item.file.name,
+        fileSize: item.file.size
+      })
+      item.storeTaskId = storeTask.id
+    }
+    transferStore.updateUploadTask(item.storeTaskId, { status: 'hashing' })
+    
     // 计算文件哈希
     const hash = await computeFileHash(item)
     item.hash = hash
@@ -482,6 +497,11 @@ const uploadFile = async (item) => {
     if (initRes.data?.quickUpload) {
       item.status = 'quick'
       item.progress = 100
+      transferStore.updateUploadTask(item.storeTaskId, { 
+        status: 'completed', 
+        progress: 100,
+        fileHash: hash
+      })
       ElMessage.success(`${item.file.name} 秒传成功`)
       emit('uploaded')
       return
@@ -489,6 +509,7 @@ const uploadFile = async (item) => {
     
     item.fileId = initRes.data?.fileId || initRes.fileId
     item.uploadedChunks = initRes.data?.uploadedChunks || []
+    transferStore.updateUploadTask(item.storeTaskId, { fileId: item.fileId })
     
     // 开始分片上传
     await uploadChunks(item)
@@ -501,15 +522,23 @@ const uploadFile = async (item) => {
     
     item.status = 'completed'
     item.progress = 100
+    // 完成上传任务
+    await transferStore.completeUploadTask(item.storeTaskId, hash)
     ElMessage.success(`${item.file.name} 上传成功`)
     emit('uploaded')
     
   } catch (error) {
     if (error.name === 'AbortError' || item.status === 'paused') {
+      transferStore.updateUploadTask(item.storeTaskId, { status: 'paused', speed: 0 })
       return
     }
     item.status = 'error'
     item.error = error.message || '上传失败'
+    transferStore.updateUploadTask(item.storeTaskId, { 
+      status: 'error', 
+      error: item.error,
+      speed: 0
+    })
     ElMessage.error(`${item.file.name} 上传失败: ${item.error}`)
   }
 }
@@ -523,6 +552,12 @@ const uploadChunks = async (item) => {
   
   item.status = 'uploading'
   item.abortController = new AbortController()
+  
+  // 同步状态到 transferStore
+  transferStore.updateUploadTask(item.storeTaskId, { 
+    status: 'uploading',
+    startTime: startTime
+  })
   
   for (let i = 0; i < totalChunks; i++) {
     // 检查是否暂停
@@ -555,6 +590,13 @@ const uploadChunks = async (item) => {
       if (elapsed > 0) {
         item.speed = Math.floor(totalUploaded / elapsed)
       }
+      
+      // 同步进度到 transferStore
+      transferStore.updateUploadTask(item.storeTaskId, {
+        progress: item.progress,
+        speed: item.speed,
+        uploadedSize: totalUploaded
+      })
     })
     
     item.uploadedChunks.push(i)
@@ -586,6 +628,10 @@ const pauseUpload = (item) => {
   if (item.abortController) {
     item.abortController.abort()
   }
+  // 同步到 transferStore
+  if (item.storeTaskId) {
+    transferStore.updateUploadTask(item.storeTaskId, { status: 'paused', speed: 0 })
+  }
 }
 
 // 继续上传
@@ -608,6 +654,10 @@ const removeFile = (id) => {
     if (item.abortController) {
       item.abortController.abort()
     }
+    // 从 transferStore 移除
+    if (item.storeTaskId) {
+      transferStore.removeUploadTask(item.storeTaskId)
+    }
     fileList.value.splice(index, 1)
   }
 }
@@ -617,6 +667,10 @@ const clearAllFiles = () => {
   fileList.value.forEach(item => {
     if (item.abortController) {
       item.abortController.abort()
+    }
+    // 从 transferStore 移除（除了已完成的）
+    if (item.storeTaskId && item.status !== 'completed' && item.status !== 'quick') {
+      transferStore.removeUploadTask(item.storeTaskId)
     }
   })
   fileList.value = []

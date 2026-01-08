@@ -114,9 +114,9 @@ const selectTargetPath = () => {
 }
 
 // 处理路径选择
-const handlePathSelect = (folderId) => {
+const handlePathSelect = (folderId, folderPath) => {
   form.targetFolderId = folderId
-  form.targetPath = folderId === 0 ? '/' : `文件夹ID: ${folderId}`
+  form.targetPath = folderPath || '/'
 }
 
 // 解压文件

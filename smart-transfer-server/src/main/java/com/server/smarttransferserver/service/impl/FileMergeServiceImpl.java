@@ -94,7 +94,8 @@ public class FileMergeServiceImpl implements FileMergeService {
             boolean verified = checksumService.verifyHash(filePath, dto.getFileHash(), "MD5");
             if (!verified) {
                 log.error("文件校验失败 - 文件ID: {}", dto.getFileId());
-                storageService.deleteFile(filePath);
+                // 清理所有相关数据
+                cleanupFailedUpload(dto.getFileId(), filePath);
                 return FileMergeVO.builder()
                         .fileId(dto.getFileId())
                         .success(false)
@@ -141,11 +142,46 @@ public class FileMergeServiceImpl implements FileMergeService {
             
         } catch (Exception e) {
             log.error("文件合并失败 - 文件ID: {}, 错误: {}", dto.getFileId(), e.getMessage(), e);
+            // 清理所有相关数据
+            cleanupFailedUpload(dto.getFileId(), null);
             return FileMergeVO.builder()
                     .fileId(dto.getFileId())
                     .success(false)
                     .message("文件合并失败: " + e.getMessage())
                     .build();
+        }
+    }
+    
+    /**
+     * 清理上传失败的文件及相关数据
+     *
+     * @param fileId 文件ID
+     * @param filePath 合并后的文件路径（可为null）
+     */
+    private void cleanupFailedUpload(Long fileId, String filePath) {
+        try {
+            // 1. 删除合并后的文件（如果存在）
+            if (filePath != null) {
+                storageService.deleteFile(filePath);
+            }
+            
+            // 2. 删除临时分片文件
+            storageService.deleteTempChunks(fileId);
+            
+            // 3. 删除分片记录
+            QueryWrapper<FileChunk> chunkWrapper = new QueryWrapper<>();
+            chunkWrapper.eq("file_id", fileId);
+            fileChunkMapper.delete(chunkWrapper);
+            
+            // 4. 删除关联的传输任务记录
+            transferTaskMapper.deleteByFileId(fileId);
+            
+            // 5. 物理删除文件记录（因为文件从未成功上传）
+            fileInfoMapper.deletePhysically(fileId);
+            
+            log.info("清理上传失败的文件数据完成 - 文件ID: {}", fileId);
+        } catch (Exception e) {
+            log.error("清理上传失败的文件数据时出错 - 文件ID: {}, 错误: {}", fileId, e.getMessage());
         }
     }
 }

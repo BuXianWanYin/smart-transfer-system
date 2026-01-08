@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.domain.TransferHistory;
 import com.server.smarttransferserver.mapper.TransferHistoryMapper;
 import com.server.smarttransferserver.service.TransferHistoryService;
+import com.server.smarttransferserver.util.UserContextHolder;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,13 @@ public class TransferHistoryServiceImpl extends ServiceImpl<TransferHistoryMappe
      */
     @Override
     public List<TransferHistory> selectHistoryList(TransferHistory history) {
+        Long userId = UserContextHolder.getUserId();
         LambdaQueryWrapper<TransferHistory> queryWrapper = new LambdaQueryWrapper<>();
+        
+        // 用户隔离
+        if (userId != null) {
+            queryWrapper.eq(TransferHistory::getUserId, userId);
+        }
         
         // 根据文件名模糊查询
         if (history.getFileName() != null && !history.getFileName().isEmpty()) {
@@ -72,6 +79,11 @@ public class TransferHistoryServiceImpl extends ServiceImpl<TransferHistoryMappe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int insertHistory(TransferHistory history) {
+        // 设置用户ID
+        Long userId = UserContextHolder.getUserId();
+        if (userId != null) {
+            history.setUserId(userId);
+        }
         return save(history) ? 1 : 0;
     }
     
@@ -100,14 +112,21 @@ public class TransferHistoryServiceImpl extends ServiceImpl<TransferHistoryMappe
     }
     
     /**
-     * 清空所有传输历史记录
+     * 清空所有传输历史记录（当前用户）
      *
      * @return 影响行数
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int clearAllHistory() {
+        Long userId = UserContextHolder.getUserId();
         LambdaQueryWrapper<TransferHistory> queryWrapper = new LambdaQueryWrapper<>();
+        
+        // 用户隔离
+        if (userId != null) {
+            queryWrapper.eq(TransferHistory::getUserId, userId);
+        }
+        
         long count = count(queryWrapper);
         return remove(queryWrapper) ? (int) count : 0;
     }
