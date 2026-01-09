@@ -129,10 +129,11 @@ public class FolderServiceImpl implements FolderService {
             }).collect(Collectors.toList());
         }
 
-        // 获取文件（分页）- 只查询未删除的、当前用户的文件
+        // 获取文件（分页）- 只查询未删除的、上传完成的、当前用户的文件
         Page<FileInfo> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<FileInfo> fileWrapper = new LambdaQueryWrapper<>();
         fileWrapper.eq(FileInfo::getDelFlag, 0); // 过滤已删除文件
+        fileWrapper.eq(FileInfo::getUploadStatus, "COMPLETED"); // 只显示上传完成的文件
         
         // 用户数据隔离
         if (userId != null) {

@@ -17,5 +17,14 @@ public interface FileMergeService {
      * @return 文件合并结果
      */
     FileMergeVO mergeFile(FileMergeDTO dto);
+    
+    /**
+     * 取消上传
+     * 清理未完成的上传数据（分片、文件记录等）
+     *
+     * @param fileId 文件ID
+     * @return 是否成功
+     */
+    boolean cancelUpload(Long fileId);
 }
 

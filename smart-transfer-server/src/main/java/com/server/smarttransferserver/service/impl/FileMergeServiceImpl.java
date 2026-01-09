@@ -153,6 +153,38 @@ public class FileMergeServiceImpl implements FileMergeService {
     }
     
     /**
+     * 取消上传
+     * 清理未完成的上传数据
+     *
+     * @param fileId 文件ID
+     * @return 是否成功
+     */
+    @Override
+    @Transactional
+    public boolean cancelUpload(Long fileId) {
+        log.info("取消上传 - 文件ID: {}", fileId);
+        try {
+            FileInfo fileInfo = fileInfoMapper.selectById(fileId);
+            if (fileInfo == null) {
+                log.warn("文件不存在 - ID: {}", fileId);
+                return true; // 文件不存在也视为成功
+            }
+            
+            // 只能取消未完成的上传
+            if ("COMPLETED".equals(fileInfo.getUploadStatus())) {
+                log.warn("文件已上传完成，无法取消 - ID: {}", fileId);
+                return false;
+            }
+            
+            cleanupFailedUpload(fileId, null);
+            return true;
+        } catch (Exception e) {
+            log.error("取消上传失败 - 文件ID: {}, 错误: {}", fileId, e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
      * 清理上传失败的文件及相关数据
      *
      * @param fileId 文件ID

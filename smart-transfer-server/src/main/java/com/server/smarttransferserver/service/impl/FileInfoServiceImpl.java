@@ -53,6 +53,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     
     /**
      * 根据ID获取文件信息
+     * 只返回上传完成的文件
      *
      * @param id 文件ID
      * @return 文件信息VO
@@ -61,6 +62,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     public FileInfoVO getFileById(Long id) {
         FileInfo fileInfo = fileInfoMapper.selectById(id);
         if (fileInfo == null) {
+            return null;
+        }
+        
+        // 只返回上传完成的文件，未完成的文件视为不存在
+        if (!"COMPLETED".equals(fileInfo.getUploadStatus())) {
+            log.warn("尝试访问未完成上传的文件 - ID: {}, 状态: {}", id, fileInfo.getUploadStatus());
             return null;
         }
         
@@ -83,7 +90,13 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         
         if (status != null && !status.isEmpty()) {
             queryWrapper.eq("upload_status", status);
+        } else {
+            // 默认只查询上传完成的文件
+            queryWrapper.eq("upload_status", "COMPLETED");
         }
+        
+        // 只查询未删除的文件
+        queryWrapper.eq("del_flag", 0);
         
         // 按创建时间倒序
         queryWrapper.orderByDesc("create_time");

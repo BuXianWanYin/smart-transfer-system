@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { addHistory } from '@/api/historyApi'
+import { formatDateTime } from '@/utils/format'
 
 /**
  * 传输任务 Store
  * 统一管理上传和下载任务状态
+ * 支持断点续传和失败重试
  */
 export const useTransferStore = defineStore('transfer', () => {
   // 上传队列
@@ -12,17 +14,17 @@ export const useTransferStore = defineStore('transfer', () => {
   // 下载队列
   const downloadQueue = ref([])
   
-  // 计算属性 - 正在上传的任务
+  // 计算属性 - 正在上传的任务（包括错误状态，可重试）
   const uploadingTasks = computed(() => {
     return uploadQueue.value.filter(item => 
-      item.status === 'uploading' || item.status === 'hashing' || item.status === 'pending'
+      item.status === 'uploading' || item.status === 'hashing' || item.status === 'pending' || item.status === 'paused' || item.status === 'error'
     )
   })
   
-  // 计算属性 - 正在下载的任务
+  // 计算属性 - 正在下载的任务（包括错误状态，可重试）
   const downloadingTasks = computed(() => {
     return downloadQueue.value.filter(item => 
-      item.status === 'downloading' || item.status === 'pending'
+      item.status === 'downloading' || item.status === 'pending' || item.status === 'paused' || item.status === 'error'
     )
   })
   
@@ -54,16 +56,23 @@ export const useTransferStore = defineStore('transfer', () => {
       file: task.file,
       fileName: task.fileName,
       fileSize: task.fileSize,
+      folderId: task.folderId || 0,
+      relativePath: task.relativePath || '',
       fileId: null,
       fileHash: null,
+      hashProgress: 0,
       status: 'pending',
       progress: 0,
       speed: 0,
       uploadedSize: 0,
-      uploadedChunks: [],
+      uploadedChunks: [],  // 已上传的分片索引（用于断点续传）
+      totalChunks: 0,
+      chunkSize: 5 * 1024 * 1024,  // 默认5MB分片
       startTime: null,
       endTime: null,
-      error: null
+      error: null,
+      retryCount: 0,  // 重试次数
+      maxRetry: 3     // 最大重试次数
     }
     uploadQueue.value.push(newTask)
     return newTask
@@ -101,24 +110,48 @@ export const useTransferStore = defineStore('transfer', () => {
       task.speed = 0
       task.fileHash = fileHash
       
-      // 记录历史
-      const duration = Math.floor((task.endTime - task.startTime) / 1000)
-      try {
-        await addHistory({
-          fileId: task.fileId,
-          fileName: task.fileName,
-          fileSize: task.fileSize,
-          fileHash: fileHash,
-          transferType: 'UPLOAD',
-          transferStatus: 'COMPLETED',
-          avgSpeed: duration > 0 ? Math.floor(task.fileSize / duration) : 0,
-          duration: duration,
-          algorithm: 'CUBIC',
-          completedTime: new Date().toISOString()
-        })
-      } catch (error) {
-        console.error('记录上传历史失败', error)
-      }
+      // 记录成功历史
+      await recordUploadHistory(task, 'COMPLETED')
+    }
+  }
+  
+  /**
+   * 上传失败
+   */
+  async function failUploadTask(id, errorMessage) {
+    const task = uploadQueue.value.find(t => t.id === id)
+    if (task) {
+      task.status = 'error'
+      task.error = errorMessage
+      task.endTime = Date.now()
+      task.speed = 0
+      
+      // 记录失败历史
+      await recordUploadHistory(task, 'FAILED', errorMessage)
+    }
+  }
+  
+  /**
+   * 记录上传历史（成功或失败）
+   */
+  async function recordUploadHistory(task, status, errorMessage = null) {
+    const duration = Math.floor(((task.endTime || Date.now()) - (task.startTime || Date.now())) / 1000)
+    try {
+      await addHistory({
+        fileId: task.fileId,
+        fileName: task.fileName,
+        fileSize: task.fileSize,
+        fileHash: task.fileHash || '',
+        transferType: 'UPLOAD',
+        transferStatus: status,
+        avgSpeed: duration > 0 ? Math.floor(task.uploadedSize / duration) : 0,
+        duration: duration,
+        algorithm: 'CUBIC',
+        completedTime: formatDateTime(new Date()),
+        errorMessage: errorMessage
+      })
+    } catch (error) {
+      console.error('记录上传历史失败', error)
     }
   }
   
@@ -136,9 +169,12 @@ export const useTransferStore = defineStore('transfer', () => {
       progress: 0,
       speed: 0,
       downloadedSize: 0,
+      downloadedChunks: [],  // 已下载的数据块（用于断点续传）
       startTime: null,
       endTime: null,
-      error: null
+      error: null,
+      retryCount: 0,  // 重试次数
+      maxRetry: 3     // 最大重试次数
     }
     downloadQueue.value.push(newTask)
     return newTask
@@ -175,24 +211,48 @@ export const useTransferStore = defineStore('transfer', () => {
       task.endTime = Date.now()
       task.speed = 0
       
-      // 记录历史
-      const duration = Math.floor((task.endTime - task.startTime) / 1000)
-      try {
-        await addHistory({
-          fileId: task.fileId,
-          fileName: task.fileName,
-          fileSize: task.fileSize,
-          fileHash: task.fileHash || '',
-          transferType: 'DOWNLOAD',
-          transferStatus: 'COMPLETED',
-          avgSpeed: duration > 0 ? Math.floor(task.fileSize / duration) : 0,
-          duration: duration,
-          algorithm: 'CUBIC',
-          completedTime: new Date().toISOString()
-        })
-      } catch (error) {
-        console.error('记录下载历史失败', error)
-      }
+      // 记录成功历史
+      await recordDownloadHistory(task, 'COMPLETED')
+    }
+  }
+  
+  /**
+   * 下载失败
+   */
+  async function failDownloadTask(id, errorMessage) {
+    const task = downloadQueue.value.find(t => t.id === id)
+    if (task) {
+      task.status = 'error'
+      task.error = errorMessage
+      task.endTime = Date.now()
+      task.speed = 0
+      
+      // 记录失败历史
+      await recordDownloadHistory(task, 'FAILED', errorMessage)
+    }
+  }
+  
+  /**
+   * 记录下载历史（成功或失败）
+   */
+  async function recordDownloadHistory(task, status, errorMessage = null) {
+    const duration = Math.floor(((task.endTime || Date.now()) - (task.startTime || Date.now())) / 1000)
+    try {
+      await addHistory({
+        fileId: task.fileId,
+        fileName: task.fileName,
+        fileSize: task.fileSize,
+        fileHash: task.fileHash || '',
+        transferType: 'DOWNLOAD',
+        transferStatus: status,
+        avgSpeed: duration > 0 ? Math.floor(task.downloadedSize / duration) : 0,
+        duration: duration,
+        algorithm: 'CUBIC',
+        completedTime: formatDateTime(new Date()),
+        errorMessage: errorMessage
+      })
+    } catch (error) {
+      console.error('记录下载历史失败', error)
     }
   }
   
@@ -234,6 +294,36 @@ export const useTransferStore = defineStore('transfer', () => {
     })
   }
   
+  /**
+   * 重试上传任务
+   */
+  function retryUploadTask(id) {
+    const task = uploadQueue.value.find(t => t.id === id)
+    if (task && task.status === 'error') {
+      task.status = 'pending'
+      task.error = null
+      task.retryCount = (task.retryCount || 0) + 1
+      // 不重置进度，从断点继续
+      return true
+    }
+    return false
+  }
+  
+  /**
+   * 重试下载任务
+   */
+  function retryDownloadTask(id) {
+    const task = downloadQueue.value.find(t => t.id === id)
+    if (task && task.status === 'error') {
+      task.status = 'pending'
+      task.error = null
+      task.retryCount = (task.retryCount || 0) + 1
+      // 不重置进度，从断点继续
+      return true
+    }
+    return false
+  }
+  
   return {
     uploadQueue,
     downloadQueue,
@@ -246,10 +336,14 @@ export const useTransferStore = defineStore('transfer', () => {
     updateUploadTask,
     removeUploadTask,
     completeUploadTask,
+    failUploadTask,
+    retryUploadTask,
     addDownloadTask,
     updateDownloadTask,
     removeDownloadTask,
     completeDownloadTask,
+    failDownloadTask,
+    retryDownloadTask,
     clearCompletedUploads,
     clearCompletedDownloads,
     pauseAllUploads,

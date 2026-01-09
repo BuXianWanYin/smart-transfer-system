@@ -25,18 +25,24 @@
       <!-- 顶部操作栏 -->
       <div class="content-toolbar">
         <div class="toolbar-actions">
-          <el-button text @click="handlePauseAll">
-            <el-icon><VideoPause /></el-icon>
-            全部暂停
-          </el-button>
-          <el-button text @click="handleStartAll">
-            <el-icon><VideoPlay /></el-icon>
-            全部开始
-          </el-button>
-          <el-button text @click="handleDeleteAll">
-            <el-icon><Delete /></el-icon>
-            全部删除
-          </el-button>
+          <el-tooltip content="暂停所有正在传输的任务" :disabled="canPause">
+            <el-button text :disabled="!canPause" @click="handlePauseAll">
+              <el-icon><VideoPause /></el-icon>
+              全部暂停
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="开始所有待处理的任务" :disabled="canStart">
+            <el-button text :disabled="!canStart" @click="handleStartAll">
+              <el-icon><VideoPlay /></el-icon>
+              全部开始
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="删除所有任务" :disabled="canDelete">
+            <el-button text :disabled="!canDelete" @click="handleDeleteAll">
+              <el-icon><Delete /></el-icon>
+              全部删除
+            </el-button>
+          </el-tooltip>
         </div>
         
         <!-- 监控面板（可折叠） -->
@@ -167,6 +173,7 @@
                 <el-button 
                   v-if="item.status === 'uploading' || item.status === 'downloading'"
                   text 
+                  title="暂停"
                   @click="handlePause(item)"
                 >
                   <el-icon><VideoPause /></el-icon>
@@ -175,11 +182,21 @@
                   v-if="item.status === 'paused'"
                   text 
                   type="primary"
+                  title="继续"
                   @click="handleResume(item)"
                 >
                   <el-icon><VideoPlay /></el-icon>
                 </el-button>
-                <el-button text type="danger" @click="handleCancel(item)">
+                <el-button 
+                  v-if="item.status === 'error'"
+                  text 
+                  type="warning"
+                  title="重试"
+                  @click="handleRetry(item)"
+                >
+                  <el-icon><RefreshRight /></el-icon>
+                </el-button>
+                <el-button text type="danger" title="取消" @click="handleCancel(item)">
                   <el-icon><Close /></el-icon>
                 </el-button>
               </div>
@@ -265,7 +282,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Upload, Download, VideoPause, VideoPlay, Delete, Monitor,
-  Close, FolderOpened, Document, CircleCheck
+  Close, FolderOpened, Document, CircleCheck, RefreshRight
 } from '@element-plus/icons-vue'
 import { useCongestionStore } from '@/store/congestionStore'
 import { useTransferStore } from '@/store/transferStore'
@@ -274,7 +291,8 @@ import { formatFileSize, formatSpeed } from '@/utils/format'
 import { formatDateTime } from '@/utils/format'
 import { getHistoryList, deleteHistory, clearAllHistory } from '@/api/historyApi'
 import { getFileIconByType } from '@/utils/fileType'
-import { getDownloadUrl } from '@/api/fileApi'
+import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload } from '@/api/fileApi'
+import SparkMD5 from 'spark-md5'
 
 const congestionStore = useCongestionStore()
 const transferStore = useTransferStore()
@@ -282,7 +300,7 @@ const transferStore = useTransferStore()
 // 状态
 const activeMenu = ref('upload')
 const activeSubTab = ref('transferring')
-const showMonitor = ref(false)
+const showMonitor = ref(true) // 监控面板默认显示
 const isMonitoring = ref(true)
 const wsConnected = ref(false)
 
@@ -301,12 +319,16 @@ const currentMetrics = ref({
 const uploadCompletedList = ref([])
 const downloadCompletedList = ref([])
 
-// 计算属性 - 传输中数量
+// 计算属性 - 传输中数量（包括error状态，因为可以重试）
 const transferringCount = computed(() => {
   if (activeMenu.value === 'upload') {
-    return transferStore.uploadingTasks?.length || 0
+    return (transferStore.uploadQueue || []).filter(item => 
+      item.status !== 'completed'
+    ).length
   }
-  return transferStore.downloadingTasks?.length || 0
+  return (transferStore.downloadQueue || []).filter(item => 
+    item.status !== 'completed'
+  ).length
 })
 
 // 计算属性 - 已完成数量
@@ -317,12 +339,16 @@ const completedCount = computed(() => {
   return downloadCompletedList.value.length
 })
 
-// 计算属性 - 传输中列表
+// 计算属性 - 传输中列表（包括error状态，因为可以重试）
 const transferringList = computed(() => {
   if (activeMenu.value === 'upload') {
-    return transferStore.uploadQueue || []
+    return (transferStore.uploadQueue || []).filter(item => 
+      item.status !== 'completed'
+    )
   }
-  return transferStore.downloadQueue || []
+  return (transferStore.downloadQueue || []).filter(item => 
+    item.status !== 'completed'
+  )
 })
 
 // 计算属性 - 已完成列表
@@ -338,14 +364,49 @@ const realTimeSpeed = computed(() => {
   return transferStore.totalUploadSpeed + transferStore.totalDownloadSpeed
 })
 
+// 计算属性 - 按钮禁用状态
+// 是否可以暂停（有正在传输的任务）
+const canPause = computed(() => {
+  if (activeMenu.value === 'upload') {
+    return transferStore.uploadQueue.some(t => 
+      t.status === 'uploading' || t.status === 'hashing'
+    )
+  }
+  return transferStore.downloadQueue.some(t => t.status === 'downloading')
+})
+
+// 是否可以开始（有暂停或待处理的任务）
+const canStart = computed(() => {
+  if (activeMenu.value === 'upload') {
+    return transferStore.uploadQueue.some(t => 
+      t.status === 'paused' || t.status === 'pending'
+    )
+  }
+  return transferStore.downloadQueue.some(t => 
+    t.status === 'paused' || t.status === 'pending'
+  )
+})
+
+// 是否可以删除（有任务）
+const canDelete = computed(() => {
+  if (activeMenu.value === 'upload') {
+    return transferStore.uploadQueue.length > 0
+  }
+  return transferStore.downloadQueue.length > 0
+})
+
 let wsUnsubscribe = null
+
+// emit用于刷新文件列表
+const emit = defineEmits(['refresh'])
 
 // 生命周期
 onMounted(() => {
   loadCompletedList()
   startMonitoring()
-  // 自动开始待处理的下载任务
+  // 自动开始待处理的任务
   startPendingDownloads()
+  startPendingUploads()
 })
 
 onUnmounted(() => {
@@ -370,11 +431,218 @@ watch(
   }
 )
 
+// 监听上传队列变化，自动开始新任务
+watch(
+  () => transferStore.uploadQueue.length,
+  (newLen, oldLen) => {
+    if (newLen > oldLen) {
+      // 有新任务添加，自动开始
+      startPendingUploads()
+    }
+  }
+)
+
 // 自动开始待处理的下载任务
 const startPendingDownloads = () => {
   const pendingTasks = transferStore.downloadQueue.filter(t => t.status === 'pending')
   pendingTasks.forEach(task => {
     startDownloadTask(task)
+  })
+}
+
+// 自动开始待处理的上传任务
+const startPendingUploads = () => {
+  const pendingTasks = transferStore.uploadQueue.filter(t => t.status === 'pending')
+  pendingTasks.forEach(task => {
+    startUploadTask(task)
+  })
+}
+
+// 开始上传任务（支持断点续传）
+const startUploadTask = async (task) => {
+  const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB分片
+  
+  try {
+    // 获取当前任务的最新状态
+    let currentTask = transferStore.uploadQueue.find(t => t.id === task.id)
+    if (!currentTask) return
+    
+    // 如果是暂停或错误状态恢复，检查是否已有fileHash和fileId
+    const hasExistingProgress = currentTask.fileHash && currentTask.fileId
+    let fileHash = currentTask.fileHash
+    
+    // 1. 计算文件哈希（如果还没有计算过）
+    if (!fileHash) {
+      transferStore.updateUploadTask(task.id, { 
+        status: 'hashing', 
+        startTime: currentTask.startTime || Date.now() 
+      })
+      
+      fileHash = await calculateFileHash(task.file, (progress) => {
+        transferStore.updateUploadTask(task.id, { hashProgress: progress })
+      })
+      
+      transferStore.updateUploadTask(task.id, { 
+        fileHash, 
+        hashProgress: 100 
+      })
+    }
+    
+    // 2. 初始化上传（检查秒传和已上传分片）
+    const totalChunks = Math.ceil(task.file.size / CHUNK_SIZE)
+    const initRes = await initUpload({
+      fileName: task.fileName,
+      fileSize: task.fileSize,
+      fileHash: fileHash,
+      folderId: task.folderId || 0,
+      chunkSize: CHUNK_SIZE,
+      totalChunks
+    })
+    
+    // 秒传成功
+    if (initRes.skipUpload || initRes.quickUpload) {
+      transferStore.updateUploadTask(task.id, { 
+        fileId: initRes.fileId,
+        status: 'completed',
+        progress: 100,
+        endTime: Date.now()
+      })
+      await transferStore.completeUploadTask(task.id, fileHash)
+      ElMessage.success(`${task.fileName} 秒传成功`)
+      emit('refresh')
+      return
+    }
+    
+    // 3. 获取已上传的分片（用于断点续传）
+    // 后端返回的 uploaded 数组包含已上传的分片索引
+    const serverUploadedChunks = initRes.uploaded || []
+    const uploadedSet = new Set(serverUploadedChunks)
+    
+    // 计算已上传的大小
+    let uploadedSize = 0
+    serverUploadedChunks.forEach(chunkIndex => {
+      const start = (chunkIndex - 1) * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, task.fileSize)
+      uploadedSize += (end - start)
+    })
+    
+    // 更新任务状态
+    transferStore.updateUploadTask(task.id, { 
+      status: 'uploading',
+      fileId: initRes.fileId,
+      totalChunks,
+      uploadedChunks: [...serverUploadedChunks],
+      uploadedSize,
+      progress: Math.round((uploadedSize / task.fileSize) * 100)
+    })
+    
+    const startTime = currentTask.startTime || Date.now()
+    
+    // 4. 分片上传（跳过已上传的分片）
+    for (let i = 0; i < totalChunks; i++) {
+      // 检查是否已上传（断点续传的关键）
+      if (uploadedSet.has(i + 1)) {
+        console.log(`分片 ${i + 1} 已存在，跳过`)
+        continue
+      }
+      
+      // 检查任务状态（暂停或取消检测）
+      currentTask = transferStore.uploadQueue.find(t => t.id === task.id)
+      if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
+        console.log(`任务 ${task.fileName} 已暂停或出错，停止上传`)
+        return
+      }
+      
+      // 切割分片
+      const start = i * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, task.file.size)
+      const chunk = task.file.slice(start, end)
+      
+      // 上传分片
+      const formData = new FormData()
+      formData.append('file', chunk)
+      formData.append('fileId', initRes.fileId)
+      formData.append('chunkNumber', i + 1)
+      formData.append('totalChunks', totalChunks)
+      formData.append('chunkHash', fileHash)  // 后端参数名是chunkHash
+      
+      await uploadChunk(formData, () => {})
+      
+      // 更新进度
+      uploadedSize += chunk.size
+      uploadedSet.add(i + 1)
+      const elapsed = (Date.now() - startTime) / 1000
+      const speed = elapsed > 0 ? Math.round(uploadedSize / elapsed) : 0
+      const progress = Math.round((uploadedSize / task.fileSize) * 100)
+      
+      transferStore.updateUploadTask(task.id, {
+        progress,
+        speed,
+        uploadedSize,
+        uploadedChunks: [...uploadedSet]
+      })
+    }
+    
+    // 5. 合并文件
+    await mergeFile({
+      fileId: initRes.fileId,
+      fileName: task.fileName,
+      fileHash: fileHash,
+      totalChunks
+    })
+    
+    // 6. 完成
+    await transferStore.completeUploadTask(task.id, fileHash)
+    ElMessage.success(`${task.fileName} 上传完成`)
+    emit('refresh')
+    
+  } catch (error) {
+    console.error('上传失败:', error)
+    
+    // 不清理后端数据，保留用于重试（断点续传）
+    // 只有在用户明确取消时才清理
+    
+    // 使用 failUploadTask 记录失败历史
+    await transferStore.failUploadTask(task.id, error.message || '上传失败')
+    ElMessage.error(`${task.fileName} 上传失败: ${error.message}，可点击重试`)
+  }
+}
+
+// 计算文件哈希
+const calculateFileHash = (file, onProgress) => {
+  return new Promise((resolve, reject) => {
+    const chunkSize = 2 * 1024 * 1024 // 2MB chunks for hashing
+    const chunks = Math.ceil(file.size / chunkSize)
+    let currentChunk = 0
+    const spark = new SparkMD5.ArrayBuffer()
+    const reader = new FileReader()
+    
+    reader.onload = (e) => {
+      spark.append(e.target.result)
+      currentChunk++
+      
+      if (onProgress) {
+        onProgress(Math.round((currentChunk / chunks) * 100))
+      }
+      
+      if (currentChunk < chunks) {
+        loadNext()
+      } else {
+        resolve(spark.end())
+      }
+    }
+    
+    reader.onerror = () => {
+      reject(new Error('文件读取失败'))
+    }
+    
+    const loadNext = () => {
+      const start = currentChunk * chunkSize
+      const end = Math.min(start + chunkSize, file.size)
+      reader.readAsArrayBuffer(file.slice(start, end))
+    }
+    
+    loadNext()
   })
 }
 
@@ -463,6 +731,8 @@ const getStatusType = (status) => {
     'downloading': 'primary',
     'paused': 'warning',
     'waiting': 'info',
+    'pending': 'info',
+    'hashing': 'primary',
     'error': 'danger',
     'completed': 'success'
   }
@@ -476,7 +746,9 @@ const getStatusText = (status) => {
     'downloading': '下载中',
     'paused': '已暂停',
     'waiting': '等待中',
-    'error': '失败',
+    'pending': '等待中',
+    'hashing': '计算MD5',
+    'error': '失败(可重试)',
     'completed': '已完成'
   }
   return map[status] || status
@@ -484,6 +756,10 @@ const getStatusText = (status) => {
 
 // 操作方法
 const handlePauseAll = () => {
+  if (!canPause.value) {
+    ElMessage.warning('没有正在传输的任务')
+    return
+  }
   if (activeMenu.value === 'upload') {
     transferStore.pauseAllUploads()
   } else {
@@ -493,10 +769,21 @@ const handlePauseAll = () => {
 }
 
 const handleStartAll = () => {
-  // 开始所有待处理的下载任务
-  if (activeMenu.value === 'download') {
+  if (!canStart.value) {
+    ElMessage.warning('没有待开始的任务')
+    return
+  }
+  if (activeMenu.value === 'upload') {
+    // 开始所有待处理的上传任务
+    transferStore.uploadQueue.forEach(task => {
+      if (task.status === 'pending' || task.status === 'paused') {
+        startUploadTask(task)
+      }
+    })
+  } else {
+    // 开始所有待处理的下载任务
     transferStore.downloadQueue.forEach(task => {
-      if (task.status === 'pending') {
+      if (task.status === 'pending' || task.status === 'paused') {
         startDownloadTask(task)
       }
     })
@@ -505,12 +792,18 @@ const handleStartAll = () => {
 }
 
 const handleDeleteAll = async () => {
+  if (!canDelete.value) {
+    ElMessage.warning('没有可删除的任务')
+    return
+  }
   try {
     await ElMessageBox.confirm('确定删除所有传输任务吗？', '提示', { type: 'warning' })
     if (activeMenu.value === 'upload') {
-      transferStore.clearCompletedUploads()
+      // 清空上传队列中的所有任务
+      transferStore.uploadQueue.splice(0, transferStore.uploadQueue.length)
     } else {
-      transferStore.clearCompletedDownloads()
+      // 清空下载队列中的所有任务
+      transferStore.downloadQueue.splice(0, transferStore.downloadQueue.length)
     }
     ElMessage.success('已删除所有任务')
   } catch {}
@@ -526,16 +819,44 @@ const handlePause = (item) => {
 }
 
 const handleResume = (item) => {
-  if (activeMenu.value === 'download') {
+  if (activeMenu.value === 'upload') {
+    // 从断点继续上传
+    startUploadTask(item)
+  } else {
+    // 从断点继续下载
     startDownloadTask(item)
   }
   ElMessage.info(`继续: ${item.fileName}`)
 }
 
+// 重试失败的任务
+const handleRetry = (item) => {
+  if (activeMenu.value === 'upload') {
+    if (transferStore.retryUploadTask(item.id)) {
+      startUploadTask(item)
+      ElMessage.info(`重试上传: ${item.fileName}`)
+    }
+  } else {
+    if (transferStore.retryDownloadTask(item.id)) {
+      startDownloadTask(item)
+      ElMessage.info(`重试下载: ${item.fileName}`)
+    }
+  }
+}
+
 const handleCancel = async (item) => {
   try {
-    await ElMessageBox.confirm(`确定取消 "${item.fileName}" 的传输吗？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确定取消 "${item.fileName}" 的传输吗？取消后无法恢复。`, '提示', { type: 'warning' })
     if (activeMenu.value === 'upload') {
+      // 如果有fileId，清理后端数据
+      if (item.fileId) {
+        try {
+          await cancelUpload(item.fileId)
+          console.log('已清理后端上传数据')
+        } catch (cleanupError) {
+          console.error('清理上传数据失败:', cleanupError)
+        }
+      }
       transferStore.removeUploadTask(item.id)
     } else {
       transferStore.removeDownloadTask(item.id)
@@ -544,24 +865,65 @@ const handleCancel = async (item) => {
   } catch {}
 }
 
-// 开始下载任务
+// 开始下载任务（支持断点续传）
 const startDownloadTask = async (task) => {
+  // 获取当前任务状态
+  let currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
+  if (!currentTask) return
+  
+  // 获取已下载的字节数（用于断点续传）
+  const downloadedSize = currentTask.downloadedSize || 0
+  const existingChunks = currentTask.downloadedChunks || []
+  
   transferStore.updateDownloadTask(task.id, { 
     status: 'downloading', 
-    startTime: Date.now(),
-    progress: 0
+    startTime: currentTask.startTime || Date.now()
   })
   
   try {
-    // 使用 fetch 获取文件并跟踪进度
-    const response = await fetch(getDownloadUrl(task.fileId))
+    // 获取token用于认证
+    const token = localStorage.getItem('token')
     
-    if (!response.ok) {
-      throw new Error('下载失败')
+    // 构建请求头（支持Range请求进行断点续传）
+    const headers = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    // 如果有已下载的数据，使用Range请求从断点继续
+    if (downloadedSize > 0) {
+      headers['Range'] = `bytes=${downloadedSize}-`
     }
     
+    // 使用 fetch 获取文件并跟踪进度
+    const response = await fetch(getDownloadUrl(task.fileId), { headers })
+    
+    if (!response.ok && response.status !== 206) {
+      if (response.status === 404) {
+        throw new Error('文件不存在或已被删除')
+      } else if (response.status === 401) {
+        throw new Error('未授权，请重新登录')
+      } else if (response.status === 416) {
+        // Range不满足，可能文件已下载完成或文件变化
+        throw new Error('文件已变化，请重新下载')
+      } else {
+        throw new Error(`下载失败 (${response.status})`)
+      }
+    }
+    
+    // 获取文件总大小
     const contentLength = response.headers.get('content-length')
-    const total = parseInt(contentLength, 10) || task.fileSize
+    const contentRange = response.headers.get('content-range')
+    let total = task.fileSize
+    
+    if (contentRange) {
+      // 断点续传响应: bytes 0-999/1000
+      const match = contentRange.match(/\/(\d+)$/)
+      if (match) {
+        total = parseInt(match[1], 10)
+      }
+    } else if (contentLength) {
+      total = parseInt(contentLength, 10) + downloadedSize
+    }
     
     // 更新文件大小
     if (total && total !== task.fileSize) {
@@ -569,11 +931,18 @@ const startDownloadTask = async (task) => {
     }
     
     const reader = response.body.getReader()
-    let receivedLength = 0
-    const chunks = []
-    const startTime = Date.now()
+    let receivedLength = downloadedSize // 从已下载的位置继续计算
+    const chunks = [...existingChunks] // 保留已下载的数据
+    const startTime = currentTask.startTime || Date.now()
     
     while (true) {
+      // 检查任务状态（暂停检测）
+      currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
+      if (!currentTask || currentTask.status === 'paused') {
+        console.log(`下载任务 ${task.fileName} 已暂停`)
+        return
+      }
+      
       const { done, value } = await reader.read()
       
       if (done) break
@@ -589,7 +958,8 @@ const startDownloadTask = async (task) => {
       transferStore.updateDownloadTask(task.id, {
         progress,
         speed,
-        downloadedSize: receivedLength
+        downloadedSize: receivedLength,
+        downloadedChunks: chunks // 保存已下载的数据块用于断点续传
       })
     }
     
@@ -609,12 +979,9 @@ const startDownloadTask = async (task) => {
     ElMessage.success(`${task.fileName} 下载完成`)
     
   } catch (error) {
-    transferStore.updateDownloadTask(task.id, { 
-      status: 'error', 
-      error: error.message,
-      speed: 0
-    })
-    ElMessage.error(`下载失败: ${error.message}`)
+    // 使用 failDownloadTask 记录失败历史
+    await transferStore.failDownloadTask(task.id, error.message)
+    ElMessage.error(`下载失败: ${error.message}，可点击重试`)
   }
 }
 

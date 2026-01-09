@@ -151,6 +151,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useFileStore } from '@/store/fileStore'
 import { formatFileSize, formatSpeed, createFileChunks, calculateFileHash } from '@/utils/file'
+import { formatDateTime } from '@/utils/format'
 import { initUpload, uploadChunk, mergeFile } from '@/api/fileApi'
 import { addHistory } from '@/api/historyApi'
 
@@ -420,7 +421,7 @@ const recordHistory = async (item, fileHash, duration) => {
       avgSpeed: duration > 0 ? Math.floor(item.fileSize / duration) : 0,
       duration: duration,
       algorithm: 'CUBIC',
-      completedTime: new Date().toISOString()
+      completedTime: formatDateTime(new Date())
     })
   } catch (error) {
     console.error('记录传输历史失败', error)

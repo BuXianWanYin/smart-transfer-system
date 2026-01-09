@@ -101,6 +101,18 @@ export function mergeFile(data) {
 }
 
 /**
+ * 取消上传
+ * 清理未完成的上传数据
+ * @param {Number} fileId - 文件ID
+ * @returns {Promise}
+ */
+export function cancelUpload(fileId) {
+  return request.del({
+    url: `/file/upload/${fileId}`
+  })
+}
+
+/**
  * 获取文件列表
  * @param {Object} params - 查询参数
  * @returns {Promise}

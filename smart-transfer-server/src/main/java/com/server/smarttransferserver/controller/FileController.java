@@ -152,6 +152,29 @@ public class FileController {
     }
     
     /**
+     * 取消上传
+     * 清理未完成的上传数据
+     *
+     * @param fileId 文件ID
+     * @return 取消结果
+     */
+    @DeleteMapping("/upload/{fileId}")
+    public Result<String> cancelUpload(@PathVariable Long fileId) {
+        log.info("取消上传 - 文件ID: {}", fileId);
+        try {
+            boolean success = mergeService.cancelUpload(fileId);
+            if (success) {
+                return Result.success("取消上传成功");
+            } else {
+                return Result.error("取消上传失败");
+            }
+        } catch (Exception e) {
+            log.error("取消上传失败", e);
+            return Result.error("取消上传失败: " + e.getMessage());
+        }
+    }
+    
+    /**
      * 查询任务详情
      *
      * @param taskId 任务ID
@@ -256,14 +279,17 @@ public class FileController {
     }
     
     /**
-     * 下载文件
+     * 下载文件（支持断点续传）
      *
      * @param id 文件ID
+     * @param rangeHeader Range请求头（用于断点续传）
      * @return 文件流
      */
     @GetMapping("/download/{id}")
-    public ResponseEntity<Resource> downloadFile(@PathVariable Long id) {
-        log.info("下载文件 - ID: {}", id);
+    public ResponseEntity<Resource> downloadFile(
+            @PathVariable Long id,
+            @RequestHeader(value = "Range", required = false) String rangeHeader) {
+        log.info("下载文件 - ID: {}, Range: {}", id, rangeHeader);
         try {
             FileInfoVO fileInfo = fileInfoService.getFileById(id);
             if (fileInfo == null) {
@@ -276,16 +302,74 @@ public class FileController {
                 return ResponseEntity.notFound().build();
             }
             
-            Resource resource = new FileSystemResource(file);
+            long fileLength = file.length();
             
             // 编码文件名
             String encodedFileName = URLEncoder.encode(fileInfo.getFileName(), StandardCharsets.UTF_8.toString())
                     .replaceAll("\\+", "%20");
             
+            // 支持断点续传 - 解析Range头
+            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+                String[] ranges = rangeHeader.substring(6).split("-");
+                long start = Long.parseLong(ranges[0]);
+                long end = ranges.length > 1 && !ranges[1].isEmpty() 
+                        ? Long.parseLong(ranges[1]) : fileLength - 1;
+                
+                // 校验范围
+                if (start >= fileLength) {
+                    return ResponseEntity.status(416).build(); // Range Not Satisfiable
+                }
+                if (end >= fileLength) {
+                    end = fileLength - 1;
+                }
+                
+                final long contentLength = end - start + 1;
+                final long startPos = start;
+                
+                // 使用InputStreamResource返回部分内容
+                org.springframework.core.io.InputStreamResource resource = 
+                        new org.springframework.core.io.InputStreamResource(
+                                new java.io.FileInputStream(file) {
+                                    {
+                                        skip(startPos);
+                                    }
+                                    
+                                    private long remaining = contentLength;
+                                    
+                                    @Override
+                                    public int read() throws java.io.IOException {
+                                        if (remaining <= 0) return -1;
+                                        remaining--;
+                                        return super.read();
+                                    }
+                                    
+                                    @Override
+                                    public int read(byte[] b, int off, int len) throws java.io.IOException {
+                                        if (remaining <= 0) return -1;
+                                        len = (int) Math.min(len, remaining);
+                                        int read = super.read(b, off, len);
+                                        if (read > 0) remaining -= read;
+                                        return read;
+                                    }
+                                });
+                
+                return ResponseEntity.status(206) // Partial Content
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFileName)
+                        .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileLength)
+                        .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .contentLength(contentLength)
+                        .body(resource);
+            }
+            
+            // 普通下载（无Range请求）
+            Resource resource = new FileSystemResource(file);
+            
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFileName)
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .contentLength(file.length())
+                    .contentLength(fileLength)
                     .body(resource);
                     
         } catch (Exception e) {
