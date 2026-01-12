@@ -11,13 +11,13 @@ import java.time.LocalDateTime;
 
 /**
  * 系统配置实体类
- * 对应数据库表 t_system_config
+ * 对应数据库表 system_config
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("t_system_config")
+@TableName("system_config")
 public class SystemConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;

@@ -8,6 +8,14 @@ spring:
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
+    # HikariCP连接池配置（支持多用户并发）
+    hikari:
+      maximum-pool-size: 30      # 最大连接数：支持10+用户并发
+      minimum-idle: 10            # 最小空闲连接数
+      connection-timeout: 30000   # 连接超时时间：30秒
+      idle-timeout: 600000        # 空闲连接超时：10分钟
+      max-lifetime: 1800000       # 连接最大生命周期：30分钟
+      leak-detection-threshold: 60000  # 连接泄漏检测：60秒
   
   # JPA配置
   jpa:
@@ -27,18 +35,18 @@ spring:
     timeout: 3000
     lettuce:
       pool:
-        max-active: 8
-        max-wait: -1
-        max-idle: 8
-        min-idle: 0
+        max-active: 15            # 最大连接数：支持多用户并发
+        max-wait: -1              # 最大等待时间：-1表示无限等待
+        max-idle: 10              # 最大空闲连接数
+        min-idle: 5               # 最小空闲连接数
   
   # 文件上传配置
   servlet:
     multipart:
       enabled: true
-      max-file-size: 10GB
-      max-request-size: 10GB
-      file-size-threshold: 0
+      max-file-size: 10GB         # 单个文件最大大小：10GB
+      max-request-size: 10GB      # 请求最大大小：10GB
+      file-size-threshold: 10MB   # 文件大小阈值：超过10MB才写入磁盘（优化内存使用）
 
 # 自定义文件传输配置
 transfer:

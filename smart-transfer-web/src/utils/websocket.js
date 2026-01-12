@@ -23,11 +23,19 @@ class MonitorWebSocket {
 
     this.isConnecting = true
     
-    // 构建WebSocket URL
+    // 获取token
+    const token = localStorage.getItem('token')
+    if (!token) {
+      console.warn('WebSocket连接失败：未找到token')
+      this.isConnecting = false
+      return
+    }
+    
+    // 构建WebSocket URL（添加token查询参数）
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = import.meta.env.VITE_WS_HOST || window.location.hostname
     const port = import.meta.env.VITE_WS_PORT || '8081'
-    this.url = `${protocol}//${host}:${port}/ws/monitor`
+    this.url = `${protocol}//${host}:${port}/ws/monitor?token=${encodeURIComponent(token)}`
 
     try {
       this.ws = new WebSocket(this.url)

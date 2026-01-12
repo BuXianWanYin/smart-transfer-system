@@ -94,7 +94,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Guava (限流器) - 核心依赖，用于速率控制 -->
+        <!-- Guava (Google工具库) - 用于各种工具类，如集合、缓存等 -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>

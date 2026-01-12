@@ -21,7 +21,7 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      * @param taskId 任务ID
      * @return 任务信息
      */
-    @Select("SELECT * FROM t_transfer_task WHERE task_id = #{taskId} LIMIT 1")
+    @Select("SELECT * FROM transfer_task WHERE task_id = #{taskId} LIMIT 1")
     TransferTask selectByTaskId(@Param("taskId") String taskId);
 
     /**
@@ -30,7 +30,7 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      * @param fileId 文件ID
      * @return 任务列表
      */
-    @Select("SELECT * FROM t_transfer_task WHERE file_id = #{fileId} ORDER BY start_time DESC")
+    @Select("SELECT * FROM transfer_task WHERE file_id = #{fileId} ORDER BY start_time DESC")
     List<TransferTask> selectByFileId(@Param("fileId") Long fileId);
 
     /**
@@ -39,7 +39,7 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      * @param transferStatus 传输状态
      * @return 任务列表
      */
-    @Select("SELECT * FROM t_transfer_task WHERE transfer_status = #{transferStatus} ORDER BY start_time DESC")
+    @Select("SELECT * FROM transfer_task WHERE transfer_status = #{transferStatus} ORDER BY start_time DESC")
     List<TransferTask> selectByStatus(@Param("transferStatus") String transferStatus);
 
     /**
@@ -48,7 +48,7 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      * @param transferStatus 传输状态
      * @return 任务数量
      */
-    @Select("SELECT COUNT(*) FROM t_transfer_task WHERE transfer_status = #{transferStatus}")
+    @Select("SELECT COUNT(*) FROM transfer_task WHERE transfer_status = #{transferStatus}")
     Long countByStatus(@Param("transferStatus") String transferStatus);
     
     /**
@@ -57,7 +57,7 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      * @param fileId 文件ID
      * @return 删除的记录数
      */
-    @Delete("DELETE FROM t_transfer_task WHERE file_id = #{fileId}")
+    @Delete("DELETE FROM transfer_task WHERE file_id = #{fileId}")
     int deleteByFileId(@Param("fileId") Long fileId);
     
     /**
@@ -66,6 +66,6 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      * @param batchNum 删除批次号
      * @return 删除的记录数
      */
-    @Delete("DELETE FROM t_transfer_task WHERE file_id IN (SELECT id FROM t_file_info WHERE delete_batch_num = #{batchNum})")
+    @Delete("DELETE FROM transfer_task WHERE file_id IN (SELECT id FROM file_info WHERE delete_batch_num = #{batchNum})")
     int deleteByBatchNum(@Param("batchNum") String batchNum);
 }

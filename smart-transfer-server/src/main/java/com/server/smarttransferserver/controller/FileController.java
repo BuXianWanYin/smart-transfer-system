@@ -55,6 +55,9 @@ public class FileController {
     @Autowired
     private FileInfoService fileInfoService;
     
+    @Autowired
+    private com.server.smarttransferserver.service.IFileStorageService fileStorageService;
+    
     /**
      * 初始化文件上传
      *
@@ -296,9 +299,11 @@ public class FileController {
                 return ResponseEntity.notFound().build();
             }
             
-            File file = new File(fileInfo.getFilePath());
+            // 获取绝对路径（兼容相对路径和绝对路径）
+            java.nio.file.Path filePath = fileStorageService.getAbsoluteFilePath(fileInfo.getFilePath());
+            File file = filePath.toFile();
             if (!file.exists()) {
-                log.error("文件不存在 - 路径: {}", fileInfo.getFilePath());
+                log.error("文件不存在 - 路径: {}", filePath);
                 return ResponseEntity.notFound().build();
             }
             
@@ -509,7 +514,9 @@ public class FileController {
                 return ResponseEntity.notFound().build();
             }
             
-            File file = new File(fileInfo.getFilePath());
+            // 获取绝对路径（兼容相对路径和绝对路径）
+            java.nio.file.Path filePath = fileStorageService.getAbsoluteFilePath(fileInfo.getFilePath());
+            File file = filePath.toFile();
             if (!file.exists()) {
                 return ResponseEntity.notFound().build();
             }
@@ -672,9 +679,11 @@ public class FileController {
                         continue;
                     }
                     
-                    File file = new File(fileInfo.getFilePath());
+                    // 获取绝对路径（兼容相对路径和绝对路径）
+                    java.nio.file.Path filePath = fileStorageService.getAbsoluteFilePath(fileInfo.getFilePath());
+                    File file = filePath.toFile();
                     if (!file.exists()) {
-                        log.warn("文件不存在 - ID: {}, 路径: {}", id, fileInfo.getFilePath());
+                        log.warn("文件不存在 - ID: {}, 路径: {}", id, filePath);
                         continue;
                     }
                     

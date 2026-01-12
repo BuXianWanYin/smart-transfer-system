@@ -17,14 +17,14 @@ import lombok.NoArgsConstructor;
 
 /**
  * 传输历史记录实体类
- * 对应数据库 t_transfer_history 表
+ * 对应数据库 transfer_history 表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = false)
-@TableName(value = "t_transfer_history")
+@TableName(value = "transfer_history")
 public class TransferHistory implements Serializable {
     
     private static final long serialVersionUID = 1L;

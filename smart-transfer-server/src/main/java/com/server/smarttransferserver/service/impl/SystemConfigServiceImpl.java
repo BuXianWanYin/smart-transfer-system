@@ -3,6 +3,9 @@ package com.server.smarttransferserver.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.config.CongestionConfig;
+import com.server.smarttransferserver.congestion.AdaptiveAlgorithm;
+import com.server.smarttransferserver.congestion.BBRAlgorithm;
+import com.server.smarttransferserver.congestion.CubicAlgorithm;
 import com.server.smarttransferserver.dto.CongestionConfigDTO;
 import com.server.smarttransferserver.entity.SystemConfig;
 import com.server.smarttransferserver.mapper.SystemConfigMapper;
@@ -29,6 +32,15 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
     
     @Autowired
     private CongestionConfig congestionConfig;
+    
+    @Autowired(required = false)
+    private CubicAlgorithm cubicAlgorithm;
+    
+    @Autowired(required = false)
+    private BBRAlgorithm bbrAlgorithm;
+    
+    @Autowired(required = false)
+    private AdaptiveAlgorithm adaptiveAlgorithm;
     
     /**
      * 获取拥塞控制配置
@@ -91,10 +103,32 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
             updateConfigValue("congestion.min-rate", dto.getMinRate().toString(), "最小速率");
         }
         
-        // 刷新内存中的配置（业务逻辑在Service层完成）
+        // 刷新内存中的配置
         congestionConfig.refresh();
         
-        log.info("拥塞控制配置更新完成，已刷新内存配置");
+        // **关键：重新初始化算法，让新配置生效**
+        reinitializeAlgorithms();
+        
+        log.info("拥塞控制配置更新完成，已刷新内存配置并重新初始化算法");
+    }
+    
+    /**
+     * 重新初始化所有拥塞控制算法
+     * 使新配置生效
+     */
+    private void reinitializeAlgorithms() {
+        if (cubicAlgorithm != null) {
+            cubicAlgorithm.initialize();
+            log.info("CUBIC算法已使用新配置重新初始化");
+        }
+        if (bbrAlgorithm != null) {
+            bbrAlgorithm.initialize();
+            log.info("BBR算法已使用新配置重新初始化");
+        }
+        if (adaptiveAlgorithm != null) {
+            adaptiveAlgorithm.initialize();
+            log.info("Adaptive算法已使用新配置重新初始化");
+        }
     }
     
     /**

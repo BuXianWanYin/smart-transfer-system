@@ -45,5 +45,14 @@ public interface CongestionMetricsService extends IService<CongestionMetrics> {
      * @return 拥塞指标列表
      */
     List<CongestionMetricsVO> getMetricsByTaskId(String taskId);
+    
+    /**
+     * 聚合多个任务的监控数据
+     * 对所有任务的指标进行平均或求和
+     *
+     * @param taskIds 任务ID列表
+     * @return 聚合后的监控指标
+     */
+    CongestionMetricsVO aggregateMetricsByTaskIds(List<String> taskIds);
 }
 

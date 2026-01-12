@@ -81,5 +81,26 @@ public interface IFileStorageService {
      * @throws IOException IO异常
      */
     long getFileSize(String filePath) throws IOException;
+    
+    /**
+     * 获取文件的绝对路径
+     * 兼容相对路径和绝对路径（旧数据可能是绝对路径）
+     *
+     * @param filePath 文件路径（相对路径或绝对路径）
+     * @return 绝对路径
+     */
+    java.nio.file.Path getAbsoluteFilePath(String filePath);
+    
+    /**
+     * 保存文件（用于复制/解压等场景）
+     * 将源文件保存到用户存储目录，返回相对路径
+     *
+     * @param sourceFile 源文件
+     * @param fileName 目标文件名
+     * @param userId 用户ID
+     * @return 相对路径（相对于storagePath，格式：userId/fileName）
+     * @throws IOException IO异常
+     */
+    String saveFile(java.io.File sourceFile, String fileName, Long userId) throws IOException;
 }
 

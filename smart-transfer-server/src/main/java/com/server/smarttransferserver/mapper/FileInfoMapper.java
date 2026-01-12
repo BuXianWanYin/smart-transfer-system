@@ -26,7 +26,7 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
      * @param fileHash 文件哈希
      * @return 文件信息
      */
-    @Select("SELECT * FROM t_file_info WHERE file_hash = #{fileHash} AND del_flag = 0 LIMIT 1")
+    @Select("SELECT * FROM file_info WHERE file_hash = #{fileHash} AND del_flag = 0 LIMIT 1")
     FileInfo selectByFileHash(@Param("fileHash") String fileHash);
 
     /**
@@ -35,7 +35,7 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
      * @param uploadStatus 上传状态
      * @return 文件列表
      */
-    @Select("SELECT * FROM t_file_info WHERE upload_status = #{uploadStatus} AND del_flag = 0")
+    @Select("SELECT * FROM file_info WHERE upload_status = #{uploadStatus} AND del_flag = 0")
     List<FileInfo> selectByUploadStatus(@Param("uploadStatus") String uploadStatus);
 
     /**
@@ -44,7 +44,7 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
      * @param uploadStatus 上传状态
      * @return 文件数量
      */
-    @Select("SELECT COUNT(*) FROM t_file_info WHERE upload_status = #{uploadStatus} AND del_flag = 0")
+    @Select("SELECT COUNT(*) FROM file_info WHERE upload_status = #{uploadStatus} AND del_flag = 0")
     Long countByUploadStatus(@Param("uploadStatus") String uploadStatus);
     
     /**
@@ -54,7 +54,7 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
      * @param fileId 文件ID
      * @return 影响行数
      */
-    @Delete("DELETE FROM t_file_info WHERE id = #{fileId}")
+    @Delete("DELETE FROM file_info WHERE id = #{fileId}")
     int deletePhysically(@Param("fileId") Long fileId);
 
     /**
@@ -64,6 +64,6 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
      * @param batchNum 删除批次号
      * @return 影响行数
      */
-    @Delete("DELETE FROM t_file_info WHERE delete_batch_num = #{batchNum}")
+    @Delete("DELETE FROM file_info WHERE delete_batch_num = #{batchNum}")
     int deletePhysicallyByBatchNum(@Param("batchNum") String batchNum);
 }

@@ -6,6 +6,8 @@ import com.server.smarttransferserver.dto.TransferTaskQueryDTO;
 import com.server.smarttransferserver.entity.TransferTask;
 import com.server.smarttransferserver.vo.TransferTaskVO;
 
+import java.util.List;
+
 /**
  * 传输任务服务接口
  * 提供传输任务的创建、查询、更新等功能
@@ -65,5 +67,14 @@ public interface TransferTaskService extends IService<TransferTask> {
      * @return 是否删除成功
      */
     boolean deleteTask(String taskId);
+    
+    /**
+     * 查询用户所有活跃的传输任务
+     * 活跃任务：状态为 PENDING 或 PROCESSING
+     *
+     * @param userId 用户ID
+     * @return 活跃任务列表
+     */
+    List<TransferTask> getActiveTasksByUserId(Long userId);
 }
 

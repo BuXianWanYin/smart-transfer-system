@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName(value = "t_folder")
+@TableName(value = "folder")
 public class Folder implements Serializable {
 
     private static final long serialVersionUID = 1L;

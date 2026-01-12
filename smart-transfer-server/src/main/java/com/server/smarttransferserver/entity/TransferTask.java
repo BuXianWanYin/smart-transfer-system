@@ -12,13 +12,13 @@ import java.time.LocalDateTime;
 
 /**
  * 传输任务实体类
- * 对应数据库表 t_transfer_task
+ * 对应数据库表 transfer_task
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("t_transfer_task")
+@TableName("transfer_task")
 public class TransferTask implements Serializable {
 
     private static final long serialVersionUID = 1L;

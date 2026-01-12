@@ -463,9 +463,10 @@ const startPendingUploads = () => {
   })
 }
 
-// 开始上传任务（支持断点续传）
+// 开始上传任务（支持断点续传 + 拥塞控制动态并发）
 const startUploadTask = async (task) => {
   const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB分片
+  let currentCwnd = 10 * 1024 * 1024 // 初始拥塞窗口10MB
   
   try {
     // 获取当前任务的最新状态
@@ -545,14 +546,18 @@ const startUploadTask = async (task) => {
     
     const startTime = currentTask.startTime || Date.now()
     
-    // 4. 分片上传（跳过已上传的分片）
+    // 4. 构建待上传分片列表（跳过已上传的）
+    const pendingChunks = []
     for (let i = 0; i < totalChunks; i++) {
-      // 检查是否已上传（断点续传的关键）
-      if (uploadedSet.has(i + 1)) {
-        console.log(`分片 ${i + 1} 已存在，跳过`)
-        continue
+      if (!uploadedSet.has(i + 1)) {
+        pendingChunks.push(i)
       }
-      
+    }
+    
+    // 5. 并发上传分片（根据拥塞窗口动态调整并发数）
+    let chunkIndex = 0
+    
+    while (chunkIndex < pendingChunks.length) {
       // 检查任务状态（暂停或取消检测）
       currentTask = transferStore.uploadQueue.find(t => t.id === task.id)
       if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
@@ -560,24 +565,46 @@ const startUploadTask = async (task) => {
         return
       }
       
-      // 切割分片
-      const start = i * CHUNK_SIZE
-      const end = Math.min(start + CHUNK_SIZE, task.file.size)
-      const chunk = task.file.slice(start, end)
+      // 根据拥塞窗口计算最大并发数（cwnd / 分片大小，最少1个，最多6个）
+      const maxConcurrent = Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))
+      console.log(`拥塞控制 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 并发数: ${maxConcurrent}`)
       
-      // 上传分片
-      const formData = new FormData()
-      formData.append('file', chunk)
-      formData.append('fileId', initRes.fileId)
-      formData.append('chunkNumber', i + 1)
-      formData.append('totalChunks', totalChunks)
-      formData.append('chunkHash', fileHash)  // 后端参数名是chunkHash
+      // 取当前批次要上传的分片
+      const batchSize = Math.min(maxConcurrent, pendingChunks.length - chunkIndex)
+      const batch = pendingChunks.slice(chunkIndex, chunkIndex + batchSize)
       
-      await uploadChunk(formData, () => {})
+      // 并发上传当前批次
+      const uploadPromises = batch.map(async (i) => {
+        const start = i * CHUNK_SIZE
+        const end = Math.min(start + CHUNK_SIZE, task.file.size)
+        const chunk = task.file.slice(start, end)
+        
+        const formData = new FormData()
+        formData.append('file', chunk)
+        formData.append('fileId', initRes.fileId)
+        formData.append('chunkNumber', i + 1)
+        formData.append('totalChunks', totalChunks)
+        formData.append('chunkHash', fileHash)
+        
+        const result = await uploadChunk(formData, () => {})
+        
+        // 后端返回了新的拥塞窗口大小，动态调整
+        if (result && result.cwnd) {
+          currentCwnd = result.cwnd
+        }
+        
+        return { index: i, size: chunk.size, result }
+      })
+      
+      // 等待当前批次完成
+      const results = await Promise.all(uploadPromises)
       
       // 更新进度
-      uploadedSize += chunk.size
-      uploadedSet.add(i + 1)
+      results.forEach(({ index, size }) => {
+        uploadedSize += size
+        uploadedSet.add(index + 1)
+      })
+      
       const elapsed = (Date.now() - startTime) / 1000
       const speed = elapsed > 0 ? Math.round(uploadedSize / elapsed) : 0
       const progress = Math.round((uploadedSize / task.fileSize) * 100)
@@ -588,6 +615,8 @@ const startUploadTask = async (task) => {
         uploadedSize,
         uploadedChunks: [...uploadedSet]
       })
+      
+      chunkIndex += batchSize
     }
     
     // 5. 合并文件

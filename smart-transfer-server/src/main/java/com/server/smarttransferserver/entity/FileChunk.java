@@ -11,13 +11,13 @@ import java.time.LocalDateTime;
 
 /**
  * 文件分片实体类
- * 对应数据库表 t_file_chunk
+ * 对应数据库表 file_chunk
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("t_file_chunk")
+@TableName("file_chunk")
 public class FileChunk implements Serializable {
 
     private static final long serialVersionUID = 1L;

@@ -11,7 +11,7 @@ import java.util.Date;
  * 用户实体类
  */
 @Data
-@TableName("t_user")
+@TableName("user")
 public class User {
     
     @TableId(type = IdType.AUTO)

@@ -12,13 +12,13 @@ import java.time.LocalDateTime;
 
 /**
  * 拥塞指标实体类
- * 对应数据库表 t_congestion_metrics
+ * 对应数据库表 congestion_metrics
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("t_congestion_metrics")
+@TableName("congestion_metrics")
 public class CongestionMetrics implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -30,10 +30,10 @@ public class CongestionMetrics implements Serializable {
     private Long id;
 
     /**
-     * 任务ID
+     * 任务ID（UUID字符串）
      */
     @TableField("task_id")
-    private Long taskId;
+    private String taskId;
 
     /**
      * 拥塞控制算法

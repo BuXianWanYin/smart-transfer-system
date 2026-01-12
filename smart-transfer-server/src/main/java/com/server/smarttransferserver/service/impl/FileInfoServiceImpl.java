@@ -7,12 +7,18 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
+import com.server.smarttransferserver.domain.Folder;
 import com.server.smarttransferserver.service.FileInfoService;
+import com.server.smarttransferserver.service.FolderService;
+import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.RecoveryFileService;
+import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.FileInfoVO;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,12 +27,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -46,9 +49,12 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     private RecoveryFileService recoveryFileService;
     
     @Autowired
-    private com.server.smarttransferserver.service.FolderService folderService;
+    private FolderService folderService;
     
-    @org.springframework.beans.factory.annotation.Value("${file.upload.path:./uploads}")
+    @Autowired
+    private IFileStorageService fileStorageService;
+    
+    @Value("${file.upload.path:./uploads}")
     private String uploadPath;
     
     /**
@@ -112,7 +118,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             FileInfoVO vo = new FileInfoVO();
             BeanUtils.copyProperties(fileInfo, vo);
             return vo;
-        }).collect(java.util.stream.Collectors.toList()));
+        }).collect(Collectors.toList()));
         
         log.info("查询文件列表 - 状态: {}, 结果数: {}", status, voPage.getRecords().size());
         return voPage;
@@ -260,31 +266,29 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         }
         
         try {
-            // 复制物理文件
-            File source = new File(sourceFile.getFilePath());
+            // 复制物理文件（获取绝对路径，兼容相对路径和绝对路径）
+            Path sourcePath = fileStorageService.getAbsoluteFilePath(sourceFile.getFilePath());
+            File source = sourcePath.toFile();
             if (!source.exists()) {
-                throw new RuntimeException("源文件物理路径不存在");
+                throw new RuntimeException("源文件物理路径不存在: " + sourcePath);
             }
             
-            // 生成新的文件路径
+            // 生成新的文件名
             String newFileName = generateCopyFileName(sourceFile.getFileName());
-            String newFilePath = uploadPath + File.separator + UUID.randomUUID() + 
-                    "_" + newFileName;
-            File dest = new File(newFilePath);
-            dest.getParentFile().mkdirs();
-            
-            // 复制文件内容
-            Files.copy(source.toPath(), dest.toPath());
             
             // 创建新的文件记录
-            Long userId = com.server.smarttransferserver.util.UserContextHolder.getUserId();
+            Long userId = UserContextHolder.getUserId();
+            
+            // 使用FileStorageService保存文件，返回相对路径
+            String relativePath = fileStorageService.saveFile(source, newFileName, userId);
+            
             FileInfo newFile = new FileInfo();
             newFile.setUserId(userId);
             newFile.setFileName(newFileName);
             newFile.setExtendName(sourceFile.getExtendName());
             newFile.setFileSize(sourceFile.getFileSize());
             newFile.setFileHash(sourceFile.getFileHash());
-            newFile.setFilePath(newFilePath);
+            newFile.setFilePath(relativePath);
             newFile.setIsDir(0);
             newFile.setFolderId(targetFolderId);
             newFile.setUploadStatus("COMPLETED");
@@ -352,9 +356,11 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             throw new RuntimeException("仅支持解压 ZIP 格式文件");
         }
         
-        File zipFile = new File(fileInfo.getFilePath());
+        // 获取绝对路径（兼容相对路径和绝对路径）
+        Path zipFilePath = fileStorageService.getAbsoluteFilePath(fileInfo.getFilePath());
+        File zipFile = zipFilePath.toFile();
         if (!zipFile.exists()) {
-            throw new RuntimeException("压缩文件不存在");
+            throw new RuntimeException("压缩文件不存在: " + zipFilePath);
         }
         
         // 确定目标文件夹ID
@@ -364,8 +370,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 destFolderId = fileInfo.getFolderId();
                 break;
             case 2: // 新建文件夹
-                com.server.smarttransferserver.domain.Folder newFolder = 
-                        folderService.createFolder(folderName, fileInfo.getFolderId());
+                Folder newFolder = folderService.createFolder(folderName, fileInfo.getFolderId());
                 destFolderId = newFolder.getId();
                 break;
             case 3: // 指定路径
@@ -395,43 +400,49 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     continue;
                 }
                 
-                // 创建解压后的文件
-                String newFilePath = uploadPath + File.separator + UUID.randomUUID() + 
-                        "_" + entryName;
-                File newFile = new File(newFilePath);
-                newFile.getParentFile().mkdirs();
-                
-                // 写入文件内容
-                try (FileOutputStream fos = new FileOutputStream(newFile)) {
-                    byte[] buffer = new byte[8192];
-                    int len;
-                    while ((len = zis.read(buffer)) > 0) {
-                        fos.write(buffer, 0, len);
+                // 创建临时文件用于解压
+                File tempFile = File.createTempFile("unzip_", "_" + entryName);
+                try {
+                    // 写入文件内容
+                    try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                        byte[] buffer = new byte[8192];
+                        int len;
+                        while ((len = zis.read(buffer)) > 0) {
+                            fos.write(buffer, 0, len);
+                        }
+                    }
+                    
+                    // 计算解压文件的MD5
+                    String fileHash = DigestUtils.md5Hex(new FileInputStream(tempFile));
+                    
+                    // 创建文件记录
+                    Long userId = UserContextHolder.getUserId();
+                    
+                    // 使用FileStorageService保存文件，返回相对路径
+                    String relativePath = fileStorageService.saveFile(tempFile, entryName, userId);
+                    
+                    FileInfo extractedFile = new FileInfo();
+                    extractedFile.setUserId(userId);
+                    extractedFile.setFileName(entryName);
+                    extractedFile.setExtendName(extractExtendName(entryName));
+                    extractedFile.setFileSize(tempFile.length());
+                    extractedFile.setFileHash(fileHash);
+                    extractedFile.setFilePath(relativePath);
+                    extractedFile.setIsDir(0);
+                    extractedFile.setFolderId(destFolderId);
+                    extractedFile.setUploadStatus("COMPLETED");
+                    extractedFile.setDelFlag(0);
+                    extractedFile.setCreateTime(LocalDateTime.now());
+                    extractedFile.setUpdateTime(LocalDateTime.now());
+                    
+                    save(extractedFile);
+                    log.info("解压文件 - 文件名: {}, ID: {}", entryName, extractedFile.getId());
+                } finally {
+                    // 清理临时文件
+                    if (tempFile.exists()) {
+                        tempFile.delete();
                     }
                 }
-                
-                // 计算解压文件的MD5
-                String fileHash = org.apache.commons.codec.digest.DigestUtils.md5Hex(
-                        new java.io.FileInputStream(newFile));
-                
-                // 创建文件记录
-                Long userId = com.server.smarttransferserver.util.UserContextHolder.getUserId();
-                FileInfo extractedFile = new FileInfo();
-                extractedFile.setUserId(userId);
-                extractedFile.setFileName(entryName);
-                extractedFile.setExtendName(extractExtendName(entryName));
-                extractedFile.setFileSize(newFile.length());
-                extractedFile.setFileHash(fileHash);
-                extractedFile.setFilePath(newFilePath);
-                extractedFile.setIsDir(0);
-                extractedFile.setFolderId(destFolderId);
-                extractedFile.setUploadStatus("COMPLETED");
-                extractedFile.setDelFlag(0);
-                extractedFile.setCreateTime(LocalDateTime.now());
-                extractedFile.setUpdateTime(LocalDateTime.now());
-                
-                save(extractedFile);
-                log.info("解压文件 - 文件名: {}, ID: {}", entryName, extractedFile.getId());
                 
                 zis.closeEntry();
             }

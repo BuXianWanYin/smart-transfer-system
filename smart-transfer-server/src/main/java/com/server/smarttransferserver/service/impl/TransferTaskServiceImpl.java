@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.dto.TransferTaskQueryDTO;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.entity.TransferTask;
+import com.server.smarttransferserver.mapper.CongestionMetricsMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.TransferTaskMapper;
 import com.server.smarttransferserver.service.TransferTaskService;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,6 +37,9 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     
     @Autowired
     private FileInfoMapper fileInfoMapper;
+    
+    @Autowired
+    private CongestionMetricsMapper congestionMetricsMapper;
     
     /**
      * 创建传输任务
@@ -177,6 +182,39 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     }
     
     /**
+     * 查询用户所有活跃的传输任务
+     * 活跃任务：状态为 PENDING 或 PROCESSING
+     *
+     * @param userId 用户ID
+     * @return 活跃任务列表
+     */
+    @Override
+    public List<TransferTask> getActiveTasksByUserId(Long userId) {
+        // 通过文件ID关联查询用户的活跃任务
+        // 1. 查询用户的所有文件ID
+        QueryWrapper<FileInfo> fileWrapper = new QueryWrapper<>();
+        fileWrapper.eq("user_id", userId);
+        List<FileInfo> userFiles = fileInfoMapper.selectList(fileWrapper);
+        
+        if (userFiles.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        // 2. 提取文件ID列表
+        List<Long> fileIds = userFiles.stream()
+                .map(FileInfo::getId)
+                .collect(Collectors.toList());
+        
+        // 3. 查询这些文件的活跃任务
+        QueryWrapper<TransferTask> taskWrapper = new QueryWrapper<>();
+        taskWrapper.in("file_id", fileIds)
+                   .in("transfer_status", "PENDING", "PROCESSING")
+                   .orderByDesc("start_time");
+        
+        return transferTaskMapper.selectList(taskWrapper);
+    }
+    
+    /**
      * 更新任务状态
      *
      * @param taskId   任务ID
@@ -203,6 +241,7 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     
     /**
      * 删除任务
+     * 同时级联删除相关的拥塞指标数据
      *
      * @param taskId 任务ID
      * @return 是否删除成功
@@ -212,6 +251,11 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     public boolean deleteTask(String taskId) {
         TransferTask task = transferTaskMapper.selectByTaskId(taskId);
         if (task != null) {
+            // 级联删除拥塞指标数据
+            int deletedMetricsCount = congestionMetricsMapper.deleteByTaskId(taskId);
+            log.info("删除任务时级联删除拥塞指标 - 任务ID: {}, 删除指标数: {}", taskId, deletedMetricsCount);
+            
+            // 删除任务
             removeById(task.getId());
             log.info("删除任务 - 任务ID: {}", taskId);
             return true;

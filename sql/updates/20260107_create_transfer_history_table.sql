@@ -2,7 +2,7 @@
 -- 创建时间: 2026-01-07
 -- 说明: 用于存储文件传输的历史记录，支持上传和下载记录
 
-CREATE TABLE IF NOT EXISTS t_transfer_history (
+CREATE TABLE IF NOT EXISTS transfer_history (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
   task_id VARCHAR(64) NOT NULL COMMENT '传输任务ID',
   file_id BIGINT NOT NULL COMMENT '文件ID',
@@ -25,6 +25,6 @@ CREATE TABLE IF NOT EXISTS t_transfer_history (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='传输历史记录表';
 
 -- 插入示例数据（可选）
--- INSERT INTO t_transfer_history (task_id, file_id, file_name, file_size, file_hash, transfer_type, transfer_status, avg_speed, duration, algorithm, completed_time)
+-- INSERT INTO transfer_history (task_id, file_id, file_name, file_size, file_hash, transfer_type, transfer_status, avg_speed, duration, algorithm, completed_time)
 -- VALUES ('TASK001', 1, 'example.pdf', 1048576, 'abc123hash', 'UPLOAD', 'COMPLETED', 2097152, 5, 'CUBIC', NOW());
 

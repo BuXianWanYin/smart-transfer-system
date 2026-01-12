@@ -21,7 +21,7 @@ public interface FileChunkMapper extends BaseMapper<FileChunk> {
      * @param chunkNumber 分片序号
      * @return 分片信息
      */
-    @Select("SELECT * FROM t_file_chunk WHERE file_id = #{fileId} AND chunk_number = #{chunkNumber} LIMIT 1")
+    @Select("SELECT * FROM file_chunk WHERE file_id = #{fileId} AND chunk_number = #{chunkNumber} LIMIT 1")
     FileChunk selectByFileIdAndChunkNumber(@Param("fileId") Long fileId, @Param("chunkNumber") Integer chunkNumber);
 
     /**
@@ -31,7 +31,7 @@ public interface FileChunkMapper extends BaseMapper<FileChunk> {
      * @param uploadStatus 上传状态
      * @return 分片列表
      */
-    @Select("SELECT * FROM t_file_chunk WHERE file_id = #{fileId} AND upload_status = #{uploadStatus}")
+    @Select("SELECT * FROM file_chunk WHERE file_id = #{fileId} AND upload_status = #{uploadStatus}")
     List<FileChunk> selectByFileIdAndUploadStatus(@Param("fileId") Long fileId, @Param("uploadStatus") String uploadStatus);
 
     /**
@@ -40,7 +40,7 @@ public interface FileChunkMapper extends BaseMapper<FileChunk> {
      * @param fileId 文件ID
      * @return 分片数量
      */
-    @Select("SELECT COUNT(*) FROM t_file_chunk WHERE file_id = #{fileId}")
+    @Select("SELECT COUNT(*) FROM file_chunk WHERE file_id = #{fileId}")
     Long countByFileId(@Param("fileId") Long fileId);
 
     /**
@@ -50,6 +50,6 @@ public interface FileChunkMapper extends BaseMapper<FileChunk> {
      * @param uploadStatus 上传状态
      * @return 完成数量
      */
-    @Select("SELECT COUNT(*) FROM t_file_chunk WHERE file_id = #{fileId} AND upload_status = #{uploadStatus}")
+    @Select("SELECT COUNT(*) FROM file_chunk WHERE file_id = #{fileId} AND upload_status = #{uploadStatus}")
     Long countByFileIdAndStatus(@Param("fileId") Long fileId, @Param("uploadStatus") String uploadStatus);
 }

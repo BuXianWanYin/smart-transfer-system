@@ -254,15 +254,15 @@ const loadConfig = async () => {
     const res = await getCongestionConfig()
     const config = res
     
-    // 将字符串转换为数字（后端返回的是下划线格式：initial_cwnd）
+    // 后端返回短横线格式：initial-cwnd
     configForm.value = {
       algorithm: config.algorithm || 'CUBIC',
-      initialCwnd: Number(config.initial_cwnd || config.initialCwnd) || 10485760,
+      initialCwnd: Number(config['initial-cwnd']) || 10485760,
       ssthresh: Number(config.ssthresh) || 52428800,
-      maxCwnd: Number(config.max_cwnd || config.maxCwnd) || 104857600,
-      minCwnd: Number(config.min_cwnd || config.minCwnd) || 1048576,
-      maxRate: Number(config.max_rate || config.maxRate) || 104857600,
-      minRate: Number(config.min_rate || config.minRate) || 1048576
+      maxCwnd: Number(config['max-cwnd']) || 104857600,
+      minCwnd: Number(config['min-cwnd']) || 1048576,
+      maxRate: Number(config['max-rate']) || 104857600,
+      minRate: Number(config['min-rate']) || 1048576
     }
     
     // 转换为用户友好的显示格式

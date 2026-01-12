@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,9 +31,6 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     @Autowired(required = false)
     private INetworkMonitorService networkMonitor;
     
-    @Autowired(required = false)
-    private TransferRateLimiter rateLimiter;
-    
     /**
      * 获取当前拥塞控制指标
      *
@@ -41,7 +39,7 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
      */
     @Override
     public CongestionMetricsVO getCurrentMetrics(CongestionControlAlgorithm algorithm) {
-        if (algorithm == null || networkMonitor == null || rateLimiter == null) {
+        if (algorithm == null || networkMonitor == null) {
             return buildEmptyMetrics();
         }
         
@@ -81,13 +79,13 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     /**
      * 根据任务ID查询最新的拥塞指标
      *
-     * @param taskId 任务ID
+     * @param taskId 任务ID（UUID字符串）
      * @param limit 查询数量
      * @return 拥塞指标列表
      */
     @Override
     public List<CongestionMetricsVO> getLatestMetrics(String taskId, Integer limit) {
-        List<CongestionMetrics> metricsList = metricsMapper.selectByTaskIdOrderByRecordTimeDesc(Long.parseLong(taskId));
+        List<CongestionMetrics> metricsList = metricsMapper.selectByTaskIdOrderByRecordTimeDesc(taskId);
         
         return metricsList.stream()
                 .limit(limit != null ? limit : 100)
@@ -109,10 +107,10 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     /**
      * 记录拥塞指标到数据库（兼容旧方法）
      *
-     * @param taskId    任务ID
+     * @param taskId    任务ID（UUID字符串）
      * @param algorithm 算法
      */
-    public void recordMetrics(Long taskId, CongestionControlAlgorithm algorithm) {
+    public void recordMetrics(String taskId, CongestionControlAlgorithm algorithm) {
         if (algorithm == null || networkMonitor == null) {
             return;
         }
@@ -136,11 +134,104 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     /**
      * 查询任务的历史指标
      *
-     * @param taskId 任务ID
+     * @param taskId 任务ID（UUID字符串）
      * @return 指标列表
      */
-    public List<CongestionMetrics> getTaskMetrics(Long taskId) {
+    public List<CongestionMetrics> getTaskMetrics(String taskId) {
         return metricsMapper.selectByTaskIdOrderByRecordTimeDesc(taskId);
+    }
+    
+    /**
+     * 聚合多个任务的监控数据
+     *
+     * @param taskIds 任务ID列表
+     * @return 聚合后的监控指标
+     */
+    @Override
+    public CongestionMetricsVO aggregateMetricsByTaskIds(List<String> taskIds) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return buildEmptyMetrics();
+        }
+        
+        List<CongestionMetricsVO> allMetrics = new ArrayList<>();
+        
+        // 获取每个任务的最新指标
+        for (String taskId : taskIds) {
+            List<CongestionMetricsVO> taskMetrics = getLatestMetrics(taskId, 1);
+            if (!taskMetrics.isEmpty()) {
+                allMetrics.add(taskMetrics.get(0)); // 取最新的一条
+            }
+        }
+        
+        if (allMetrics.isEmpty()) {
+            return buildEmptyMetrics();
+        }
+        
+        // 聚合指标：计算平均值
+        return aggregateMetrics(allMetrics);
+    }
+    
+    /**
+     * 聚合多个指标数据
+     *
+     * @param metricsList 指标列表
+     * @return 聚合后的指标
+     */
+    private CongestionMetricsVO aggregateMetrics(List<CongestionMetricsVO> metricsList) {
+        if (metricsList.isEmpty()) {
+            return buildEmptyMetrics();
+        }
+        
+        // 计算平均值
+        long avgCwnd = (long) metricsList.stream()
+                .mapToLong(m -> m.getCwnd() != null ? m.getCwnd() : 0L)
+                .average()
+                .orElse(0.0);
+        
+        long avgSsthresh = (long) metricsList.stream()
+                .mapToLong(m -> m.getSsthresh() != null ? m.getSsthresh() : 0L)
+                .average()
+                .orElse(0.0);
+        
+        long avgRate = (long) metricsList.stream()
+                .mapToLong(m -> m.getRate() != null ? m.getRate() : 0L)
+                .average()
+                .orElse(0.0);
+        
+        long avgRtt = (long) metricsList.stream()
+                .mapToLong(m -> m.getRtt() != null ? m.getRtt() : 0L)
+                .average()
+                .orElse(0.0);
+        
+        long avgMinRtt = (long) metricsList.stream()
+                .mapToLong(m -> m.getMinRtt() != null ? m.getMinRtt() : 0L)
+                .average()
+                .orElse(0.0);
+        
+        double avgLossRate = metricsList.stream()
+                .mapToDouble(m -> m.getLossRate() != null ? m.getLossRate() : 0.0)
+                .average()
+                .orElse(0.0);
+        
+        long avgBandwidth = (long) metricsList.stream()
+                .mapToLong(m -> m.getBandwidth() != null ? m.getBandwidth() : 0L)
+                .average()
+                .orElse(0.0);
+        
+        // 使用第一个任务的算法名称
+        String algorithm = metricsList.get(0).getAlgorithm();
+        
+        return CongestionMetricsVO.builder()
+                .algorithm(algorithm)
+                .cwnd(avgCwnd)
+                .ssthresh(avgSsthresh)
+                .rate(avgRate)
+                .rtt(avgRtt)
+                .minRtt(avgMinRtt)
+                .lossRate(avgLossRate)
+                .bandwidth(avgBandwidth)
+                .networkQuality("NORMAL") // 聚合数据不评估网络质量
+                .build();
     }
     
     /**

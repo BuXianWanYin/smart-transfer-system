@@ -15,13 +15,13 @@ import java.time.LocalDateTime;
 
 /**
  * 回收站文件实体类
- * 对应数据库 t_recovery_file 表
+ * 对应数据库 recovery_file 表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName(value = "t_recovery_file")
+@TableName(value = "recovery_file")
 public class RecoveryFile implements Serializable {
 
     private static final long serialVersionUID = 1L;

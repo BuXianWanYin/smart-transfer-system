@@ -11,13 +11,13 @@ import java.time.LocalDateTime;
 
 /**
  * 文件信息实体类
- * 对应数据库表 t_file_info
+ * 对应数据库表 file_info
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("t_file_info")
+@TableName("file_info")
 public class FileInfo implements Serializable {
 
     private static final long serialVersionUID = 1L;

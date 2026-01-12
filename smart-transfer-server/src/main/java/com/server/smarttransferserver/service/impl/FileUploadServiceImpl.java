@@ -3,8 +3,6 @@ package com.server.smarttransferserver.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.server.smarttransferserver.congestion.AdaptiveAlgorithm;
 import com.server.smarttransferserver.congestion.BandwidthEstimator;
-import com.server.smarttransferserver.congestion.CongestionControlAlgorithm;
-import com.server.smarttransferserver.congestion.RttMeasurement;
 import com.server.smarttransferserver.dto.ChunkUploadDTO;
 import com.server.smarttransferserver.dto.FileUploadInitDTO;
 import com.server.smarttransferserver.entity.FileChunk;
@@ -12,7 +10,6 @@ import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.mapper.FileChunkMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.service.FileUploadCacheService;
-import com.server.smarttransferserver.service.IFileChecksumService;
 import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.FileUploadService;
 import com.server.smarttransferserver.vo.ChunkUploadVO;
@@ -51,13 +48,18 @@ public class FileUploadServiceImpl implements FileUploadService {
     private IFileStorageService storageService;
     
     @Autowired
-    private IFileChecksumService checksumService;
-    
-    @Autowired
     private FileUploadCacheService uploadCacheService;
 
     @Autowired
     private BandwidthEstimator bandwidthEstimator;
+    
+    @Autowired(required = false)
+    private AdaptiveAlgorithm adaptiveAlgorithm;
+    
+    /**
+     * 记录每个分片上传的开始时间，用于计算RTT
+     */
+    private final ConcurrentHashMap<String, Long> chunkStartTimes = new ConcurrentHashMap<>();
     
     /**
      * 初始化文件上传
@@ -252,12 +254,18 @@ public class FileUploadServiceImpl implements FileUploadService {
     
     /**
      * 上传分片（内部方法）
+     * 集成拥塞控制算法，在上传成功/失败时触发算法响应
      *
      * @param dto 分片上传DTO
      * @return 上传结果
      */
     private ChunkUploadVO uploadChunkInternal(ChunkUploadDTO dto) {
         log.info("上传分片 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
+        
+        // 记录分片上传开始时间（用于计算RTT）
+        String chunkKey = dto.getFileId() + "-" + dto.getChunkNumber();
+        long startTime = System.currentTimeMillis();
+        chunkStartTimes.put(chunkKey, startTime);
         
         try {
             // 注：分片哈希验证已跳过，文件完整性在合并时通过整体哈希验证
@@ -266,10 +274,22 @@ public class FileUploadServiceImpl implements FileUploadService {
             long chunkSize = dto.getFile().getSize();
             storageService.saveChunk(dto.getFileId(), dto.getChunkNumber(), dto.getFile());
             
-            // 记录传输字节数用于带宽估计
+            // 2. 计算本次传输的RTT
+            long endTime = System.currentTimeMillis();
+            long rtt = endTime - startTime;
+            chunkStartTimes.remove(chunkKey);
+            
+            // 3. 记录传输字节数用于带宽估计
             bandwidthEstimator.recordSent(chunkSize);
             
-            // 2. 更新分片记录
+            // 4. **关键：触发拥塞控制算法的ACK响应**
+            if (adaptiveAlgorithm != null) {
+                adaptiveAlgorithm.onAck(chunkSize, rtt);
+                log.debug("拥塞控制响应ACK - 分片大小: {}字节, RTT: {}ms, 当前cwnd: {}字节", 
+                         chunkSize, rtt, adaptiveAlgorithm.getCwnd());
+            }
+            
+            // 5. 更新分片记录
             FileChunk chunk = fileChunkMapper.selectByFileIdAndChunkNumber(dto.getFileId(), dto.getChunkNumber());
             if (chunk != null) {
                 chunk.setChunkHash(dto.getChunkHash());
@@ -277,7 +297,7 @@ public class FileUploadServiceImpl implements FileUploadService {
                 fileChunkMapper.updateById(chunk);
             }
             
-            // 3. 统计上传进度
+            // 6. 统计上传进度
             QueryWrapper<FileChunk> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("file_id", dto.getFileId());
             List<FileChunk> allChunks = fileChunkMapper.selectList(queryWrapper);
@@ -287,8 +307,11 @@ public class FileUploadServiceImpl implements FileUploadService {
                     .count();
             double progress = (double) completedChunks / totalChunks * 100;
             
-            log.info("分片上传成功 - 文件ID: {}, 分片: {}, 进度: {:.2f}%", 
-                     dto.getFileId(), dto.getChunkNumber(), progress);
+            // 7. 获取当前拥塞窗口大小（用于前端调整并发数）
+            long currentCwnd = adaptiveAlgorithm != null ? adaptiveAlgorithm.getCwnd() : 5 * 1024 * 1024;
+            
+            log.info("分片上传成功 - 文件ID: {}, 分片: {}, 进度: {:.2f}%, RTT: {}ms, cwnd: {}字节", 
+                     dto.getFileId(), dto.getChunkNumber(), progress, rtt, currentCwnd);
             
             return ChunkUploadVO.builder()
                     .fileId(dto.getFileId())
@@ -297,16 +320,32 @@ public class FileUploadServiceImpl implements FileUploadService {
                     .completedChunks((int) completedChunks)
                     .totalChunks(totalChunks)
                     .progress(progress)
+                    .cwnd(currentCwnd)  // 返回当前拥塞窗口
+                    .rtt(rtt)           // 返回本次RTT
                     .message("分片上传成功")
                     .build();
             
         } catch (IOException e) {
             log.error("分片上传失败 - 文件ID: {}, 分片: {}, 错误: {}", 
                       dto.getFileId(), dto.getChunkNumber(), e.getMessage());
+            
+            // **关键：上传失败视为丢包，触发拥塞控制算法的丢包响应**
+            long chunkSize = dto.getFile().getSize();
+            chunkStartTimes.remove(chunkKey);
+            
+            if (adaptiveAlgorithm != null) {
+                adaptiveAlgorithm.onLoss(chunkSize);
+                log.warn("拥塞控制响应丢包 - 分片大小: {}字节, 当前cwnd: {}字节", 
+                        chunkSize, adaptiveAlgorithm.getCwnd());
+            }
+            
+            long currentCwnd = adaptiveAlgorithm != null ? adaptiveAlgorithm.getCwnd() : 5 * 1024 * 1024;
+            
             return ChunkUploadVO.builder()
                     .fileId(dto.getFileId())
                     .chunkNumber(dto.getChunkNumber())
                     .success(false)
+                    .cwnd(currentCwnd)  // 即使失败也返回cwnd，让前端降低并发
                     .message("分片上传失败: " + e.getMessage())
                     .build();
         }

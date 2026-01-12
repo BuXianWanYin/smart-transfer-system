@@ -45,6 +45,17 @@ public class ChunkUploadVO {
     private Double progress;
     
     /**
+     * 当前拥塞窗口大小（字节）
+     * 前端可根据此值调整并发上传数
+     */
+    private Long cwnd;
+    
+    /**
+     * 本次传输的RTT（毫秒）
+     */
+    private Long rtt;
+    
+    /**
      * 提示信息
      */
     private String message;

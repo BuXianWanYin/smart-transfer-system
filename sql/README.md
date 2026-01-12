@@ -26,7 +26,7 @@ sql/
 
 ## 📊 数据表说明
 
-### 1. t_file_info（文件信息表）
+### 1. file_info（文件信息表）
 存储上传文件的基本信息。
 
 **主要字段：**
@@ -37,7 +37,7 @@ sql/
 - `file_path` - 文件存储路径
 - `upload_status` - 上传状态（0-待上传 1-上传中 2-已完成）
 
-### 2. t_file_chunk（文件分片表）
+### 2. file_chunk（文件分片表）
 存储文件分片信息，用于断点续传。
 
 **主要字段：**
@@ -48,7 +48,7 @@ sql/
 - `chunk_hash` - 分片哈希值
 - `upload_status` - 上传状态（0-未上传 1-已上传）
 
-### 3. t_transfer_task（传输任务表）
+### 3. transfer_task（传输任务表）
 记录文件传输任务的详细信息。
 
 **主要字段：**
@@ -60,7 +60,7 @@ sql/
 - `progress` - 传输进度（百分比）
 - `transfer_speed` - 传输速率（字节/秒）
 
-### 4. t_system_config（系统配置表）
+### 4. system_config（系统配置表）
 存储系统配置参数，包括TCP拥塞控制参数。
 
 **主要字段：**
@@ -78,7 +78,7 @@ sql/
 - `transfer.chunk_size` - 文件分片大小（5MB）
 - `transfer.max_file_size` - 最大文件大小（10GB）
 
-### 5. t_congestion_metrics（拥塞控制指标表）
+### 5. congestion_metrics（拥塞控制指标表）
 记录TCP拥塞控制算法的实时指标数据。
 
 **主要字段：**
@@ -125,7 +125,7 @@ mcp_mysql_connect_db({
 
 // 5. 验证
 mcp_mysql_list_tables()  // 查看所有表
-mcp_mysql_query({ sql: "SELECT * FROM t_system_config" })  // 查看配置
+mcp_mysql_query({ sql: "SELECT * FROM system_config" })  // 查看配置
 ```
 
 ### 方式二：使用命令行（备用）
@@ -140,7 +140,7 @@ source sql/init/20260106_create_tables.sql
 # 3. 验证
 USE smart_transfer;
 SHOW TABLES;
-SELECT * FROM t_system_config;
+SELECT * FROM system_config;
 ```
 
 ### 方式三：使用 MySQL 客户端工具（开发环境）
@@ -167,7 +167,7 @@ SELECT * FROM t_system_config;
    USE smart_transfer;
    
    -- 添加用户表
-   CREATE TABLE t_user (
+   CREATE TABLE user (
      id BIGINT PRIMARY KEY AUTO_INCREMENT,
      username VARCHAR(50) NOT NULL,
      password VARCHAR(100) NOT NULL,
@@ -175,25 +175,25 @@ SELECT * FROM t_system_config;
    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
    
    -- 为文件表添加用户ID字段
-   ALTER TABLE t_file_info ADD COLUMN user_id BIGINT COMMENT '上传用户ID';
-   ALTER TABLE t_file_info ADD CONSTRAINT fk_file_user FOREIGN KEY (user_id) REFERENCES t_user(id);
+   ALTER TABLE file_info ADD COLUMN user_id BIGINT COMMENT '上传用户ID';
+   ALTER TABLE file_info ADD CONSTRAINT fk_file_user FOREIGN KEY (user_id) REFERENCES user(id);
    ```
 
 3. **使用 MCP 执行变更**
    ```javascript
    mcp_mysql_execute({
-     sql: "CREATE TABLE t_user (...)"
+     sql: "CREATE TABLE user (...)"
    })
    
    mcp_mysql_execute({
-     sql: "ALTER TABLE t_file_info ADD COLUMN user_id BIGINT"
+     sql: "ALTER TABLE file_info ADD COLUMN user_id BIGINT"
    })
    ```
 
 4. **验证变更结果**
    ```javascript
-   mcp_mysql_describe_table({ table: "t_user" })
-   mcp_mysql_describe_table({ table: "t_file_info" })
+   mcp_mysql_describe_table({ table: "user" })
+   mcp_mysql_describe_table({ table: "file_info" })
    ```
 
 ## ⚠️ 注意事项
@@ -225,13 +225,13 @@ SELECT * FROM t_system_config;
 SHOW TABLES;
 
 -- 查看表结构
-DESC t_file_info;
+DESC file_info;
 
 -- 查看表创建语句
-SHOW CREATE TABLE t_file_info;
+SHOW CREATE TABLE file_info;
 
 -- 查看索引
-SHOW INDEX FROM t_file_info;
+SHOW INDEX FROM file_info;
 
 -- 查看表数据量
 SELECT 
@@ -242,14 +242,14 @@ FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = 'smart_transfer';
 
 -- 查看系统配置
-SELECT * FROM t_system_config;
+SELECT * FROM system_config;
 
 -- 查看文件上传统计
 SELECT 
   upload_status,
   COUNT(*) as count,
   SUM(file_size) as total_size
-FROM t_file_info
+FROM file_info
 GROUP BY upload_status;
 ```
 

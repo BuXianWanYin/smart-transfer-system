@@ -19,7 +19,7 @@ public interface SystemConfigMapper extends BaseMapper<SystemConfig> {
      * @param configKey 配置键
      * @return 配置信息
      */
-    @Select("SELECT * FROM t_system_config WHERE config_key = #{configKey} LIMIT 1")
+    @Select("SELECT * FROM system_config WHERE config_key = #{configKey} LIMIT 1")
     SystemConfig selectByConfigKey(@Param("configKey") String configKey);
 
     /**
@@ -28,6 +28,6 @@ public interface SystemConfigMapper extends BaseMapper<SystemConfig> {
      * @param configKey 配置键
      * @return 影响行数
      */
-    @Delete("DELETE FROM t_system_config WHERE config_key = #{configKey}")
+    @Delete("DELETE FROM system_config WHERE config_key = #{configKey}")
     int deleteByConfigKey(@Param("configKey") String configKey);
 }

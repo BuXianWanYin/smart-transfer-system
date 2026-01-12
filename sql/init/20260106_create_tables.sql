@@ -16,9 +16,9 @@ COLLATE utf8mb4_unicode_ci;
 USE smart_transfer;
 
 -- ============================================
--- 表1: t_file_info（文件信息表）
+-- 表1: file_info（文件信息表）
 -- ============================================
-CREATE TABLE IF NOT EXISTS t_file_info (
+CREATE TABLE IF NOT EXISTS file_info (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
   file_name VARCHAR(255) NOT NULL COMMENT '文件名',
   file_size BIGINT NOT NULL COMMENT '文件大小（字节）',
@@ -33,9 +33,9 @@ CREATE TABLE IF NOT EXISTS t_file_info (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件信息表';
 
 -- ============================================
--- 表2: t_file_chunk（文件分片表）
+-- 表2: file_chunk（文件分片表）
 -- ============================================
-CREATE TABLE IF NOT EXISTS t_file_chunk (
+CREATE TABLE IF NOT EXISTS file_chunk (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
   file_id BIGINT NOT NULL COMMENT '文件ID',
   chunk_number INT NOT NULL COMMENT '分片序号（从0开始）',
@@ -46,13 +46,13 @@ CREATE TABLE IF NOT EXISTS t_file_chunk (
   INDEX idx_file_id (file_id),
   INDEX idx_chunk_number (chunk_number),
   UNIQUE KEY uk_file_chunk (file_id, chunk_number),
-  FOREIGN KEY (file_id) REFERENCES t_file_info(id) ON DELETE CASCADE
+  FOREIGN KEY (file_id) REFERENCES file_info(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件分片表';
 
 -- ============================================
--- 表3: t_transfer_task（传输任务表）
+-- 表3: transfer_task（传输任务表）
 -- ============================================
-CREATE TABLE IF NOT EXISTS t_transfer_task (
+CREATE TABLE IF NOT EXISTS transfer_task (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
   task_id VARCHAR(64) NOT NULL UNIQUE COMMENT '任务唯一标识',
   file_id BIGINT NOT NULL COMMENT '文件ID',
@@ -66,13 +66,13 @@ CREATE TABLE IF NOT EXISTS t_transfer_task (
   INDEX idx_task_id (task_id),
   INDEX idx_file_id (file_id),
   INDEX idx_transfer_status (transfer_status),
-  FOREIGN KEY (file_id) REFERENCES t_file_info(id)
+  FOREIGN KEY (file_id) REFERENCES file_info(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='传输任务表';
 
 -- ============================================
--- 表4: t_system_config（系统配置表）
+-- 表4: system_config（系统配置表）
 -- ============================================
-CREATE TABLE IF NOT EXISTS t_system_config (
+CREATE TABLE IF NOT EXISTS system_config (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
   config_key VARCHAR(100) NOT NULL UNIQUE COMMENT '配置键',
   config_value VARCHAR(500) NOT NULL COMMENT '配置值',
@@ -82,9 +82,9 @@ CREATE TABLE IF NOT EXISTS t_system_config (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';
 
 -- ============================================
--- 表5: t_congestion_metrics（拥塞控制指标表）
+-- 表5: congestion_metrics（拥塞控制指标表）
 -- ============================================
-CREATE TABLE IF NOT EXISTS t_congestion_metrics (
+CREATE TABLE IF NOT EXISTS congestion_metrics (
   id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
   task_id VARCHAR(64) NOT NULL COMMENT '传输任务ID',
   algorithm VARCHAR(20) NOT NULL COMMENT '拥塞控制算法：CUBIC/BBR/ADAPTIVE',
@@ -96,13 +96,13 @@ CREATE TABLE IF NOT EXISTS t_congestion_metrics (
   record_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '记录时间',
   INDEX idx_task_id (task_id),
   INDEX idx_record_time (record_time),
-  FOREIGN KEY (task_id) REFERENCES t_transfer_task(task_id)
+  FOREIGN KEY (task_id) REFERENCES transfer_task(task_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='拥塞控制指标表';
 
 -- ============================================
 -- 初始化系统配置数据
 -- ============================================
-INSERT INTO t_system_config (config_key, config_value, description) VALUES 
+INSERT INTO system_config (config_key, config_value, description) VALUES 
 ('congestion.algorithm', 'ADAPTIVE', '拥塞控制算法类型：CUBIC/BBR/ADAPTIVE'),
 ('congestion.initial_cwnd', '10485760', '初始拥塞窗口大小（字节）：10MB'),
 ('congestion.ssthresh', '52428800', '慢启动阈值（字节）：50MB'),
@@ -118,5 +118,5 @@ INSERT INTO t_system_config (config_key, config_value, description) VALUES
 -- ============================================
 SELECT '数据库初始化完成！' AS message;
 SELECT COUNT(*) AS table_count FROM information_schema.tables WHERE table_schema = 'smart_transfer';
-SELECT COUNT(*) AS config_count FROM t_system_config;
+SELECT COUNT(*) AS config_count FROM system_config;
 
