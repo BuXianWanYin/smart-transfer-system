@@ -420,6 +420,13 @@ watch(activeMenu, () => {
   }
 })
 
+// 监听子标签切换，切换到已完成时加载数据
+watch(activeSubTab, (newVal) => {
+  if (newVal === 'completed') {
+    loadCompletedList()
+  }
+})
+
 // 监听下载队列变化，自动开始新任务
 watch(
   () => transferStore.downloadQueue.length,
@@ -510,6 +517,8 @@ const startUploadTask = async (task) => {
       await transferStore.completeUploadTask(task.id, fileHash)
       ElMessage.success(`${task.fileName} 秒传成功`)
       emit('refresh')
+      // 刷新已完成列表
+      loadCompletedList()
       return
     }
     
@@ -595,6 +604,8 @@ const startUploadTask = async (task) => {
     await transferStore.completeUploadTask(task.id, fileHash)
     ElMessage.success(`${task.fileName} 上传完成`)
     emit('refresh')
+    // 刷新已完成列表
+    loadCompletedList()
     
   } catch (error) {
     console.error('上传失败:', error)
@@ -605,6 +616,8 @@ const startUploadTask = async (task) => {
     // 使用 failUploadTask 记录失败历史
     await transferStore.failUploadTask(task.id, error.message || '上传失败')
     ElMessage.error(`${task.fileName} 上传失败: ${error.message}，可点击重试`)
+    // 刷新已完成列表（记录失败历史）
+    loadCompletedList()
   }
 }
 
@@ -977,11 +990,15 @@ const startDownloadTask = async (task) => {
     // 标记完成
     await transferStore.completeDownloadTask(task.id)
     ElMessage.success(`${task.fileName} 下载完成`)
+    // 刷新已完成列表
+    loadCompletedList()
     
   } catch (error) {
     // 使用 failDownloadTask 记录失败历史
     await transferStore.failDownloadTask(task.id, error.message)
     ElMessage.error(`下载失败: ${error.message}，可点击重试`)
+    // 失败也刷新列表（记录失败历史）
+    loadCompletedList()
   }
 }
 
