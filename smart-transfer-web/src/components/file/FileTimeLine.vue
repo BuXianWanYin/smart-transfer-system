@@ -126,6 +126,7 @@ import MoveFileDialog from './MoveFileDialog.vue'
 import CopyFileDialog from './CopyFileDialog.vue'
 import FileDetailDialog from './FileDetailDialog.vue'
 import { moveFile, deleteFile, renameFile, getPreviewUrl } from '@/api/fileApi'
+import { deleteFolder } from '@/api/folderApi'
 import { useTransferStore } from '@/store/transferStore'
 
 const router = useRouter()
@@ -326,7 +327,13 @@ const handleMenuDelete = async () => {
       { type: 'warning' }
     )
     
-    await deleteFile(row.id)
+    if (row.isDir === 1) {
+      // 删除文件夹
+      await deleteFolder(row.id)
+    } else {
+      // 删除文件
+      await deleteFile(row.id)
+    }
     
     ElMessage.success('删除成功')
     emit('refresh')

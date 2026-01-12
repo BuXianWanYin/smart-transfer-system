@@ -12,7 +12,7 @@
       @upload-file="handleUploadFile"
       @new-folder="handleNewFolder"
       @search-file="handleSearchFile"
-      @show-upload="showUploader = true"
+      @show-upload="handleUploadFile"
       @change-mode="handleChangeMode"
       @change-grid-size="handleGridSizeChange"
       @change-columns="handleColumnsChange"
@@ -80,10 +80,10 @@
     
     <!-- 上传组件 -->
     <ChunkUploader
-      v-if="showUploader"
+      ref="chunkUploaderRef"
       :folder-id="currentFolderId"
       @close="showUploader = false"
-      @uploaded="loadFileList"
+      @success="loadFileList"
     />
     
     <!-- 简单文件预览（视频、音频、PDF等） -->
@@ -180,6 +180,7 @@ const selectedFiles = ref([])
 // 组件引用
 const operationMenuRef = ref(null)
 const fileGridRef = ref(null)
+const chunkUploaderRef = ref(null)
 
 // 上传组件
 const showUploader = ref(false)
@@ -378,7 +379,7 @@ const handleCurrentChange = (page) => {
 
 // 上传文件
 const handleUploadFile = () => {
-  showUploader.value = true
+  chunkUploaderRef.value?.open()
 }
 
 // 新建文件夹

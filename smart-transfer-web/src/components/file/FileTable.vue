@@ -230,6 +230,7 @@ import CodePreview from './CodePreview.vue'
 import { formatFileSize, formatDateTime } from '@/utils/format'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
 import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
+import { deleteFolder } from '@/api/folderApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
 import { useRouter } from 'vue-router'
@@ -421,8 +422,13 @@ const handleMenuDelete = async () => {
     )
     
     if (props.fileType === 6) {
+      // 回收站 - 彻底删除
       await deleteRecoveryFile(row.id)
+    } else if (row.isDir === 1) {
+      // 删除文件夹
+      await deleteFolder(row.id)
     } else {
+      // 删除文件
       await deleteFile(row.id)
     }
     

@@ -132,7 +132,10 @@ const request = {
    * @returns {Promise} 返回 Promise
    */
   del(config) {
-    return service.delete(config.url, { params: config.params })
+    return service.delete(config.url, { 
+      params: config.params,
+      data: config.data  // 支持 DELETE 请求体
+    })
   }
 }
 

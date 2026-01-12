@@ -413,11 +413,9 @@ onUnmounted(() => {
   stopMonitoring()
 })
 
-// 监听菜单切换，重新加载已完成列表
+// 监听菜单切换，重新加载已完成列表（不管当前在哪个标签，都加载数据）
 watch(activeMenu, () => {
-  if (activeSubTab.value === 'completed') {
-    loadCompletedList()
-  }
+  loadCompletedList()
 })
 
 // 监听子标签切换，切换到已完成时加载数据
@@ -663,7 +661,9 @@ const calculateFileHash = (file, onProgress) => {
 const loadCompletedList = async () => {
   try {
     const transferType = activeMenu.value === 'upload' ? 'UPLOAD' : 'DOWNLOAD'
+    console.log('加载历史记录, transferType:', transferType)
     const res = await getHistoryList({ transferType })
+    console.log('历史记录API返回:', res)
     
     const list = (res || []).map(record => ({
       id: record.id,
@@ -675,10 +675,14 @@ const loadCompletedList = async () => {
       selected: false
     }))
     
+    console.log('处理后的列表:', list)
+    
     if (activeMenu.value === 'upload') {
       uploadCompletedList.value = list
+      console.log('设置上传完成列表:', uploadCompletedList.value)
     } else {
       downloadCompletedList.value = list
+      console.log('设置下载完成列表:', downloadCompletedList.value)
     }
   } catch (error) {
     console.error('加载历史记录失败', error)

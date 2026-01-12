@@ -146,6 +146,7 @@ import MoveFileDialog from './MoveFileDialog.vue'
 import CopyFileDialog from './CopyFileDialog.vue'
 import SelectColumn from './SelectColumn.vue'
 import { batchDeleteFiles, batchMoveFiles, getBatchDownloadUrl } from '@/api/fileApi'
+import { deleteFolder } from '@/api/folderApi'
 import { batchRestoreRecoveryFiles, batchDeleteRecoveryFiles, clearAllRecoveryFiles } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
 
@@ -266,17 +267,30 @@ const handleBatchDelete = async () => {
   
   try {
     await ElMessageBox.confirm(
-      `确定要${action}选中的 ${props.operationFileList.length} 个文件吗？`,
+      `确定要${action}选中的 ${props.operationFileList.length} 个项目吗？`,
       `确认${action}`,
       { type: 'warning' }
     )
     
     if (isRecovery) {
+      // 回收站批量删除
       const ids = props.operationFileList.map(f => f.id)
       await batchDeleteRecoveryFiles(ids)
     } else {
-      const ids = props.operationFileList.map(f => f.id)
-      await batchDeleteFiles(ids)
+      // 分离文件和文件夹
+      const files = props.operationFileList.filter(f => f.isDir !== 1)
+      const folders = props.operationFileList.filter(f => f.isDir === 1)
+      
+      // 批量删除文件
+      if (files.length > 0) {
+        const fileIds = files.map(f => f.id)
+        await batchDeleteFiles(fileIds)
+      }
+      
+      // 逐个删除文件夹（没有批量删除文件夹的API）
+      for (const folder of folders) {
+        await deleteFolder(folder.id)
+      }
     }
     
     ElMessage.success(`${action}成功`)
