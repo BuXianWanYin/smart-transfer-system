@@ -278,11 +278,25 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
             deleteFolderAndChildrenPermanently(batchNum);
             log.info("文件夹已彻底删除，recoveryId: {}, folderName: {}", recoveryId, recoveryFile.getFileName());
         } else {
-            // 1. 获取文件信息，删除物理文件
+            // 1. 优先从FileInfo获取文件路径，如果不存在则从RecoveryFile获取
+            String filePath = null;
             FileInfo fileInfo = fileInfoMapper.selectById(recoveryFile.getFileId());
             if (fileInfo != null && fileInfo.getFilePath() != null) {
-                fileStorageService.deleteFile(fileInfo.getFilePath());
+                filePath = fileInfo.getFilePath();
+            } else if (recoveryFile.getFilePath() != null) {
+                // 如果FileInfo已被删除，从RecoveryFile中获取保存的文件路径
+                filePath = recoveryFile.getFilePath();
+                log.warn("文件记录已不存在，使用RecoveryFile中保存的路径: {}", filePath);
             }
+            
+            // 删除物理文件
+            if (filePath != null) {
+                fileStorageService.deleteFile(filePath);
+            } else {
+                log.warn("无法获取文件路径，跳过物理文件删除 - recoveryId: {}, fileId: {}", 
+                        recoveryId, recoveryFile.getFileId());
+            }
+            
             // 2. 删除关联的传输任务记录
             transferTaskMapper.deleteByFileId(recoveryFile.getFileId());
             // 3. 彻底删除单个文件记录（物理删除，使用原生SQL）
@@ -339,11 +353,25 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                 // 彻底删除文件夹及其所有内容（包括物理文件）
                 deleteFolderAndChildrenPermanently(batchNum);
             } else if (recoveryFile.getFileId() != null) {
-                // 1. 获取文件信息，删除物理文件
+                // 1. 优先从FileInfo获取文件路径，如果不存在则从RecoveryFile获取
+                String filePath = null;
                 FileInfo fileInfo = fileInfoMapper.selectById(recoveryFile.getFileId());
                 if (fileInfo != null && fileInfo.getFilePath() != null) {
-                    fileStorageService.deleteFile(fileInfo.getFilePath());
+                    filePath = fileInfo.getFilePath();
+                } else if (recoveryFile.getFilePath() != null) {
+                    // 如果FileInfo已被删除，从RecoveryFile中获取保存的文件路径
+                    filePath = recoveryFile.getFilePath();
+                    log.warn("文件记录已不存在，使用RecoveryFile中保存的路径: {}", filePath);
                 }
+                
+                // 删除物理文件
+                if (filePath != null) {
+                    fileStorageService.deleteFile(filePath);
+                } else {
+                    log.warn("无法获取文件路径，跳过物理文件删除 - recoveryId: {}, fileId: {}", 
+                            recoveryFile.getId(), recoveryFile.getFileId());
+                }
+                
                 // 2. 删除关联的传输任务记录
                 transferTaskMapper.deleteByFileId(recoveryFile.getFileId());
                 // 3. 彻底删除单个文件记录（物理删除）

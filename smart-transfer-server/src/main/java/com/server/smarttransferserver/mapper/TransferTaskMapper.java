@@ -68,4 +68,33 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
      */
     @Delete("DELETE FROM transfer_task WHERE file_id IN (SELECT id FROM file_info WHERE delete_batch_num = #{batchNum})")
     int deleteByBatchNum(@Param("batchNum") String batchNum);
+    
+    /**
+     * 统计用户的活跃传输任务数量（通过文件表关联）
+     * 用于快速判断是否有活跃任务，避免不必要的查询
+     *
+     * @param userId 用户ID
+     * @return 活跃任务数量
+     */
+    @Select("SELECT COUNT(*) FROM transfer_task t " +
+            "INNER JOIN file_info f ON t.file_id = f.id " +
+            "WHERE f.user_id = #{userId} " +
+            "AND f.del_flag = 0 " +
+            "AND t.transfer_status IN ('PENDING', 'PROCESSING')")
+    Long countActiveTasksByUserId(@Param("userId") Long userId);
+    
+    /**
+     * 查询用户的所有活跃传输任务（通过文件表关联）
+     * 活跃任务：状态为 PENDING 或 PROCESSING
+     *
+     * @param userId 用户ID
+     * @return 活跃任务列表
+     */
+    @Select("SELECT t.* FROM transfer_task t " +
+            "INNER JOIN file_info f ON t.file_id = f.id " +
+            "WHERE f.user_id = #{userId} " +
+            "AND f.del_flag = 0 " +
+            "AND t.transfer_status IN ('PENDING', 'PROCESSING') " +
+            "ORDER BY t.start_time DESC")
+    List<TransferTask> selectActiveTasksByUserId(@Param("userId") Long userId);
 }

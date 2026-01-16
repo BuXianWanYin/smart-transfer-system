@@ -69,6 +69,15 @@ public interface TransferTaskService extends IService<TransferTask> {
     boolean deleteTask(String taskId);
     
     /**
+     * 统计用户的活跃传输任务数量
+     * 用于快速判断是否有活跃任务
+     *
+     * @param userId 用户ID
+     * @return 活跃任务数量
+     */
+    Long countActiveTasksByUserId(Long userId);
+    
+    /**
      * 查询用户所有活跃的传输任务
      * 活跃任务：状态为 PENDING 或 PROCESSING
      *

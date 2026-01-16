@@ -2,8 +2,11 @@ package com.server.smarttransferserver.task;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.server.smarttransferserver.entity.TransferTask;
+import com.server.smarttransferserver.service.ActiveUserService;
 import com.server.smarttransferserver.service.CongestionMetricsService;
+import com.server.smarttransferserver.service.RedisService;
 import com.server.smarttransferserver.service.TransferTaskService;
+import com.server.smarttransferserver.service.impl.ActiveUserServiceImpl;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +26,7 @@ import java.util.stream.Collectors;
 /**
  * 监控数据推送定时任务
  * 按用户推送，聚合所有活跃任务的监控数据
+ * 使用Redis缓存活跃用户集合，避免无任务时的数据库查询
  */
 @Slf4j
 @Component
@@ -41,11 +45,18 @@ public class MonitorPushTask {
     private TransferTaskService transferTaskService;
 
     @Autowired
+    private RedisService redisService;
+    
+    @Autowired
+    private ActiveUserService activeUserService;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     /**
      * 定时推送监控数据（每500ms）
      * 按用户推送，只在用户有活跃任务时推送
+     * 从Redis获取活跃用户列表，避免无任务时的数据库查询
      */
     @Scheduled(fixedRate = 500)
     public void pushMetrics() {
@@ -53,21 +64,31 @@ public class MonitorPushTask {
             return;
         }
 
-        // 遍历所有用户的会话
-        for (Map.Entry<Long, Set<WebSocketSession>> entry : userSessions.entrySet()) {
-            Long userId = entry.getKey();
-            Set<WebSocketSession> sessions = entry.getValue();
+        // 从Redis获取活跃用户ID集合（有活跃任务的用户）
+        // 使用ActiveUserService中定义的常量，避免硬编码
+        Set<Object> activeUserIdsObj = redisService.sMembers(ActiveUserServiceImpl.ACTIVE_USERS_KEY);
+        if (activeUserIdsObj == null || activeUserIdsObj.isEmpty()) {
+            return; // 没有活跃用户，直接返回
+        }
 
+        // 转换为Long类型的用户ID集合
+        Set<Long> activeUserIds = activeUserIdsObj.stream()
+                .map(obj -> Long.valueOf(obj.toString()))
+                .collect(Collectors.toSet());
+
+        // 只遍历有活跃任务的用户
+        for (Long userId : activeUserIds) {
+            Set<WebSocketSession> sessions = userSessions.get(userId);
             if (sessions == null || sessions.isEmpty()) {
                 continue;
             }
 
             try {
-                // 查询用户所有活跃的传输任务
+                // 查询详细的任务列表
                 List<TransferTask> activeTasks = transferTaskService.getActiveTasksByUserId(userId);
-
-                // 如果没有活跃任务，不推送
                 if (activeTasks == null || activeTasks.isEmpty()) {
+                    // 如果Redis中有但实际没有任务，清理Redis缓存（可能任务刚完成）
+                    activeUserService.removeActiveUser(userId);
                     continue;
                 }
 
@@ -187,4 +208,5 @@ public class MonitorPushTask {
     public static int getUserCount() {
         return userSessions.size();
     }
+
 }

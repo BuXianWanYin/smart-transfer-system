@@ -11,6 +11,7 @@ import com.server.smarttransferserver.mapper.TransferTaskMapper;
 import com.server.smarttransferserver.service.IFileChecksumService;
 import com.server.smarttransferserver.service.FileMergeService;
 import com.server.smarttransferserver.service.IFileStorageService;
+import com.server.smarttransferserver.service.TransferTaskService;
 import com.server.smarttransferserver.vo.FileMergeVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,9 @@ public class FileMergeServiceImpl implements FileMergeService {
     
     @Autowired
     private TransferTaskMapper transferTaskMapper;
+    
+    @Autowired
+    private TransferTaskService transferTaskService;
     
     @Autowired
     private IFileStorageService storageService;
@@ -65,6 +69,32 @@ public class FileMergeServiceImpl implements FileMergeService {
                         .build();
             }
             
+            // 1.5. 如果文件已经上传完成（秒传情况），直接返回成功
+            if ("COMPLETED".equals(fileInfo.getUploadStatus())) {
+                log.info("文件已上传完成，跳过合并 - 文件ID: {}, 文件名: {}", dto.getFileId(), fileInfo.getFileName());
+                // 查询是否已有传输任务记录
+                QueryWrapper<TransferTask> taskWrapper = new QueryWrapper<>();
+                taskWrapper.eq("file_id", dto.getFileId())
+                           .eq("task_type", "UPLOAD")
+                           .eq("transfer_status", "COMPLETED")
+                           .orderByDesc("end_time")
+                           .last("LIMIT 1");
+                TransferTask existingTask = transferTaskMapper.selectList(taskWrapper).stream().findFirst().orElse(null);
+                
+                String taskId = existingTask != null ? existingTask.getTaskId() : UUID.randomUUID().toString();
+                
+                return FileMergeVO.builder()
+                        .fileId(dto.getFileId())
+                        .fileName(fileInfo.getFileName())
+                        .filePath(fileInfo.getFilePath())
+                        .fileSize(fileInfo.getFileSize())
+                        .success(true)
+                        .verified(true)
+                        .taskId(taskId)
+                        .message("文件已存在，秒传成功")
+                        .build();
+            }
+            
             // 2. 检查所有分片是否上传完成
             QueryWrapper<FileChunk> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("file_id", dto.getFileId());
@@ -90,8 +120,11 @@ public class FileMergeServiceImpl implements FileMergeService {
                     fileInfo.getFileName(), 
                     allChunks.size());
             
-            // 4. 校验文件完整性
-            boolean verified = checksumService.verifyHash(filePath, dto.getFileHash(), "MD5");
+            // 4. 校验文件完整性（需要绝对路径）
+            // mergeChunks返回的是相对路径，需要转换为绝对路径才能用于文件操作
+            java.nio.file.Path absolutePath = storageService.getAbsoluteFilePath(filePath);
+            String absolutePathStr = absolutePath.toString();
+            boolean verified = checksumService.verifyHash(absolutePathStr, dto.getFileHash(), "MD5");
             if (!verified) {
                 log.error("文件校验失败 - 文件ID: {}", dto.getFileId());
                 // 清理所有相关数据
@@ -113,18 +146,11 @@ public class FileMergeServiceImpl implements FileMergeService {
             // 6. 删除临时分片
             storageService.deleteTempChunks(dto.getFileId());
             
-            // 7. 创建传输任务记录
-            String taskId = UUID.randomUUID().toString();
-            TransferTask task = TransferTask.builder()
-                    .taskId(taskId)
-                    .fileId(dto.getFileId())
-                    .taskType("UPLOAD")
-                    .transferStatus("COMPLETED")
-                    .progress(new java.math.BigDecimal("100.0"))
-                    .startTime(fileInfo.getCreateTime())
-                    .endTime(LocalDateTime.now())
-                    .build();
-            transferTaskMapper.insert(task);
+            // 7. 创建传输任务记录（使用Service方法统一管理）
+            // 先创建PENDING状态的任务（会自动添加到活跃用户集合）
+            String taskId = transferTaskService.createTask(dto.getFileId(), "UPLOAD");
+            // 然后立即更新为COMPLETED状态（会自动从活跃用户集合移除）
+            transferTaskService.updateTaskStatus(taskId, "COMPLETED");
             
             log.info("文件合并成功 - 文件ID: {}, 文件名: {}, 任务ID: {}", 
                      dto.getFileId(), fileInfo.getFileName(), taskId);

@@ -522,14 +522,14 @@ const startUploadTask = async (task) => {
     }
     
     // 3. 获取已上传的分片（用于断点续传）
-    // 后端返回的 uploaded 数组包含已上传的分片索引
+    // 后端返回的 uploaded 数组包含已上传的分片索引（从0开始）
     const serverUploadedChunks = initRes.uploaded || []
     const uploadedSet = new Set(serverUploadedChunks)
     
     // 计算已上传的大小
     let uploadedSize = 0
     serverUploadedChunks.forEach(chunkIndex => {
-      const start = (chunkIndex - 1) * CHUNK_SIZE
+      const start = chunkIndex * CHUNK_SIZE  // 修复：chunkIndex从0开始
       const end = Math.min(start + CHUNK_SIZE, task.fileSize)
       uploadedSize += (end - start)
     })
@@ -549,7 +549,7 @@ const startUploadTask = async (task) => {
     // 4. 构建待上传分片列表（跳过已上传的）
     const pendingChunks = []
     for (let i = 0; i < totalChunks; i++) {
-      if (!uploadedSet.has(i + 1)) {
+      if (!uploadedSet.has(i)) {  // 修复：分片编号从0开始
         pendingChunks.push(i)
       }
     }
@@ -582,7 +582,7 @@ const startUploadTask = async (task) => {
         const formData = new FormData()
         formData.append('file', chunk)
         formData.append('fileId', initRes.fileId)
-        formData.append('chunkNumber', i + 1)
+        formData.append('chunkNumber', i)  // 修复：分片编号从0开始，与后端一致
         formData.append('totalChunks', totalChunks)
         formData.append('chunkHash', fileHash)
         
@@ -590,7 +590,27 @@ const startUploadTask = async (task) => {
         
         // 后端返回了新的拥塞窗口大小，动态调整
         if (result && result.cwnd) {
-          currentCwnd = result.cwnd
+          // 确保cwnd值合理（至少1MB），避免异常小的值导致并发数过低
+          const receivedCwnd = Number(result.cwnd)
+          if (receivedCwnd > 0 && receivedCwnd < 1024 * 1024) {
+            console.warn(`收到异常的cwnd值: ${receivedCwnd}字节，使用最小值1MB`)
+            currentCwnd = Math.max(currentCwnd, 1024 * 1024) // 至少保持1MB
+          } else {
+            currentCwnd = receivedCwnd
+          }
+          console.log(`分片${i}上传完成 - 收到cwnd: ${receivedCwnd}字节, 当前cwnd: ${currentCwnd}字节`)
+        }
+        
+        // 从上传响应中更新metrics数据
+        if (result && result.rtt !== undefined) {
+          const metrics = {
+            algorithm: currentMetrics.value.algorithm || 'CUBIC',
+            cwnd: result.cwnd || currentMetrics.value.cwnd || 0,
+            rtt: result.rtt || 0,
+            lossRate: currentMetrics.value.lossRate || 0
+          }
+          currentMetrics.value = { ...currentMetrics.value, ...metrics }
+          congestionStore.updateMetrics(metrics)
         }
         
         return { index: i, size: chunk.size, result }
@@ -602,7 +622,7 @@ const startUploadTask = async (task) => {
       // 更新进度
       results.forEach(({ index, size }) => {
         uploadedSize += size
-        uploadedSet.add(index + 1)
+        uploadedSet.add(index)  // 修复：分片编号从0开始
       })
       
       const elapsed = (Date.now() - startTime) / 1000

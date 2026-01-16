@@ -10,6 +10,7 @@ import com.server.smarttransferserver.entity.TransferTask;
 import com.server.smarttransferserver.mapper.CongestionMetricsMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.TransferTaskMapper;
+import com.server.smarttransferserver.service.ActiveUserService;
 import com.server.smarttransferserver.service.TransferTaskService;
 import com.server.smarttransferserver.vo.TransferTaskVO;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -40,6 +40,9 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     
     @Autowired
     private CongestionMetricsMapper congestionMetricsMapper;
+    
+    @Autowired
+    private ActiveUserService activeUserService;
     
     /**
      * 创建传输任务
@@ -64,6 +67,12 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
         
         save(task);
         log.info("创建传输任务 - 任务ID: {}, 文件ID: {}, 类型: {}", taskId, fileId, taskType);
+        
+        // 将用户添加到活跃用户集合（通过fileId获取userId）
+        FileInfo fileInfo = fileInfoMapper.selectById(fileId);
+        if (fileInfo != null && fileInfo.getUserId() != null) {
+            activeUserService.addActiveUser(fileInfo.getUserId());
+        }
         
         return taskId;
     }
@@ -95,11 +104,35 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     public boolean updateTaskStatus(String taskId, String status) {
         TransferTask task = transferTaskMapper.selectByTaskId(taskId);
         if (task != null) {
+            String oldStatus = task.getTransferStatus();
             task.setTransferStatus(status);
-            if ("COMPLETED".equals(status)) {
+            if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
                 task.setEndTime(LocalDateTime.now());
             }
-            return updateById(task);
+            boolean updated = updateById(task);
+            
+            // 如果任务状态从活跃变为非活跃（COMPLETED/FAILED/PAUSED），检查并更新活跃用户集合
+            if (updated && ("PENDING".equals(oldStatus) || "PROCESSING".equals(oldStatus))) {
+                if ("COMPLETED".equals(status) || "FAILED".equals(status) || "PAUSED".equals(status)) {
+                    FileInfo fileInfo = fileInfoMapper.selectById(task.getFileId());
+                    if (fileInfo != null && fileInfo.getUserId() != null) {
+                        // 检查该用户是否还有其他活跃任务，如果没有则移除
+                        Long activeTaskCount = countActiveTasksByUserId(fileInfo.getUserId());
+                        if (activeTaskCount == null || activeTaskCount == 0) {
+                            activeUserService.removeActiveUser(fileInfo.getUserId());
+                        }
+                    }
+                }
+            }
+            // 如果任务状态变为活跃（PENDING/PROCESSING），添加到活跃用户集合
+            else if (updated && ("PENDING".equals(status) || "PROCESSING".equals(status))) {
+                FileInfo fileInfo = fileInfoMapper.selectById(task.getFileId());
+                if (fileInfo != null && fileInfo.getUserId() != null) {
+                    activeUserService.addActiveUser(fileInfo.getUserId());
+                }
+            }
+            
+            return updated;
         }
         return false;
     }
@@ -182,6 +215,20 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     }
     
     /**
+     * 统计用户的活跃传输任务数量
+     * 用于快速判断是否有活跃任务
+     *
+     * @param userId 用户ID
+     * @return 活跃任务数量
+     */
+    @Override
+    public Long countActiveTasksByUserId(Long userId) {
+        // 使用 JOIN 查询统计活跃任务数量，性能比查询列表更高效
+        Long count = transferTaskMapper.countActiveTasksByUserId(userId);
+        return count != null ? count : 0L;
+    }
+    
+    /**
      * 查询用户所有活跃的传输任务
      * 活跃任务：状态为 PENDING 或 PROCESSING
      *
@@ -190,28 +237,9 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
      */
     @Override
     public List<TransferTask> getActiveTasksByUserId(Long userId) {
-        // 通过文件ID关联查询用户的活跃任务
-        // 1. 查询用户的所有文件ID
-        QueryWrapper<FileInfo> fileWrapper = new QueryWrapper<>();
-        fileWrapper.eq("user_id", userId);
-        List<FileInfo> userFiles = fileInfoMapper.selectList(fileWrapper);
-        
-        if (userFiles.isEmpty()) {
-            return Collections.emptyList();
-        }
-        
-        // 2. 提取文件ID列表
-        List<Long> fileIds = userFiles.stream()
-                .map(FileInfo::getId)
-                .collect(Collectors.toList());
-        
-        // 3. 查询这些文件的活跃任务
-        QueryWrapper<TransferTask> taskWrapper = new QueryWrapper<>();
-        taskWrapper.in("file_id", fileIds)
-                   .in("transfer_status", "PENDING", "PROCESSING")
-                   .orderByDesc("start_time");
-        
-        return transferTaskMapper.selectList(taskWrapper);
+        // 使用 JOIN 查询直接关联查询，避免先查文件再查任务的两步查询
+        // 这样可以减少数据库查询次数，提高性能
+        return transferTaskMapper.selectActiveTasksByUserId(userId);
     }
     
     /**
@@ -225,6 +253,7 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     public void updateTaskStatus(String taskId, String status, Double progress, Long speed) {
         TransferTask task = transferTaskMapper.selectByTaskId(taskId);
         if (task != null) {
+            String oldStatus = task.getTransferStatus();
             task.setTransferStatus(status);
             if (progress != null) {
                 task.setProgress(new java.math.BigDecimal(progress.toString()));
@@ -232,7 +261,31 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
             if (speed != null) {
                 task.setTransferSpeed(speed);
             }
+            if ("COMPLETED".equals(status) || "FAILED".equals(status)) {
+                task.setEndTime(LocalDateTime.now());
+            }
             transferTaskMapper.updateById(task);
+            
+            // 如果任务状态从活跃变为非活跃（COMPLETED/FAILED/PAUSED），检查并更新活跃用户集合
+            if ("PENDING".equals(oldStatus) || "PROCESSING".equals(oldStatus)) {
+                if ("COMPLETED".equals(status) || "FAILED".equals(status) || "PAUSED".equals(status)) {
+                    FileInfo fileInfo = fileInfoMapper.selectById(task.getFileId());
+                    if (fileInfo != null && fileInfo.getUserId() != null) {
+                        // 检查该用户是否还有其他活跃任务，如果没有则移除
+                        Long activeTaskCount = countActiveTasksByUserId(fileInfo.getUserId());
+                        if (activeTaskCount == null || activeTaskCount == 0) {
+                            activeUserService.removeActiveUser(fileInfo.getUserId());
+                        }
+                    }
+                }
+            }
+            // 如果任务状态变为活跃（PENDING/PROCESSING），添加到活跃用户集合
+            else if ("PENDING".equals(status) || "PROCESSING".equals(status)) {
+                FileInfo fileInfo = fileInfoMapper.selectById(task.getFileId());
+                if (fileInfo != null && fileInfo.getUserId() != null) {
+                    activeUserService.addActiveUser(fileInfo.getUserId());
+                }
+            }
             
             log.info("更新任务状态 - 任务ID: {}, 状态: {}, 进度: {}, 速率: {}", 
                      taskId, status, progress, speed);
@@ -251,6 +304,9 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     public boolean deleteTask(String taskId) {
         TransferTask task = transferTaskMapper.selectByTaskId(taskId);
         if (task != null) {
+            Long fileId = task.getFileId();
+            String taskStatus = task.getTransferStatus();
+            
             // 级联删除拥塞指标数据
             int deletedMetricsCount = congestionMetricsMapper.deleteByTaskId(taskId);
             log.info("删除任务时级联删除拥塞指标 - 任务ID: {}, 删除指标数: {}", taskId, deletedMetricsCount);
@@ -258,6 +314,19 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
             // 删除任务
             removeById(task.getId());
             log.info("删除任务 - 任务ID: {}", taskId);
+            
+            // 如果删除的是活跃任务，检查并更新活跃用户集合
+            if ("PENDING".equals(taskStatus) || "PROCESSING".equals(taskStatus)) {
+                FileInfo fileInfo = fileInfoMapper.selectById(fileId);
+                if (fileInfo != null && fileInfo.getUserId() != null) {
+                    // 检查该用户是否还有其他活跃任务，如果没有则移除
+                    Long activeTaskCount = countActiveTasksByUserId(fileInfo.getUserId());
+                    if (activeTaskCount == null || activeTaskCount == 0) {
+                        activeUserService.removeActiveUser(fileInfo.getUserId());
+                    }
+                }
+            }
+            
             return true;
         }
         return false;

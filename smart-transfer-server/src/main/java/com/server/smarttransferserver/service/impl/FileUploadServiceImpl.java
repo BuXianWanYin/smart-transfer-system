@@ -289,12 +289,24 @@ public class FileUploadServiceImpl implements FileUploadService {
                          chunkSize, rtt, adaptiveAlgorithm.getCwnd());
             }
             
-            // 5. 更新分片记录
+            // 5. 更新分片记录（如果分片记录不存在，则创建）
             FileChunk chunk = fileChunkMapper.selectByFileIdAndChunkNumber(dto.getFileId(), dto.getChunkNumber());
             if (chunk != null) {
                 chunk.setChunkHash(dto.getChunkHash());
                 chunk.setUploadStatus("COMPLETED");
                 fileChunkMapper.updateById(chunk);
+            } else {
+                // 如果分片记录不存在（可能是在初始化时未创建或编号不匹配），创建新记录
+                log.warn("分片记录不存在，创建新记录 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
+                chunk = FileChunk.builder()
+                        .fileId(dto.getFileId())
+                        .chunkNumber(dto.getChunkNumber())
+                        .chunkSize(chunkSize)
+                        .chunkHash(dto.getChunkHash())
+                        .uploadStatus("COMPLETED")
+                        .createTime(LocalDateTime.now())
+                        .build();
+                fileChunkMapper.insert(chunk);
             }
             
             // 6. 统计上传进度
@@ -310,8 +322,10 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 7. 获取当前拥塞窗口大小（用于前端调整并发数）
             long currentCwnd = adaptiveAlgorithm != null ? adaptiveAlgorithm.getCwnd() : 5 * 1024 * 1024;
             
-            log.info("分片上传成功 - 文件ID: {}, 分片: {}, 进度: {:.2f}%, RTT: {}ms, cwnd: {}字节", 
-                     dto.getFileId(), dto.getChunkNumber(), progress, rtt, currentCwnd);
+            // 格式化进度百分比
+            String progressStr = String.format("%.2f", progress);
+            log.info("分片上传成功 - 文件ID: {}, 分片: {}, 进度: {}%, RTT: {}ms, cwnd: {}字节", 
+                     dto.getFileId(), dto.getChunkNumber(), progressStr, rtt, currentCwnd);
             
             return ChunkUploadVO.builder()
                     .fileId(dto.getFileId())
