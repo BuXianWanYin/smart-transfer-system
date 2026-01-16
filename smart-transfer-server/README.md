@@ -146,8 +146,6 @@ congestion-control:
   ssthresh: 52428800              # 慢启动阈值：50MB
   max-cwnd: 104857600             # 最大拥塞窗口：100MB
   min-cwnd: 1048576               # 最小拥塞窗口：1MB
-  max-rate: 0                     # 最大传输速率（0表示不限制）
-  min-rate: 1048576               # 最小传输速率：1MB/s
 ```
 
 ## API 文档

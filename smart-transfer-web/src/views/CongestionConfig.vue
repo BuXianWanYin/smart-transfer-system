@@ -102,46 +102,6 @@
             <span class="form-hint">= {{ formatFileSize(convertToBytes('minCwnd')) }}</span>
           </div>
         </el-form-item>
-        
-        <el-divider content-position="left">速率控制配置</el-divider>
-        
-        <el-form-item label="最大传输速率" prop="maxRate">
-          <div class="input-with-unit">
-            <el-input-number
-              v-model="displayForm.maxRate"
-              :min="0.5"
-              :max="1000"
-              :step="0.5"
-              :precision="2"
-              style="width: 180px"
-            />
-            <el-select v-model="displayForm.maxRateUnit" style="width: 80px; margin-left: 10px">
-              <el-option label="B/s" value="B" />
-              <el-option label="KB/s" value="KB" />
-              <el-option label="MB/s" value="MB" />
-            </el-select>
-            <span class="form-hint">= {{ formatSpeed(convertToBytes('maxRate')) }}</span>
-          </div>
-        </el-form-item>
-        
-        <el-form-item label="最小传输速率" prop="minRate">
-          <div class="input-with-unit">
-            <el-input-number
-              v-model="displayForm.minRate"
-              :min="0.1"
-              :max="100"
-              :step="0.5"
-              :precision="2"
-              style="width: 180px"
-            />
-            <el-select v-model="displayForm.minRateUnit" style="width: 80px; margin-left: 10px">
-              <el-option label="B/s" value="B" />
-              <el-option label="KB/s" value="KB" />
-              <el-option label="MB/s" value="MB" />
-            </el-select>
-            <span class="form-hint">= {{ formatSpeed(convertToBytes('minRate')) }}</span>
-          </div>
-        </el-form-item>
       </el-form>
     </el-card>
     
@@ -185,9 +145,7 @@ const configForm = ref({
   initialCwnd: 10485760,
   ssthresh: 52428800,
   maxCwnd: 104857600,
-  minCwnd: 1048576,
-  maxRate: 104857600,
-  minRate: 1048576
+  minCwnd: 1048576
 })
 
 // 用户友好的显示表单
@@ -199,11 +157,7 @@ const displayForm = ref({
   maxCwnd: 100,
   maxCwndUnit: 'MB',
   minCwnd: 1,
-  minCwndUnit: 'MB',
-  maxRate: 100,
-  maxRateUnit: 'MB',
-  minRate: 1,
-  minRateUnit: 'MB'
+  minCwndUnit: 'MB'
 })
 
 const rules = {
@@ -260,9 +214,7 @@ const loadConfig = async () => {
       initialCwnd: Number(config['initial-cwnd']) || 10485760,
       ssthresh: Number(config.ssthresh) || 52428800,
       maxCwnd: Number(config['max-cwnd']) || 104857600,
-      minCwnd: Number(config['min-cwnd']) || 1048576,
-      maxRate: Number(config['max-rate']) || 104857600,
-      minRate: Number(config['min-rate']) || 1048576
+      minCwnd: Number(config['min-cwnd']) || 1048576
     }
     
     // 转换为用户友好的显示格式
@@ -270,8 +222,6 @@ const loadConfig = async () => {
     const ssthreshDisplay = bytesToDisplay(configForm.value.ssthresh)
     const maxCwndDisplay = bytesToDisplay(configForm.value.maxCwnd)
     const minCwndDisplay = bytesToDisplay(configForm.value.minCwnd)
-    const maxRateDisplay = bytesToDisplay(configForm.value.maxRate)
-    const minRateDisplay = bytesToDisplay(configForm.value.minRate)
     
     displayForm.value = {
       initialCwnd: initialCwndDisplay.value,
@@ -281,11 +231,7 @@ const loadConfig = async () => {
       maxCwnd: maxCwndDisplay.value,
       maxCwndUnit: maxCwndDisplay.unit,
       minCwnd: minCwndDisplay.value,
-      minCwndUnit: minCwndDisplay.unit,
-      maxRate: maxRateDisplay.value,
-      maxRateUnit: maxRateDisplay.unit,
-      minRate: minRateDisplay.value,
-      minRateUnit: minRateDisplay.unit
+      minCwndUnit: minCwndDisplay.unit
     }
     
     configStore.updateCongestionConfig(configForm.value)
@@ -305,9 +251,7 @@ const handleSave = async () => {
       initialCwnd: convertToBytes('initialCwnd'),
       ssthresh: convertToBytes('ssthresh'),
       maxCwnd: convertToBytes('maxCwnd'),
-      minCwnd: convertToBytes('minCwnd'),
-      maxRate: convertToBytes('maxRate'),
-      minRate: convertToBytes('minRate')
+      minCwnd: convertToBytes('minCwnd')
     }
     
     await updateCongestionConfig(submitData)

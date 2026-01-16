@@ -95,14 +95,6 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
             updateConfigValue("congestion.min-cwnd", dto.getMinCwnd().toString(), "最小拥塞窗口");
         }
         
-        if (dto.getMaxRate() != null) {
-            updateConfigValue("congestion.max-rate", dto.getMaxRate().toString(), "最大速率");
-        }
-        
-        if (dto.getMinRate() != null) {
-            updateConfigValue("congestion.min-rate", dto.getMinRate().toString(), "最小速率");
-        }
-        
         // 刷新内存中的配置
         congestionConfig.refresh();
         

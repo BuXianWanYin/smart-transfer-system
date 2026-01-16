@@ -69,10 +69,6 @@ congestion-control:
   max-cwnd: 104857600
   # 最小拥塞窗口：1MB
   min-cwnd: 1048576
-  # 最大传输速率（字节/秒，0表示不限制）
-  max-rate: 0
-  # 最小传输速率：1MB/s
-  min-rate: 1048576
 
 # Actuator监控配置
 management:

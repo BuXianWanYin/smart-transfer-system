@@ -11,9 +11,7 @@ export const useConfigStore = defineStore('config', () => {
     initialCwnd: 10485760,      // 10MB
     ssthresh: 52428800,         // 50MB
     maxCwnd: 104857600,         // 100MB
-    minCwnd: 1048576,           // 1MB
-    maxRate: 104857600,         // 100MB/s
-    minRate: 1048576            // 1MB/s
+    minCwnd: 1048576            // 1MB
   })
   
   const systemConfig = ref({
@@ -57,9 +55,7 @@ export const useConfigStore = defineStore('config', () => {
       initialCwnd: 10485760,
       ssthresh: 52428800,
       maxCwnd: 104857600,
-      minCwnd: 1048576,
-      maxRate: 104857600,
-      minRate: 1048576
+      minCwnd: 1048576
     }
   }
   

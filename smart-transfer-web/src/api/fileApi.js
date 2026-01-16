@@ -45,11 +45,13 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3) {
       request.post({
         url: '/file/upload/chunk',
         data: formData,
-        timeout: 0, // 不设超时
+        timeout: 0, // 不设超时，但axios可能仍使用实例默认值
         signal: abortController.signal,
         headers: {
           'Content-Type': 'multipart/form-data'
         },
+        // 明确设置超时为0（或很大的值）以覆盖实例默认值
+        validateStatus: () => true, // 允许所有状态码，避免被拦截器拦截
         onUploadProgress: progressEvent => {
           lastProgressTime = Date.now() // 有进度就更新时间
           if (onProgress) {
@@ -64,7 +66,14 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3) {
       })
       .catch(err => {
         clearInterval(stallTimer)
-        reject(err)
+        // 处理不同类型的错误
+        if (err.code === 'ECONNABORTED' || err.message?.includes('timeout') || err.message?.includes('TIMED_OUT')) {
+          reject(new Error('UPLOAD_TIMEOUT'))
+        } else if (err.name === 'AbortError' || err.message === 'STALL_TIMEOUT') {
+          reject(new Error('STALL_TIMEOUT'))
+        } else {
+          reject(err)
+        }
       })
     })
   }
@@ -76,10 +85,16 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3) {
     } catch (error) {
       lastError = error
       const isStall = error.message === 'STALL_TIMEOUT'
-      if (attempt < maxRetries) {
+      const isTimeout = error.message === 'UPLOAD_TIMEOUT' || error.code === 'ECONNABORTED'
+      
+      if (attempt < maxRetries && (isStall || isTimeout)) {
         const delay = Math.pow(2, attempt) * 1000
+        console.warn(`分片上传${isTimeout ? '超时' : '卡死'}，${delay/1000}秒后重试 (${attempt + 1}/${maxRetries})`)
         // 分片上传重试
         await new Promise(resolve => setTimeout(resolve, delay))
+      } else if (!isStall && !isTimeout) {
+        // 非超时错误，直接抛出
+        throw error
       }
     }
   }

@@ -114,7 +114,16 @@ const request = {
    * @returns {Promise} 返回 Promise
    */
   post(config) {
-    return service.post(config.url, config.data, config)
+    // 合并配置，确保timeout等参数正确传递
+    const axiosConfig = {
+      ...config,
+      timeout: config.timeout !== undefined ? config.timeout : service.defaults.timeout,
+      headers: {
+        ...service.defaults.headers,
+        ...config.headers
+      }
+    }
+    return service.post(config.url, config.data, axiosConfig)
   },
   
   /**

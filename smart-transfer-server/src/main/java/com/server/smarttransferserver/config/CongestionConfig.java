@@ -25,10 +25,6 @@ public class CongestionConfig {
     private long maxCwnd = 104857600L;         // 100MB
     private long minCwnd = 1048576L;           // 1MB
     
-    // 速率控制配置
-    private long maxRate = 104857600L;         // 100MB/s
-    private long minRate = 1048576L;           // 1MB/s
-    
     // 自适应算法配置
     private double lossRateThreshold = 0.01;   // 1%
     private long rttJitterThreshold = 50L;     // 50ms
@@ -54,16 +50,12 @@ public class CongestionConfig {
             maxCwnd = getLongConfig("congestion.max-cwnd", maxCwnd);
             minCwnd = getLongConfig("congestion.min-cwnd", minCwnd);
             
-            // 速率配置
-            maxRate = getLongConfig("congestion.max-rate", maxRate);
-            minRate = getLongConfig("congestion.min-rate", minRate);
-            
             // 自适应算法配置
             lossRateThreshold = getDoubleConfig("congestion.loss-rate-threshold", lossRateThreshold);
             rttJitterThreshold = getLongConfig("congestion.rtt-jitter-threshold", rttJitterThreshold);
             evaluationInterval = getLongConfig("congestion.evaluation-interval", evaluationInterval);
             
-            log.info("从数据库加载拥塞控制配置 - initialCwnd: {}, maxRate: {}", initialCwnd, maxRate);
+            log.info("从数据库加载拥塞控制配置 - initialCwnd: {}, maxCwnd: {}", initialCwnd, maxCwnd);
         } catch (Exception e) {
             log.error("加载配置失败，使用默认值", e);
         }
@@ -122,14 +114,6 @@ public class CongestionConfig {
     
     public long getMinCwnd() {
         return minCwnd;
-    }
-    
-    public long getMaxRate() {
-        return maxRate;
-    }
-    
-    public long getMinRate() {
-        return minRate;
     }
     
     public double getLossRateThreshold() {

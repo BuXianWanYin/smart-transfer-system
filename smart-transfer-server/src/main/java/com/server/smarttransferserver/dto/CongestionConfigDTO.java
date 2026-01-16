@@ -40,17 +40,5 @@ public class CongestionConfigDTO {
      */
     @Min(value = 1024, message = "最小拥塞窗口不能小于1KB")
     private Long minCwnd;
-    
-    /**
-     * 最大速率（字节/秒，0表示不限制）
-     */
-    @Min(value = 0, message = "最大速率不能小于0")
-    private Long maxRate;
-    
-    /**
-     * 最小速率（字节/秒）
-     */
-    @Min(value = 1024, message = "最小速率不能小于1KB/s")
-    private Long minRate;
 }
 
