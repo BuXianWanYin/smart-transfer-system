@@ -5,6 +5,8 @@ import com.server.smarttransferserver.congestion.AdaptiveAlgorithm;
 import com.server.smarttransferserver.congestion.BBRAlgorithm;
 import com.server.smarttransferserver.congestion.CongestionControlAlgorithm;
 import com.server.smarttransferserver.congestion.CubicAlgorithm;
+import com.server.smarttransferserver.congestion.RenoAlgorithm;
+import com.server.smarttransferserver.congestion.VegasAlgorithm;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,12 @@ public class CongestionController {
     
     @Autowired
     private CongestionMetricsService metricsService;
+    
+    @Autowired(required = false)
+    private RenoAlgorithm renoAlgorithm;
+    
+    @Autowired(required = false)
+    private VegasAlgorithm vegasAlgorithm;
     
     @Autowired(required = false)
     private CubicAlgorithm cubicAlgorithm;
@@ -53,6 +61,12 @@ public class CongestionController {
         } else if (bbrAlgorithm != null) {
             currentAlgorithm = bbrAlgorithm;
             log.info("拥塞控制初始化完成 - 默认算法: BBR");
+        } else if (vegasAlgorithm != null) {
+            currentAlgorithm = vegasAlgorithm;
+            log.info("拥塞控制初始化完成 - 默认算法: Vegas");
+        } else if (renoAlgorithm != null) {
+            currentAlgorithm = renoAlgorithm;
+            log.info("拥塞控制初始化完成 - 默认算法: Reno");
         } else {
             log.warn("未找到任何拥塞控制算法实现");
         }
@@ -96,7 +110,7 @@ public class CongestionController {
     /**
      * 切换拥塞控制算法
      *
-     * @param algorithm 算法名称（CUBIC, BBR, ADAPTIVE）
+     * @param algorithm 算法名称（RENO, VEGAS, CUBIC, BBR, ADAPTIVE）
      * @return 切换结果
      */
     @PostMapping("/algorithm")
@@ -104,6 +118,24 @@ public class CongestionController {
         log.info("切换拥塞控制算法 - 算法: {}", algorithm);
         try {
             switch (algorithm.toUpperCase()) {
+                case "RENO":
+                    if (renoAlgorithm != null) {
+                        renoAlgorithm.initialize();
+                        currentAlgorithm = renoAlgorithm;
+                    } else {
+                        return Result.error("Reno算法未初始化");
+                    }
+                    break;
+                    
+                case "VEGAS":
+                    if (vegasAlgorithm != null) {
+                        vegasAlgorithm.initialize();
+                        currentAlgorithm = vegasAlgorithm;
+                    } else {
+                        return Result.error("Vegas算法未初始化");
+                    }
+                    break;
+                    
                 case "CUBIC":
                     if (cubicAlgorithm != null) {
                         cubicAlgorithm.initialize();

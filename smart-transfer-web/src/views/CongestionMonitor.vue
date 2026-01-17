@@ -89,6 +89,8 @@
     <el-card style="margin-top: 20px">
       <template #header>算法控制</template>
       <el-radio-group v-model="selectedAlgorithm" @change="handleAlgorithmChange">
+        <el-radio-button value="RENO">Reno</el-radio-button>
+        <el-radio-button value="VEGAS">Vegas</el-radio-button>
         <el-radio-button value="CUBIC">CUBIC</el-radio-button>
         <el-radio-button value="BBR">BBR</el-radio-button>
         <el-radio-button value="ADAPTIVE">自适应</el-radio-button>
@@ -102,7 +104,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { VideoPlay, VideoPause } from '@element-plus/icons-vue'
 import { useCongestionStore } from '@/store/congestionStore'
-import { getCongestionMetrics, switchAlgorithm } from '@/api/congestionApi'
+import { getCongestionMetrics, switchAlgorithm, getCurrentAlgorithm } from '@/api/congestionApi'
 import { formatFileSize, formatSpeed } from '@/utils/file'
 import { formatPercent } from '@/utils/format'
 
@@ -116,14 +118,45 @@ const currentMetrics = ref({
   rtt: 0,
   lossRate: 0,
   bandwidth: 0,
-  networkQuality: '未知'
+  networkQuality: '-'
 })
 
 let monitoringTimer = null
 
 onMounted(() => {
   fetchMetrics()
+  // 同步当前算法选择
+  syncCurrentAlgorithm()
 })
+
+const syncCurrentAlgorithm = async () => {
+  try {
+    const res = await getCurrentAlgorithm()
+    const algorithmName = res?.data || res || ''
+    if (algorithmName) {
+      // 将后端返回的算法名称（如 "Reno", "Vegas"）转换为前端使用的大写格式（如 "RENO", "VEGAS"）
+      const algorithmMap = {
+        'Reno': 'RENO',
+        'Vegas': 'VEGAS',
+        'CUBIC': 'CUBIC',
+        'BBR': 'BBR',
+        'Adaptive': 'ADAPTIVE',
+        'Adaptive(CUBIC)': 'ADAPTIVE',
+        'Adaptive(Reno)': 'ADAPTIVE',
+        'Adaptive(Vegas)': 'ADAPTIVE',
+        'Adaptive(BBR)': 'ADAPTIVE'
+      }
+      const name = algorithmName.trim()
+      if (algorithmMap[name]) {
+        selectedAlgorithm.value = algorithmMap[name]
+      } else if (name.startsWith('Adaptive(')) {
+        selectedAlgorithm.value = 'ADAPTIVE'
+      }
+    }
+  } catch (error) {
+    // 获取算法失败，使用默认值
+  }
+}
 
 onUnmounted(() => {
   stopMonitoring()

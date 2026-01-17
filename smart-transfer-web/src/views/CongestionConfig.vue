@@ -19,6 +19,8 @@
       >
         <el-form-item label="算法选择" prop="algorithm">
           <el-select v-model="configForm.algorithm" placeholder="请选择算法">
+            <el-option label="TCP Reno 算法" value="RENO" />
+            <el-option label="TCP Vegas 算法" value="VEGAS" />
             <el-option label="CUBIC 算法" value="CUBIC" />
             <el-option label="BBR 算法" value="BBR" />
             <el-option label="自适应算法" value="ADAPTIVE" />

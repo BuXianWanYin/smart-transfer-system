@@ -304,7 +304,7 @@ const showMonitor = ref(true) // 监控面板默认显示
 const isMonitoring = ref(true)
 const wsConnected = ref(false)
 
-// 监控数据
+// 监控数据 - 从 congestionStore 同步
 const currentMetrics = ref({
   algorithm: 'CUBIC',
   cwnd: 0,
@@ -312,8 +312,20 @@ const currentMetrics = ref({
   rtt: 0,
   lossRate: 0,
   bandwidth: 0,
-  networkQuality: '良好'
+  networkQuality: '-'
 })
+
+// 监听 congestionStore 的变化，实时同步算法和其他指标
+watch(() => congestionStore.currentMetrics, (newMetrics) => {
+  if (newMetrics) {
+    currentMetrics.value = {
+      ...currentMetrics.value,
+      ...newMetrics,
+      // 如果没有传输任务，网络质量显示"-"
+      networkQuality: newMetrics.networkQuality || '-'
+    }
+  }
+}, { deep: true, immediate: true })
 
 // 已完成列表
 const uploadCompletedList = ref([])

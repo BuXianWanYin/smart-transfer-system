@@ -16,7 +16,7 @@ export const useCongestionStore = defineStore('congestion', () => {
     minRtt: 0,
     lossRate: 0,
     bandwidth: 0,
-    networkQuality: '未知',
+    networkQuality: '-',
     inflightCount: 0,
     inflightBytes: 0
   })
@@ -71,7 +71,7 @@ export const useCongestionStore = defineStore('congestion', () => {
       minRtt: 0,
       lossRate: 0,
       bandwidth: 0,
-      networkQuality: '未知',
+      networkQuality: '-',
       inflightCount: 0,
       inflightBytes: 0
     }

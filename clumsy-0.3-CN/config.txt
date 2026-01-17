@@ -1,0 +1,30 @@
+# 过滤器预设。clumsy 将根据过滤条件捕获数据包
+# 每个条目必须包含单行
+# 格式：过滤器名称:过滤器文本
+# 详细信息请参见 <https://github.com/basil00/Divert/wiki/WinDivert-Documentation#7-filter-language>
+
+# 本地回环数据包只能使用 'outbound' 进行过滤
+本地回环 IPv4 全部: outbound and loopback
+本地回环 IPv4 TCP: tcp and outbound and loopback
+本地回环 IPv4 UDP: udp and outbound and loopback
+
+# 更通用的过滤器
+全部发送数据包: outbound
+全部接收数据包: inbound
+
+# 更具体的过滤器
+针对特定 IP 的 IPv4 全部: ip.DstAddr == 198.51.100.1 or ip.SrcAddr == 198.51.100.1
+针对特定 IP 的 IPv4 TCP: tcp and (ip.DstAddr == 198.51.100.1 or ip.SrcAddr == 198.51.100.1)
+针对特定 IP 的 IPv4 UDP: udp and (ip.DstAddr == 198.51.100.1 or ip.SrcAddr == 198.51.100.1)
+针对特定端口的 IPv4 全部: tcp.DstPort == 12354 or tcp.SrcPort == 12354 or udp.DstPort == 12354 or udp.SrcPort == 12354
+针对特定端口的 IPv4 TCP: tcp and (tcp.DstPort == 12354 or tcp.SrcPort == 12354)
+针对特定端口的 IPv4 UDP: udp and (udp.DstPort == 12354 or udp.SrcPort == 12354)
+
+# IPv6 受支持，但通常不太常用
+IPv6 全部: ipv6
+
+# 您可以在此处添加常用的过滤器以供自己使用：
+#HTTP 请求（仅在其他端口传输数据）: outbound and tcp.DstPort == 80
+
+# 自定义配置：本地回环 TCP 端口 8081
+本地回环 TCP 8081: outbound and loopback and tcp.DstPort == 8081

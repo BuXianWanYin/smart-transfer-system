@@ -43,6 +43,10 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
             return buildEmptyMetrics();
         }
         
+        // 评估网络质量，如果没有数据则返回null（前端显示"-"）
+        NetworkMonitorServiceImpl.NetworkQuality quality = networkMonitor.evaluateNetworkQuality();
+        String qualityDesc = quality != null ? quality.getDescription() : "-";
+        
         CongestionMetricsVO vo = CongestionMetricsVO.builder()
                 .algorithm(algorithm.getAlgorithmName())
                 .cwnd(algorithm.getCwnd())
@@ -53,7 +57,7 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .minRtt(networkMonitor.getMinRtt())
                 .lossRate(networkMonitor.getLossRate())
                 .bandwidth(networkMonitor.getEstimatedBandwidth())
-                .networkQuality(networkMonitor.evaluateNetworkQuality().getDescription())
+                .networkQuality(qualityDesc)
                 .inflightCount(networkMonitor.getInflightCount())
                 .inflightBytes(networkMonitor.getInflightBytes())
                 .build();
@@ -262,7 +266,7 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .minRtt(0L)
                 .lossRate(0.0)
                 .bandwidth(0L)
-                .networkQuality("未知")
+                .networkQuality("-")
                 .inflightCount(0)
                 .inflightBytes(0L)
                 .build();

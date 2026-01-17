@@ -26,7 +26,7 @@ export function getCurrentAlgorithm() {
 
 /**
  * 切换拥塞控制算法
- * @param {String} algorithm - 算法名称（CUBIC, BBR, ADAPTIVE）
+ * @param {String} algorithm - 算法名称（RENO, VEGAS, CUBIC, BBR, ADAPTIVE）
  * @returns {Promise}
  */
 export function switchAlgorithm(algorithm) {

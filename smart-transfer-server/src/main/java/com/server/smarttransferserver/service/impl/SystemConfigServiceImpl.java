@@ -6,6 +6,8 @@ import com.server.smarttransferserver.config.CongestionConfig;
 import com.server.smarttransferserver.congestion.AdaptiveAlgorithm;
 import com.server.smarttransferserver.congestion.BBRAlgorithm;
 import com.server.smarttransferserver.congestion.CubicAlgorithm;
+import com.server.smarttransferserver.congestion.RenoAlgorithm;
+import com.server.smarttransferserver.congestion.VegasAlgorithm;
 import com.server.smarttransferserver.dto.CongestionConfigDTO;
 import com.server.smarttransferserver.entity.SystemConfig;
 import com.server.smarttransferserver.mapper.SystemConfigMapper;
@@ -32,6 +34,12 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
     
     @Autowired
     private CongestionConfig congestionConfig;
+    
+    @Autowired(required = false)
+    private RenoAlgorithm renoAlgorithm;
+    
+    @Autowired(required = false)
+    private VegasAlgorithm vegasAlgorithm;
     
     @Autowired(required = false)
     private CubicAlgorithm cubicAlgorithm;
@@ -109,6 +117,14 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
      * 使新配置生效
      */
     private void reinitializeAlgorithms() {
+        if (renoAlgorithm != null) {
+            renoAlgorithm.initialize();
+            log.info("Reno算法已使用新配置重新初始化");
+        }
+        if (vegasAlgorithm != null) {
+            vegasAlgorithm.initialize();
+            log.info("Vegas算法已使用新配置重新初始化");
+        }
         if (cubicAlgorithm != null) {
             cubicAlgorithm.initialize();
             log.info("CUBIC算法已使用新配置重新初始化");

@@ -75,7 +75,7 @@ public interface INetworkMonitorService {
     /**
      * 评估网络质量
      *
-     * @return 网络质量等级
+     * @return 网络质量等级，如果数据不足可能返回null
      */
     NetworkQuality evaluateNetworkQuality();
     

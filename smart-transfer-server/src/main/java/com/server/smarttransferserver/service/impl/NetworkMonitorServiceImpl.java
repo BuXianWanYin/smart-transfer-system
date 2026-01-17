@@ -176,13 +176,25 @@ public class NetworkMonitorServiceImpl implements INetworkMonitorService {
     /**
      * 评估网络质量
      *
-     * @return 网络质量等级
+     * @return 网络质量等级，如果数据不足返回null（由调用者处理）
      */
     @Override
     public NetworkQuality evaluateNetworkQuality() {
+        // 如果没有足够的样本数据，无法评估网络质量
+        // 检查是否有足够的数据包进行统计
+        if (totalSentPackets < 10 || totalReceivedAcks < 5) {
+            // 数据不足，返回null（调用者会处理为"未知"）
+            return null;
+        }
+        
         double lossRate = getLossRate();
         long rtt = getCurrentRtt();
         long bandwidth = getEstimatedBandwidth();
+        
+        // 如果RTT为0或带宽为0，说明还没有足够的测量数据
+        if (rtt <= 0 || bandwidth <= 0) {
+            return null;
+        }
         
         // 优秀：丢包率<0.5%，RTT<50ms，带宽>10MB/s
         if (lossRate < 0.005 && rtt < 50 && bandwidth > 10 * 1024 * 1024) {
@@ -201,6 +213,15 @@ public class NetworkMonitorServiceImpl implements INetworkMonitorService {
         
         // 差：其他情况
         return NetworkQuality.POOR;
+    }
+    
+    /**
+     * 检查是否有足够的数据评估网络质量
+     *
+     * @return 是否有足够数据
+     */
+    public boolean hasEnoughDataForEvaluation() {
+        return totalSentPackets >= 10 && totalReceivedAcks >= 5;
     }
     
     /**
