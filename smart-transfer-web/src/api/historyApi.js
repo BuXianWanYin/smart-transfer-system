@@ -60,3 +60,36 @@ export function clearAllHistory() {
   })
 }
 
+/**
+ * 获取传输统计（按日/周/月）
+ * @param {String} period - 统计周期：day-日, week-周, month-月
+ * @param {Number} userId - 用户ID（可选，仅管理员可用）
+ * @returns {Promise}
+ */
+export function getTransferStats(period = 'day', userId = null) {
+  const params = { period }
+  if (userId) {
+    params.userId = userId
+  }
+  return request.get({
+    url: '/transfer/history/stats',
+    params
+  })
+}
+
+/**
+ * 获取算法使用统计
+ * @param {Number} userId - 用户ID（可选，仅管理员可用）
+ * @returns {Promise}
+ */
+export function getAlgorithmStats(userId = null) {
+  const params = {}
+  if (userId) {
+    params.userId = userId
+  }
+  return request.get({
+    url: '/transfer/history/algorithm-stats',
+    params
+  })
+}
+

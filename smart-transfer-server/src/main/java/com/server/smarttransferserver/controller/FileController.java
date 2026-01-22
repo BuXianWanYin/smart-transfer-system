@@ -152,11 +152,7 @@ public class FileController {
         log.info("合并文件 - 文件ID: {}", dto.getFileId());
         try {
             FileMergeVO vo = mergeService.mergeFile(dto);
-            if (vo.getSuccess()) {
-                return Result.success(vo);
-            } else {
-                return Result.error(vo.getMessage());
-            }
+            return Result.success(vo);
         } catch (Exception e) {
             log.error("文件合并失败", e);
             return Result.error("文件合并失败: " + e.getMessage());
@@ -174,12 +170,8 @@ public class FileController {
     public Result<String> cancelUpload(@PathVariable Long fileId) {
         log.info("取消上传 - 文件ID: {}", fileId);
         try {
-            boolean success = mergeService.cancelUpload(fileId);
-            if (success) {
-                return Result.success("取消上传成功");
-            } else {
-                return Result.error("取消上传失败");
-            }
+            mergeService.cancelUpload(fileId);
+            return Result.success("取消上传成功");
         } catch (Exception e) {
             log.error("取消上传失败", e);
             return Result.error("取消上传失败: " + e.getMessage());
@@ -197,11 +189,7 @@ public class FileController {
         log.info("查询任务 - 任务ID: {}", taskId);
         try {
             TransferTaskVO vo = taskService.getTaskByTaskId(taskId);
-            if (vo != null) {
-                return Result.success(vo);
-            } else {
-                return Result.error("任务不存在");
-            }
+            return Result.success(vo);
         } catch (Exception e) {
             log.error("查询任务失败", e);
             return Result.error("查询任务失败: " + e.getMessage());
@@ -250,17 +238,19 @@ public class FileController {
      * @param pageNum  页码
      * @param pageSize 每页大小
      * @param status   上传状态（可选）
+     * @param userId   用户ID（可选，仅管理员可用，用于筛选指定用户的文件）
      * @return 文件列表
      */
     @GetMapping("/list")
     public Result<IPage<FileInfoVO>> getFileList(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long userId) {
         
-        log.info("查询文件列表 - 页码: {}, 大小: {}, 状态: {}", pageNum, pageSize, status);
+        log.info("查询文件列表 - 页码: {}, 大小: {}, 状态: {}, 用户ID: {}", pageNum, pageSize, status, userId);
         try {
-            IPage<FileInfoVO> page = fileInfoService.getFileList(pageNum, pageSize, status);
+            IPage<FileInfoVO> page = fileInfoService.getFileList(pageNum, pageSize, status, userId);
             return Result.success(page);
         } catch (Exception e) {
             log.error("查询文件列表失败", e);
@@ -279,11 +269,7 @@ public class FileController {
         log.info("获取文件详情 - ID: {}", id);
         try {
             FileInfoVO vo = fileInfoService.getFileById(id);
-            if (vo != null) {
-                return Result.success(vo);
-            } else {
-                return Result.error("文件不存在");
-            }
+            return Result.success(vo);
         } catch (Exception e) {
             log.error("获取文件详情失败", e);
             return Result.error("获取文件详情失败: " + e.getMessage());
@@ -390,89 +376,7 @@ public class FileController {
             @RequestHeader(value = "Range", required = false) String rangeHeader) {
         log.info("下载文件 - ID: {}, Range: {}", id, rangeHeader);
         try {
-            FileInfoVO fileInfo = fileInfoService.getFileById(id);
-            if (fileInfo == null) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            // 获取绝对路径（兼容相对路径和绝对路径）
-            java.nio.file.Path filePath = fileStorageService.getAbsoluteFilePath(fileInfo.getFilePath());
-            File file = filePath.toFile();
-            if (!file.exists()) {
-                log.error("文件不存在 - 路径: {}", filePath);
-                return ResponseEntity.notFound().build();
-            }
-            
-            long fileLength = file.length();
-            
-            // 编码文件名
-            String encodedFileName = URLEncoder.encode(fileInfo.getFileName(), StandardCharsets.UTF_8.toString())
-                    .replaceAll("\\+", "%20");
-            
-            // 支持断点续传 - 解析Range头
-            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-                String[] ranges = rangeHeader.substring(6).split("-");
-                long start = Long.parseLong(ranges[0]);
-                long end = ranges.length > 1 && !ranges[1].isEmpty() 
-                        ? Long.parseLong(ranges[1]) : fileLength - 1;
-                
-                // 校验范围
-                if (start >= fileLength) {
-                    return ResponseEntity.status(416).build(); // Range Not Satisfiable
-                }
-                if (end >= fileLength) {
-                    end = fileLength - 1;
-                }
-                
-                final long contentLength = end - start + 1;
-                final long startPos = start;
-                
-                // 使用InputStreamResource返回部分内容
-                org.springframework.core.io.InputStreamResource resource = 
-                        new org.springframework.core.io.InputStreamResource(
-                                new java.io.FileInputStream(file) {
-                                    {
-                                        skip(startPos);
-                                    }
-                                    
-                                    private long remaining = contentLength;
-                                    
-                                    @Override
-                                    public int read() throws java.io.IOException {
-                                        if (remaining <= 0) return -1;
-                                        remaining--;
-                                        return super.read();
-                                    }
-                                    
-                                    @Override
-                                    public int read(byte[] b, int off, int len) throws java.io.IOException {
-                                        if (remaining <= 0) return -1;
-                                        len = (int) Math.min(len, remaining);
-                                        int read = super.read(b, off, len);
-                                        if (read > 0) remaining -= read;
-                                        return read;
-                                    }
-                                });
-                
-                return ResponseEntity.status(206) // Partial Content
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFileName)
-                        .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileLength)
-                        .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .contentLength(contentLength)
-                        .body(resource);
-            }
-            
-            // 普通下载（无Range请求）
-            Resource resource = new FileSystemResource(file);
-            
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFileName)
-                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .contentLength(fileLength)
-                    .body(resource);
-                    
+            return fileInfoService.downloadFile(id, rangeHeader);
         } catch (Exception e) {
             log.error("下载文件失败", e);
             return ResponseEntity.internalServerError().build();
@@ -605,76 +509,10 @@ public class FileController {
     public ResponseEntity<Resource> previewFile(@PathVariable Long id) {
         log.info("预览文件 - ID: {}", id);
         try {
-            FileInfoVO fileInfo = fileInfoService.getFileById(id);
-            if (fileInfo == null) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            // 获取绝对路径（兼容相对路径和绝对路径）
-            java.nio.file.Path filePath = fileStorageService.getAbsoluteFilePath(fileInfo.getFilePath());
-            File file = filePath.toFile();
-            if (!file.exists()) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            Resource resource = new FileSystemResource(file);
-            String contentType = getContentType(fileInfo.getExtendName());
-            
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .body(resource);
-                    
+            return fileInfoService.previewFile(id);
         } catch (Exception e) {
             log.error("预览文件失败", e);
             return ResponseEntity.internalServerError().build();
-        }
-    }
-    
-    /**
-     * 获取文件MIME类型
-     */
-    private String getContentType(String extendName) {
-        if (extendName == null) return "application/octet-stream";
-        
-        switch (extendName.toLowerCase()) {
-            case "jpg":
-            case "jpeg":
-                return "image/jpeg";
-            case "png":
-                return "image/png";
-            case "gif":
-                return "image/gif";
-            case "bmp":
-                return "image/bmp";
-            case "webp":
-                return "image/webp";
-            case "svg":
-                return "image/svg+xml";
-            case "mp4":
-                return "video/mp4";
-            case "webm":
-                return "video/webm";
-            case "mp3":
-                return "audio/mpeg";
-            case "wav":
-                return "audio/wav";
-            case "ogg":
-                return "audio/ogg";
-            case "pdf":
-                return "application/pdf";
-            case "txt":
-            case "md":
-                return "text/plain";
-            case "html":
-                return "text/html";
-            case "css":
-                return "text/css";
-            case "js":
-                return "application/javascript";
-            case "json":
-                return "application/json";
-            default:
-                return "application/octet-stream";
         }
     }
     
@@ -759,57 +597,11 @@ public class FileController {
         log.info("批量下载文件 - 数量: {}", ids.size());
         
         try {
-            // 设置响应头
-            String fileName = "files_" + System.currentTimeMillis() + ".zip";
-            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8.toString())
-                    .replaceAll("\\+", "%20");
-            
-            response.setContentType("application/zip");
-            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
-            
-            // 创建ZIP输出流
-            try (ZipOutputStream zipOut = new ZipOutputStream(response.getOutputStream())) {
-                for (Long id : ids) {
-                    FileInfoVO fileInfo = fileInfoService.getFileById(id);
-                    if (fileInfo == null || fileInfo.getIsDir() == 1) {
-                        continue;
-                    }
-                    
-                    // 获取绝对路径（兼容相对路径和绝对路径）
-                    java.nio.file.Path filePath = fileStorageService.getAbsoluteFilePath(fileInfo.getFilePath());
-                    File file = filePath.toFile();
-                    if (!file.exists()) {
-                        log.warn("文件不存在 - ID: {}, 路径: {}", id, filePath);
-                        continue;
-                    }
-                    
-                    // 添加文件到ZIP
-                    String entryName = fileInfo.getFileName();
-                    if (fileInfo.getExtendName() != null && !fileInfo.getFileName().contains(".")) {
-                        entryName = fileInfo.getFileName() + "." + fileInfo.getExtendName();
-                    }
-                    
-                    ZipEntry zipEntry = new ZipEntry(entryName);
-                    zipOut.putNextEntry(zipEntry);
-                    
-                    try (FileInputStream fis = new FileInputStream(file)) {
-                        byte[] buffer = new byte[8192];
-                        int bytesRead;
-                        while ((bytesRead = fis.read(buffer)) != -1) {
-                            zipOut.write(buffer, 0, bytesRead);
-                        }
-                    }
-                    
-                    zipOut.closeEntry();
-                }
-                
-                zipOut.finish();
-            }
-            
+            fileInfoService.batchDownloadFiles(ids, response);
         } catch (Exception e) {
             log.error("批量下载失败", e);
             try {
-                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "批量下载失败");
+                response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "批量下载失败: " + e.getMessage());
             } catch (Exception ex) {
                 log.error("发送错误响应失败", ex);
             }

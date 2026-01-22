@@ -353,7 +353,8 @@ onMounted(() => {
 const loadConfig = async () => {
   try {
     const res = await getCongestionConfig()
-    const config = res.data || res
+    // HTTP拦截器已经返回res.data，这里直接使用res
+    const config = res
     
     // 后端返回短横线格式：initial-cwnd，直接从数据库加载，不设置默认值
     configForm.value = {

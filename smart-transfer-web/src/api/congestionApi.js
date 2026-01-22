@@ -55,3 +55,13 @@ export function getAdaptiveMetrics() {
     url: '/congestion/adaptive-metrics'
   })
 }
+
+/**
+ * 获取网络质量统计
+ * @returns {Promise}
+ */
+export function getNetworkQualityStats() {
+  return request.get({
+    url: '/congestion/network-quality-stats'
+  })
+}

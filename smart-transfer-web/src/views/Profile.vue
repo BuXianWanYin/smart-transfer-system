@@ -99,6 +99,69 @@
         </div>
       </el-card>
       
+      <!-- 传输统计卡片 -->
+      <el-card class="transfer-stats-card">
+        <template #header>
+          <div class="card-header">
+            <span>传输统计</span>
+            <el-button text @click="loadTransferStats">
+              <el-icon><Refresh /></el-icon>
+            </el-button>
+          </div>
+        </template>
+        
+        <div class="transfer-stats" v-loading="transferStatsLoading">
+          <el-radio-group v-model="transferPeriod" @change="loadTransferStats" size="small">
+            <el-radio-button label="day">日</el-radio-button>
+            <el-radio-button label="week">周</el-radio-button>
+            <el-radio-button label="month">月</el-radio-button>
+          </el-radio-group>
+          
+          <div class="transfer-summary" v-if="transferStats.uploadValues">
+            <div class="summary-item">
+              <div class="summary-label">上传总量</div>
+              <div class="summary-value">{{ formatSize(getTotalUpload()) }}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">下载总量</div>
+              <div class="summary-value">{{ formatSize(getTotalDownload()) }}</div>
+            </div>
+          </div>
+          
+          <div class="transfer-chart" v-if="transferStats.uploadLabels && transferStats.uploadLabels.length > 0">
+            <div class="chart-item">
+              <div class="chart-title">上传趋势</div>
+              <div class="chart-bars">
+                <div 
+                  v-for="(value, index) in transferStats.uploadValues" 
+                  :key="index"
+                  class="chart-bar upload"
+                  :style="{ height: getBarHeight(value, transferStats.uploadValues) + '%' }"
+                  :title="`${transferStats.uploadLabels && transferStats.uploadLabels[index] ? transferStats.uploadLabels[index] : ''}: ${formatSize(value)}`"
+                >
+                  <span class="bar-value">{{ formatSize(value) }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="chart-item">
+              <div class="chart-title">下载趋势</div>
+              <div class="chart-bars">
+                <div 
+                  v-for="(value, index) in transferStats.downloadValues" 
+                  :key="index"
+                  class="chart-bar download"
+                  :style="{ height: getBarHeight(value, transferStats.downloadValues) + '%' }"
+                  :title="`${transferStats.downloadLabels && transferStats.downloadLabels[index] ? transferStats.downloadLabels[index] : ''}: ${formatSize(value)}`"
+                >
+                  <span class="bar-value">{{ formatSize(value) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无传输数据" />
+        </div>
+      </el-card>
+      
       <!-- 修改密码卡片 -->
       <el-card class="password-card">
         <template #header>
@@ -155,6 +218,7 @@ import { ElMessage } from 'element-plus'
 import { UserFilled, Refresh, Picture, VideoPlay, Headset, Document, Folder, Camera } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/userStore'
 import { updateUserInfo, changePassword, getStorageStats, uploadAvatar } from '@/api/userApi'
+import { getTransferStats } from '@/api/historyApi'
 
 const userStore = useUserStore()
 
@@ -213,6 +277,16 @@ const infoLoading = ref(false)
 // 存储统计
 const storageLoading = ref(false)
 const storageStats = ref({})
+
+// 传输统计
+const transferPeriod = ref('day')
+const transferStats = reactive({
+  uploadLabels: [],
+  uploadValues: [],
+  downloadLabels: [],
+  downloadValues: []
+})
+const transferStatsLoading = ref(false)
 
 // 分类列表
 const categoryList = [
@@ -277,6 +351,42 @@ const loadStorageStats = async () => {
   }
 }
 
+// 加载传输统计
+const loadTransferStats = async () => {
+  transferStatsLoading.value = true
+  try {
+    const data = await getTransferStats(transferPeriod.value)
+    transferStats.uploadLabels = data.uploadLabels || []
+    transferStats.uploadValues = data.uploadValues || []
+    transferStats.downloadLabels = data.downloadLabels || []
+    transferStats.downloadValues = data.downloadValues || []
+  } catch (error) {
+    // 忽略错误
+  } finally {
+    transferStatsLoading.value = false
+  }
+}
+
+// 计算总上传量
+const getTotalUpload = () => {
+  if (!transferStats.uploadValues || transferStats.uploadValues.length === 0) return 0
+  return transferStats.uploadValues.reduce((a, b) => a + b, 0)
+}
+
+// 计算总下载量
+const getTotalDownload = () => {
+  if (!transferStats.downloadValues || transferStats.downloadValues.length === 0) return 0
+  return transferStats.downloadValues.reduce((a, b) => a + b, 0)
+}
+
+// 计算柱状图高度
+const getBarHeight = (value, values) => {
+  if (!values || values.length === 0) return 0
+  const max = Math.max(...values)
+  if (max === 0) return 0
+  return (value / max) * 100
+}
+
 // 更新用户信息
 const handleUpdateInfo = async () => {
   infoLoading.value = true
@@ -332,6 +442,9 @@ onMounted(() => {
   
   // 加载存储统计
   loadStorageStats()
+  
+  // 加载传输统计
+  loadTransferStats()
 })
 </script>
 
@@ -498,6 +611,91 @@ onMounted(() => {
             margin-top: 2px;
             font-size: 12px;
             color: #909399;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 传输统计卡片
+.transfer-stats-card {
+  .transfer-stats {
+    .transfer-summary {
+      display: flex;
+      gap: 40px;
+      margin: 20px 0;
+      padding: 20px;
+      background: #f5f7fa;
+      border-radius: 8px;
+      
+      .summary-item {
+        flex: 1;
+        text-align: center;
+        
+        .summary-label {
+          font-size: 14px;
+          color: #909399;
+          margin-bottom: 8px;
+        }
+        
+        .summary-value {
+          font-size: 24px;
+          font-weight: bold;
+          color: var(--el-color-primary);
+        }
+      }
+    }
+    
+    .transfer-chart {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+      
+      .chart-item {
+        flex: 1;
+        
+        .chart-title {
+          font-size: 14px;
+          font-weight: bold;
+          margin-bottom: 12px;
+          text-align: center;
+        }
+        
+        .chart-bars {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-around;
+          height: 150px;
+          gap: 4px;
+          
+          .chart-bar {
+            flex: 1;
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            min-height: 20px;
+            transition: all 0.3s;
+            
+            &.upload {
+              background: var(--el-color-primary);
+            }
+            
+            &.download {
+              background: var(--el-color-success);
+            }
+            
+            .bar-value {
+              position: absolute;
+              top: -20px;
+              left: 50%;
+              transform: translateX(-50%);
+              font-size: 10px;
+              white-space: nowrap;
+            }
+            
+            &:hover {
+              opacity: 0.8;
+            }
           }
         }
       }

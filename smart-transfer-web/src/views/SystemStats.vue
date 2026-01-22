@@ -36,8 +36,69 @@
         </el-card>
       </el-col>
       
+      <!-- 传输统计图表 -->
+      <el-col :span="24">
+        <el-card>
+          <template #header>
+            <div class="card-header">
+              <span>传输统计</span>
+              <el-radio-group v-model="transferPeriod" @change="loadTransferStats">
+                <el-radio-button label="day">日</el-radio-button>
+                <el-radio-button label="week">周</el-radio-button>
+                <el-radio-button label="month">月</el-radio-button>
+              </el-radio-group>
+            </div>
+          </template>
+          <div class="chart-container" v-loading="transferStatsLoading">
+            <div class="chart-placeholder" v-if="!transferStatsLoading && transferStats.uploadLabels && transferStats.uploadLabels.length === 0">
+              <el-empty description="暂无传输数据" />
+            </div>
+            <div v-else class="chart-content">
+              <div class="chart-item">
+                <div class="chart-title">上传量</div>
+                <div class="chart-bars">
+                  <div 
+                    v-for="(value, index) in transferStats.uploadValues" 
+                    :key="index"
+                    class="chart-bar"
+                    :style="{ height: getBarHeight(value, transferStats.uploadValues) + '%' }"
+                    :title="`${transferStats.uploadLabels && transferStats.uploadLabels[index] ? transferStats.uploadLabels[index] : ''}: ${formatSize(value)}`"
+                  >
+                    <span class="bar-value">{{ formatSize(value) }}</span>
+                  </div>
+                </div>
+                <div class="chart-labels">
+                  <span v-for="(label, index) in transferStats.uploadLabels" :key="index" class="chart-label">
+                    {{ formatLabel(label, transferPeriod) }}
+                  </span>
+                </div>
+              </div>
+              <div class="chart-item">
+                <div class="chart-title">下载量</div>
+                <div class="chart-bars">
+                  <div 
+                    v-for="(value, index) in transferStats.downloadValues" 
+                    :key="index"
+                    class="chart-bar download"
+                    :style="{ height: getBarHeight(value, transferStats.downloadValues) + '%' }"
+                    :title="`${transferStats.downloadLabels && transferStats.downloadLabels[index] ? transferStats.downloadLabels[index] : ''}: ${formatSize(value)}`"
+                  >
+                    <span class="bar-value">{{ formatSize(value) }}</span>
+                  </div>
+                </div>
+                <div class="chart-labels">
+                  <span v-for="(label, index) in transferStats.downloadLabels" :key="index" class="chart-label">
+                    {{ formatLabel(label, transferPeriod) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      
       <!-- 用户统计 -->
-      <el-col :span="12">
+      <el-col :span="8">
         <el-card>
           <template #header>
             <span>用户统计</span>
@@ -64,7 +125,7 @@
       </el-col>
       
       <!-- 存储统计 -->
-      <el-col :span="12">
+      <el-col :span="8">
         <el-card>
           <template #header>
             <span>存储统计</span>
@@ -89,6 +150,69 @@
           </div>
         </el-card>
       </el-col>
+      
+      <!-- 网络质量统计 -->
+      <el-col :span="8">
+        <el-card>
+          <template #header>
+            <span>网络质量统计</span>
+          </template>
+          <div class="chart-container" v-loading="networkQualityLoading">
+            <div v-if="networkQualityStats.qualityCount">
+              <div class="stat-item">
+                <span>优秀：</span>
+                <strong>{{ networkQualityStats.qualityCount.EXCELLENT || 0 }}</strong>
+              </div>
+              <div class="stat-item">
+                <span>良好：</span>
+                <strong>{{ networkQualityStats.qualityCount.GOOD || 0 }}</strong>
+              </div>
+              <div class="stat-item">
+                <span>一般：</span>
+                <strong>{{ networkQualityStats.qualityCount.FAIR || 0 }}</strong>
+              </div>
+              <div class="stat-item">
+                <span>差：</span>
+                <strong>{{ networkQualityStats.qualityCount.POOR || 0 }}</strong>
+              </div>
+              <div class="stat-item">
+                <span>当前质量：</span>
+                <el-tag :type="getQualityTagType(networkQualityStats.currentQuality)">
+                  {{ getQualityText(networkQualityStats.currentQuality) }}
+                </el-tag>
+              </div>
+            </div>
+            <el-empty v-else description="暂无数据" />
+          </div>
+        </el-card>
+      </el-col>
+      
+      <!-- 算法使用统计 -->
+      <el-col :span="24">
+        <el-card>
+          <template #header>
+            <span>算法使用统计</span>
+          </template>
+          <div class="chart-container" v-loading="algorithmStatsLoading">
+            <div v-if="algorithmStats.algorithmLabels && algorithmStats.algorithmLabels.length > 0" class="algorithm-stats">
+              <div class="algorithm-item" v-for="(label, index) in algorithmStats.algorithmLabels" :key="label">
+                <div class="algorithm-name">{{ label }}</div>
+                <div class="algorithm-details">
+                  <span>使用次数：{{ algorithmStats.countValues && algorithmStats.countValues[index] !== undefined ? algorithmStats.countValues[index] : 0 }}</span>
+                  <span>传输量：{{ formatSize(algorithmStats.sizeValues && algorithmStats.sizeValues[index] !== undefined ? algorithmStats.sizeValues[index] : 0) }}</span>
+                </div>
+                <div class="algorithm-bar">
+                  <div 
+                    class="algorithm-progress" 
+                    :style="{ width: getAlgorithmPercentage(algorithmStats.sizeValues && algorithmStats.sizeValues[index] !== undefined ? algorithmStats.sizeValues[index] : 0, algorithmStats.sizeValues || []) + '%' }"
+                  ></div>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="暂无算法使用数据" />
+          </div>
+        </el-card>
+      </el-col>
     </el-row>
   </div>
 </template>
@@ -97,6 +221,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getUserList, getSystemStorageStats } from '@/api/userApi'
+import { getTransferStats, getAlgorithmStats } from '@/api/historyApi'
+import { getNetworkQualityStats } from '@/api/congestionApi'
 
 // 统计数据
 const stats = reactive({
@@ -117,6 +243,31 @@ const stats = reactive({
   otherSize: 0,
   otherCount: 0
 })
+
+// 传输统计
+const transferPeriod = ref('day')
+const transferStats = reactive({
+  uploadLabels: [],
+  uploadValues: [],
+  downloadLabels: [],
+  downloadValues: []
+})
+const transferStatsLoading = ref(false)
+
+// 网络质量统计
+const networkQualityStats = reactive({
+  qualityCount: {},
+  currentQuality: 'UNKNOWN'
+})
+const networkQualityLoading = ref(false)
+
+// 算法使用统计
+const algorithmStats = reactive({
+  algorithmLabels: [],
+  countValues: [],
+  sizeValues: []
+})
+const algorithmStatsLoading = ref(false)
 
 /**
  * 加载统计数据
@@ -168,6 +319,57 @@ const loadStats = async () => {
 }
 
 /**
+ * 加载传输统计
+ */
+const loadTransferStats = async () => {
+  transferStatsLoading.value = true
+  try {
+    const data = await getTransferStats(transferPeriod.value)
+    transferStats.uploadLabels = data.uploadLabels || []
+    transferStats.uploadValues = data.uploadValues || []
+    transferStats.downloadLabels = data.downloadLabels || []
+    transferStats.downloadValues = data.downloadValues || []
+  } catch (error) {
+    ElMessage.error('加载传输统计失败：' + (error.message || '未知错误'))
+  } finally {
+    transferStatsLoading.value = false
+  }
+}
+
+/**
+ * 加载网络质量统计
+ */
+const loadNetworkQualityStats = async () => {
+  networkQualityLoading.value = true
+  try {
+    const data = await getNetworkQualityStats()
+    networkQualityStats.qualityCount = data.qualityCount || {}
+    networkQualityStats.currentQuality = data.currentQuality || 'UNKNOWN'
+  } catch (error) {
+    ElMessage.error('加载网络质量统计失败：' + (error.message || '未知错误'))
+  } finally {
+    networkQualityLoading.value = false
+  }
+}
+
+/**
+ * 加载算法使用统计
+ */
+const loadAlgorithmStats = async () => {
+  algorithmStatsLoading.value = true
+  try {
+    const data = await getAlgorithmStats()
+    algorithmStats.algorithmLabels = data.algorithmLabels || []
+    algorithmStats.countValues = data.countValues || []
+    algorithmStats.sizeValues = data.sizeValues || []
+  } catch (error) {
+    ElMessage.error('加载算法统计失败：' + (error.message || '未知错误'))
+  } finally {
+    algorithmStatsLoading.value = false
+  }
+}
+
+/**
  * 格式化文件大小
  */
 const formatSize = (bytes) => {
@@ -178,14 +380,88 @@ const formatSize = (bytes) => {
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
 }
 
+/**
+ * 计算柱状图高度
+ */
+const getBarHeight = (value, values) => {
+  if (!values || values.length === 0) return 0
+  const max = Math.max(...values)
+  if (max === 0) return 0
+  return (value / max) * 100
+}
+
+/**
+ * 格式化标签
+ */
+const formatLabel = (label, period) => {
+  if (!label) return ''
+  
+  if (period === 'day') {
+    const parts = label.split('-')
+    return parts.length >= 3 ? parts[2] : label // 只显示日期
+  } else if (period === 'week') {
+    const parts = label.split('-')
+    return parts.length >= 3 ? parts[1] + '/' + parts[2] : label // 显示月/日
+  } else {
+    return label // 显示年月
+  }
+}
+
+/**
+ * 获取网络质量标签类型
+ */
+const getQualityTagType = (quality) => {
+  const map = {
+    'EXCELLENT': 'success',
+    'GOOD': 'primary',
+    'FAIR': 'warning',
+    'POOR': 'danger',
+    'UNKNOWN': 'info'
+  }
+  return map[quality] || 'info'
+}
+
+/**
+ * 获取网络质量文本
+ */
+const getQualityText = (quality) => {
+  const map = {
+    'EXCELLENT': '优秀',
+    'GOOD': '良好',
+    'FAIR': '一般',
+    'POOR': '差',
+    'UNKNOWN': '未知'
+  }
+  return map[quality] || '未知'
+}
+
+/**
+ * 计算算法使用百分比
+ */
+const getAlgorithmPercentage = (value, values) => {
+  if (!values || values.length === 0) return 0
+  const total = values.reduce((sum, v) => sum + v, 0)
+  if (total === 0) return 0
+  return (value / total) * 100
+}
+
 onMounted(() => {
   loadStats()
+  loadTransferStats()
+  loadNetworkQualityStats()
+  loadAlgorithmStats()
 })
 </script>
 
 <style lang="scss" scoped>
 .system-stats-page {
   padding: 20px;
+  
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
   
   .stat-card {
     text-align: center;
@@ -208,6 +484,77 @@ onMounted(() => {
   
   .chart-container {
     padding: 20px;
+    min-height: 200px;
+    
+    .chart-placeholder {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 200px;
+    }
+    
+    .chart-content {
+      display: flex;
+      gap: 40px;
+      
+      .chart-item {
+        flex: 1;
+        
+        .chart-title {
+          font-size: 16px;
+          font-weight: bold;
+          margin-bottom: 20px;
+          text-align: center;
+        }
+        
+        .chart-bars {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-around;
+          height: 200px;
+          gap: 8px;
+          
+          .chart-bar {
+            flex: 1;
+            background: var(--el-color-primary);
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            min-height: 20px;
+            transition: all 0.3s;
+            
+            &.download {
+              background: var(--el-color-success);
+            }
+            
+            .bar-value {
+              position: absolute;
+              top: -20px;
+              left: 50%;
+              transform: translateX(-50%);
+              font-size: 12px;
+              white-space: nowrap;
+            }
+            
+            &:hover {
+              opacity: 0.8;
+            }
+          }
+        }
+        
+        .chart-labels {
+          display: flex;
+          justify-content: space-around;
+          margin-top: 10px;
+          
+          .chart-label {
+            font-size: 12px;
+            color: #909399;
+            flex: 1;
+            text-align: center;
+          }
+        }
+      }
+    }
     
     .stat-item {
       display: flex;
@@ -225,6 +572,39 @@ onMounted(() => {
       
       strong {
         color: var(--el-color-primary);
+      }
+    }
+    
+    .algorithm-stats {
+      .algorithm-item {
+        margin-bottom: 20px;
+        
+        .algorithm-name {
+          font-size: 16px;
+          font-weight: bold;
+          margin-bottom: 8px;
+        }
+        
+        .algorithm-details {
+          display: flex;
+          gap: 20px;
+          margin-bottom: 8px;
+          font-size: 14px;
+          color: #606266;
+        }
+        
+        .algorithm-bar {
+          height: 20px;
+          background: #f5f7fa;
+          border-radius: 10px;
+          overflow: hidden;
+          
+          .algorithm-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--el-color-primary), var(--el-color-success));
+            transition: width 0.3s;
+          }
+        }
       }
     }
   }

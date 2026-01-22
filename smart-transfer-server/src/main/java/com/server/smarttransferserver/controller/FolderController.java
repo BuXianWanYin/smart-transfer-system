@@ -47,17 +47,19 @@ public class FolderController {
      * @param fileType 文件类型筛选：0-全部, 1-图片, 2-文档, 3-视频, 4-音乐, 5-其他
      * @param pageNum 页码
      * @param pageSize 每页数量
+     * @param userId 用户ID（可选，仅管理员可用，用于筛选指定用户的文件）
      */
     @GetMapping("/content")
     public Result<FolderContentVO> getFolderContent(
             @RequestParam(required = false, defaultValue = "0") Long parentId,
             @RequestParam(required = false, defaultValue = "0") Integer fileType,
             @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "20") Integer pageSize) {
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            @RequestParam(required = false) Long userId) {
         
-        log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}", parentId, fileType);
+        log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}, 用户ID: {}", parentId, fileType, userId);
         try {
-            FolderContentVO content = folderService.getFolderContent(parentId, fileType, pageNum, pageSize);
+            FolderContentVO content = folderService.getFolderContent(parentId, fileType, pageNum, pageSize, userId);
             return Result.success(content);
         } catch (Exception e) {
             log.error("获取文件夹内容失败", e);

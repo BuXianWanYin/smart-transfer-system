@@ -115,10 +115,9 @@ const getFileIcon = (row) => {
 const loadFileList = async () => {
   try {
     loading.value = true
+    // HTTP拦截器已经处理了响应格式，直接使用返回的数据
     const res = await getRecoveryFileList()
-    if (res.code === 200) {
-      fileList.value = res.data || []
-    }
+    fileList.value = res || []
   } catch {
     ElMessage.error('加载回收站失败')
   } finally {

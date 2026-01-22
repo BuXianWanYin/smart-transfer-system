@@ -351,6 +351,34 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void batchRestoreFiles(List<Long> recoveryIds) {
+        if (recoveryIds == null || recoveryIds.isEmpty()) {
+            throw new RuntimeException("回收站记录ID列表不能为空");
+        }
+        for (Long recoveryId : recoveryIds) {
+            if (recoveryId != null) {
+                restoreFile(recoveryId);
+            }
+        }
+        log.info("批量还原文件 - 数量: {}", recoveryIds.size());
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDeleteFilesPermanently(List<Long> recoveryIds) {
+        if (recoveryIds == null || recoveryIds.isEmpty()) {
+            throw new RuntimeException("回收站记录ID列表不能为空");
+        }
+        for (Long recoveryId : recoveryIds) {
+            if (recoveryId != null) {
+                deleteFilePermanently(recoveryId);
+            }
+        }
+        log.info("批量彻底删除文件 - 数量: {}", recoveryIds.size());
+    }
+    
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void clearRecoveryBin() {
         Long userId = UserContextHolder.getUserId();
         

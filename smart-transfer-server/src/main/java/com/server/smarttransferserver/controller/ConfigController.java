@@ -107,11 +107,7 @@ public class ConfigController {
         log.info("获取配置值 - key: {}", key);
         try {
             String value = configService.getConfigValue(key);
-            if (value != null) {
-                return Result.success(value);
-            } else {
-                return Result.error("配置不存在");
-            }
+            return Result.success(value);
         } catch (Exception e) {
             log.error("获取配置值失败", e);
             return Result.error("获取配置失败: " + e.getMessage());

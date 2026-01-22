@@ -71,5 +71,32 @@ public interface UserService {
      * @return 头像相对路径（如：avatars/1/avatar.jpg）
      */
     String uploadAvatar(Long userId, org.springframework.web.multipart.MultipartFile file);
+    
+    /**
+     * 获取用户详情（存储使用、传输统计）
+     * @param userId 用户ID
+     * @return 用户详情数据
+     */
+    Map<String, Object> getUserDetail(Long userId);
+    
+    /**
+     * 批量更新用户状态
+     * @param userIds 用户ID列表
+     * @param status 状态（1-启用，0-禁用）
+     */
+    void batchUpdateUserStatus(List<Long> userIds, Integer status);
+    
+    /**
+     * 批量删除用户
+     * @param userIds 用户ID列表
+     */
+    void batchDeleteUsers(List<Long> userIds);
+    
+    /**
+     * 获取头像文件
+     * @param avatarPath 头像相对路径（如：avatars/1/avatar.jpg）
+     * @return ResponseEntity包含头像文件资源
+     */
+    org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> getAvatar(String avatarPath);
 }
 

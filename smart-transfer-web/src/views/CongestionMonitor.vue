@@ -132,7 +132,8 @@ onMounted(() => {
 const syncCurrentAlgorithm = async () => {
   try {
     const res = await getCurrentAlgorithm()
-    const algorithmName = res?.data || res || ''
+    // HTTP拦截器已经返回res.data，这里直接使用res
+    const algorithmName = res || ''
     if (algorithmName) {
       // 将后端返回的算法名称（如 "Reno", "Vegas"）转换为前端使用的大写格式（如 "RENO", "VEGAS"）
       const algorithmMap = {

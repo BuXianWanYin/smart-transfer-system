@@ -1,6 +1,7 @@
 package com.server.smarttransferserver.service;
 
 import java.util.List;
+import java.util.Map;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.server.smarttransferserver.domain.TransferHistory;
@@ -56,5 +57,20 @@ public interface TransferHistoryService extends IService<TransferHistory> {
      * @return 影响行数
      */
     int clearAllHistory();
+    
+    /**
+     * 获取传输统计（按日/周/月）
+     * @param period 统计周期：day-日, week-周, month-月
+     * @param userId 用户ID（可选，管理员可查询指定用户，普通用户只能查询自己）
+     * @return 传输统计数据
+     */
+    Map<String, Object> getTransferStats(String period, Long userId);
+    
+    /**
+     * 获取算法使用统计
+     * @param userId 用户ID（可选，管理员可查询指定用户，普通用户只能查询自己）
+     * @return 算法使用统计数据
+     */
+    Map<String, Object> getAlgorithmStats(Long userId);
 }
 

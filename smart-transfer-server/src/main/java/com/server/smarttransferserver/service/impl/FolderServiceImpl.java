@@ -50,6 +50,10 @@ public class FolderServiceImpl implements FolderService {
     @Override
     @Transactional
     public Folder createFolder(String folderName, Long parentId) {
+        if (folderName == null || folderName.trim().isEmpty()) {
+            throw new RuntimeException("文件夹名称不能为空");
+        }
+        
         Long userId = UserContextHolder.getUserId();
         if (userId == null) {
             throw new RuntimeException("请先登录");
@@ -99,8 +103,9 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public FolderContentVO getFolderContent(Long folderId, Integer fileType, Integer pageNum, Integer pageSize) {
-        Long userId = UserContextHolder.getUserId();
+    public FolderContentVO getFolderContent(Long folderId, Integer fileType, Integer pageNum, Integer pageSize, Long filterUserId) {
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
         Long currentFolderId = folderId == null ? 0L : folderId;
         String currentFolderName = "全部文件";
         
@@ -114,7 +119,21 @@ public class FolderServiceImpl implements FolderService {
             }
         }
 
+        // 确定用于查询的用户ID（文件夹查询仍使用当前用户，因为文件夹是按用户隔离的）
+        Long queryUserId = currentUserId;
+        // 文件查询的用户ID逻辑：
+        // 1. 如果是管理员，且指定了filterUserId，则查询指定用户的文件
+        // 2. 如果是管理员，且未指定filterUserId，则查询所有用户的文件
+        // 3. 如果是普通用户，只能查询自己的文件
+        Long fileQueryUserId = null;
+        if ("ADMIN".equals(currentUserRole)) {
+            fileQueryUserId = filterUserId; // 如果指定了filterUserId，查询指定用户；否则为null，查询所有用户
+        } else {
+            fileQueryUserId = currentUserId; // 普通用户只能查询自己的文件
+        }
+
         // 获取子文件夹（仅在"全部"类型时显示文件夹）
+        // 注意：文件夹查询仍使用当前用户，因为文件夹是按用户隔离的
         List<FolderVO> folderVOs = new ArrayList<>();
         if (!filterByType) {
             List<Folder> subFolders = getFoldersByParentId(currentFolderId);
@@ -122,23 +141,27 @@ public class FolderServiceImpl implements FolderService {
                 FolderVO vo = new FolderVO();
                 BeanUtils.copyProperties(f, vo);
                 vo.setType("folder");
-                // 统计子文件夹和文件数量
-                vo.setSubFolderCount(countSubFolders(f.getId(), userId));
-                vo.setFileCount(countFiles(f.getId(), userId));
+                // 统计子文件夹和文件数量（文件夹仍按当前用户统计）
+                vo.setSubFolderCount(countSubFolders(f.getId(), queryUserId));
+                vo.setFileCount(countFiles(f.getId(), fileQueryUserId)); // 文件统计使用fileQueryUserId
                 return vo;
             }).collect(Collectors.toList());
         }
 
-        // 获取文件（分页）- 只查询未删除的、上传完成的、当前用户的文件
+        // 获取文件（分页）- 只查询未删除的、上传完成的文件
         Page<FileInfo> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<FileInfo> fileWrapper = new LambdaQueryWrapper<>();
         fileWrapper.eq(FileInfo::getDelFlag, 0); // 过滤已删除文件
         fileWrapper.eq(FileInfo::getUploadStatus, "COMPLETED"); // 只显示上传完成的文件
         
-        // 用户数据隔离
-        if (userId != null) {
-            fileWrapper.eq(FileInfo::getUserId, userId);
+        // 用户数据隔离逻辑：
+        // 1. 如果是管理员，且指定了filterUserId，则查询指定用户的文件
+        // 2. 如果是管理员，且未指定filterUserId，则查询所有用户的文件
+        // 3. 如果是普通用户，只能查询自己的文件
+        if (fileQueryUserId != null) {
+            fileWrapper.eq(FileInfo::getUserId, fileQueryUserId);
         }
+        // 如果fileQueryUserId为null（管理员查询所有用户），不添加userId条件
         
         if (filterByType) {
             // 按类型筛选：从所有目录搜索该类型的文件
@@ -201,6 +224,10 @@ public class FolderServiceImpl implements FolderService {
     @Override
     @Transactional
     public void renameFolder(Long folderId, String newName) {
+        if (newName == null || newName.trim().isEmpty()) {
+            throw new RuntimeException("新名称不能为空");
+        }
+        
         Folder folder = folderMapper.selectById(folderId);
         if (folder == null) {
             throw new RuntimeException("文件夹不存在");

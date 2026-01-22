@@ -3,6 +3,25 @@
     <!-- 筛选工具栏 -->
     <div class="filter-toolbar">
       <el-form :inline="true" :model="filterForm">
+        <!-- 管理员：用户筛选 -->
+        <el-form-item v-if="userStore.isAdmin" label="用户">
+          <el-select 
+            v-model="filterForm.userId" 
+            placeholder="全部用户" 
+            clearable
+            filterable
+            style="width: 150px"
+            @change="handleSearch"
+          >
+            <el-option label="全部用户" :value="null" />
+            <el-option
+              v-for="user in userList"
+              :key="user.id"
+              :label="user.nickname || user.username"
+              :value="user.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="传输类型">
           <el-select v-model="filterForm.type" placeholder="全部" style="width: 120px">
             <el-option label="全部" value="" />
@@ -57,6 +76,7 @@
       <div class="list-header">
         <el-checkbox v-model="selectAll" @change="handleSelectAll" />
         <span class="header-label">文件名</span>
+        <span v-if="userStore.isAdmin" class="header-label">所属用户</span>
         <span class="header-label">大小</span>
         <span class="header-label">类型</span>
         <span class="header-label">完成时间</span>
@@ -84,6 +104,13 @@
                 </el-tag>
               </div>
             </div>
+          </div>
+          
+          <!-- 管理员：显示所属用户 -->
+          <div v-if="userStore.isAdmin" class="item-user">
+            <el-tag size="small" type="info">
+              {{ getUserName(item.userId) }}
+            </el-tag>
           </div>
           
           <div class="item-size">
@@ -231,11 +258,18 @@ import { formatFileSize, formatSpeed } from '@/utils/file'
 import { formatDateTime } from '@/utils/format'
 import { getDownloadUrl } from '@/api/fileApi'
 import { getHistoryList, deleteHistory, clearAllHistory } from '@/api/historyApi'
+import { getUserList } from '@/api/userApi'
+import { useUserStore } from '@/store/userStore'
 
 const fileStore = useFileStore()
+const userStore = useUserStore()
+
+// 用户列表（仅管理员使用）
+const userList = ref([])
 
 // 筛选表单
 const filterForm = ref({
+  userId: null, // 用户ID（仅管理员可用）
   type: '',
   dateRange: null,
   keyword: ''
@@ -293,20 +327,43 @@ const selectedCount = computed(() => {
 // 生命周期
 onMounted(() => {
   loadHistoryList()
+  // 如果是管理员，加载用户列表
+  if (userStore.isAdmin) {
+    loadUserList()
+  }
 })
+
+// 加载用户列表（仅管理员）
+const loadUserList = async () => {
+  try {
+    const res = await getUserList()
+    userList.value = res || []
+  } catch (error) {
+    console.error('加载用户列表失败', error)
+  }
+}
 
 // 加载历史记录
 const loadHistoryList = async () => {
   try {
-    // 从后端API获取传输历史记录
-    const res = await getHistoryList({
+    // 构建查询参数
+    const params = {
       fileName: filterForm.value.keyword,
       transferType: filterForm.value.type
-    })
+    }
+    
+    // 如果是管理员且指定了用户，添加userId参数
+    if (userStore.isAdmin && filterForm.value.userId) {
+      params.userId = filterForm.value.userId
+    }
+    
+    // 从后端API获取传输历史记录
+    const res = await getHistoryList(params)
     
     // 转换为前端需要的格式
     historyList.value = (res || []).map(record => ({
       id: record.id,
+      userId: record.userId, // 保存用户ID，用于显示
       fileName: record.fileName,
       fileSize: record.fileSize,
       fileHash: record.fileHash,
@@ -331,11 +388,20 @@ const handleSearch = () => {
 // 重置
 const handleReset = () => {
   filterForm.value = {
+    userId: null,
     type: '',
     dateRange: null,
     keyword: ''
   }
   currentPage.value = 1
+  loadHistoryList()
+}
+
+// 获取用户名（根据用户ID）
+const getUserName = (userId) => {
+  if (!userId) return '-'
+  const user = userList.value.find(u => u.id === userId)
+  return user ? (user.nickname || user.username) : `用户${userId}`
 }
 
 // 全选
@@ -543,12 +609,17 @@ defineExpose({
 
 .list-item {
   display: grid;
-  grid-template-columns: 40px 1fr 120px 100px 180px 150px;
+  grid-template-columns: 40px 1fr var(--user-col, 0px) 120px 100px 180px 150px;
   gap: 10px;
   align-items: center;
   padding: 15px 20px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   transition: all 0.3s;
+}
+
+/* 管理员模式：添加用户列 */
+.list-item:has(.item-user) {
+  grid-template-columns: 40px 1fr 120px 120px 100px 180px 150px;
 }
 
 .list-item:hover {
@@ -618,6 +689,12 @@ defineExpose({
 }
 
 .item-type {
+  display: flex;
+  justify-content: center;
+}
+
+.item-user {
+  text-align: center;
   display: flex;
   justify-content: center;
 }
@@ -758,6 +835,7 @@ defineExpose({
     }
   }
   
+  .item-user,
   .item-size,
   .item-type,
   .item-time {

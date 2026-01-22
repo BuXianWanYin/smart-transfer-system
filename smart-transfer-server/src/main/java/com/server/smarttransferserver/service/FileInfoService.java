@@ -36,9 +36,10 @@ public interface FileInfoService extends IService<FileInfo> {
      * @param pageNum 页码
      * @param pageSize 每页数量
      * @param status 文件状态（可选）
+     * @param userId 用户ID（可选，仅管理员可用，用于筛选指定用户的文件）
      * @return 分页结果
      */
-    IPage<FileInfoVO> getFileList(Integer pageNum, Integer pageSize, String status);
+    IPage<FileInfoVO> getFileList(Integer pageNum, Integer pageSize, String status, Long userId);
     
     /**
      * 更新文件上传状态
@@ -120,5 +121,27 @@ public interface FileInfoService extends IService<FileInfo> {
      * @param targetFolderId 目标文件夹ID（模式3使用）
      */
     void unzipFile(Long fileId, Integer unzipMode, String folderName, Long targetFolderId);
+    
+    /**
+     * 批量下载文件（打包为ZIP）
+     * @param fileIds 文件ID列表
+     * @param response HTTP响应流
+     */
+    void batchDownloadFiles(List<Long> fileIds, javax.servlet.http.HttpServletResponse response);
+    
+    /**
+     * 下载文件（支持断点续传）
+     * @param fileId 文件ID
+     * @param rangeHeader Range请求头
+     * @return ResponseEntity包含文件流
+     */
+    org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> downloadFile(Long fileId, String rangeHeader);
+    
+    /**
+     * 预览文件
+     * @param fileId 文件ID
+     * @return ResponseEntity包含文件流
+     */
+    org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> previewFile(Long fileId);
 }
 

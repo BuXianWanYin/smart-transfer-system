@@ -26,9 +26,10 @@ public interface FolderService {
      * @param fileType 文件类型筛选（0-全部, 1-图片, 2-文档, 3-视频, 4-音乐, 5-其他）
      * @param pageNum 页码
      * @param pageSize 每页数量
+     * @param userId 用户ID（可选，仅管理员可用，用于筛选指定用户的文件）
      * @return 文件夹内容
      */
-    FolderContentVO getFolderContent(Long folderId, Integer fileType, Integer pageNum, Integer pageSize);
+    FolderContentVO getFolderContent(Long folderId, Integer fileType, Integer pageNum, Integer pageSize, Long userId);
 
     /**
      * 重命名文件夹

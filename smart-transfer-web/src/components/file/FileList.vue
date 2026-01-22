@@ -16,6 +16,7 @@
       @change-mode="handleChangeMode"
       @change-grid-size="handleGridSizeChange"
       @change-columns="handleColumnsChange"
+      @user-change="handleUserChange"
     />
     
     <!-- 面包屑导航 -->
@@ -138,9 +139,11 @@ import { getFolderContent } from '@/api/folderApi'
 import { createFolder as createFolderApi } from '@/api/folderApi'
 import { searchFile, getPreviewUrl } from '@/api/fileApi'
 import { getRecoveryFileList } from '@/api/recoveryApi'
+import { useUserStore } from '@/store/userStore'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 // 路由参数
 const fileType = computed(() => parseInt(route.query.fileType) || 0)
@@ -153,6 +156,9 @@ const loading = ref(false)
 const total = ref(0)
 const pageNum = ref(1)
 const pageSize = ref(20)
+
+// 用户筛选（仅管理员）
+const selectedUserId = ref(null)
 
 // 显示模式: 0-表格 1-网格 2-时间线
 const displayMode = ref(0)
@@ -251,6 +257,11 @@ const loadFileList = async () => {
       fileType: fileType.value,
       pageNum: pageNum.value,
       pageSize: pageSize.value
+    }
+    
+    // 如果是管理员且指定了用户，添加userId参数
+    if (userStore.isAdmin && selectedUserId.value) {
+      params.userId = selectedUserId.value
     }
     
     const res = await getFolderContent(params)
@@ -427,6 +438,13 @@ const handleSearchFile = async (keyword) => {
   } finally {
     loading.value = false
   }
+}
+
+// 用户筛选变化
+const handleUserChange = (userId) => {
+  selectedUserId.value = userId
+  pageNum.value = 1
+  loadFileList()
 }
 </script>
 

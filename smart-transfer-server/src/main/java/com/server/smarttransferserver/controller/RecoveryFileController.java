@@ -35,8 +35,13 @@ public class RecoveryFileController {
      */
     @PostMapping("/restore/{id}")
     public Result<Void> restore(@PathVariable Long id) {
-        recoveryFileService.restoreFile(id);
-        return Result.success();
+        try {
+            recoveryFileService.restoreFile(id);
+            return Result.success();
+        } catch (Exception e) {
+            log.error("还原文件失败", e);
+            return Result.error("还原失败: " + e.getMessage());
+        }
     }
 
     /**
@@ -45,12 +50,13 @@ public class RecoveryFileController {
     @PostMapping("/restore/batch")
     public Result<Void> batchRestore(@RequestBody Map<String, List<Long>> params) {
         List<Long> ids = params.get("ids");
-        if (ids != null) {
-            for (Long id : ids) {
-                recoveryFileService.restoreFile(id);
-            }
+        try {
+            recoveryFileService.batchRestoreFiles(ids);
+            return Result.success();
+        } catch (Exception e) {
+            log.error("批量还原文件失败", e);
+            return Result.error("批量还原失败: " + e.getMessage());
         }
-        return Result.success();
     }
 
     /**
@@ -58,8 +64,13 @@ public class RecoveryFileController {
      */
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
-        recoveryFileService.deleteFilePermanently(id);
-        return Result.success();
+        try {
+            recoveryFileService.deleteFilePermanently(id);
+            return Result.success();
+        } catch (Exception e) {
+            log.error("彻底删除文件失败", e);
+            return Result.error("删除失败: " + e.getMessage());
+        }
     }
 
     /**
@@ -68,12 +79,13 @@ public class RecoveryFileController {
     @DeleteMapping("/batch")
     public Result<Void> batchDelete(@RequestBody Map<String, List<Long>> params) {
         List<Long> ids = params.get("ids");
-        if (ids != null) {
-            for (Long id : ids) {
-                recoveryFileService.deleteFilePermanently(id);
-            }
+        try {
+            recoveryFileService.batchDeleteFilesPermanently(ids);
+            return Result.success();
+        } catch (Exception e) {
+            log.error("批量彻底删除文件失败", e);
+            return Result.error("批量删除失败: " + e.getMessage());
         }
-        return Result.success();
     }
 
     /**
@@ -81,8 +93,13 @@ public class RecoveryFileController {
      */
     @DeleteMapping("/clear")
     public Result<Void> clear() {
-        recoveryFileService.clearRecoveryBin();
-        return Result.success();
+        try {
+            recoveryFileService.clearRecoveryBin();
+            return Result.success();
+        } catch (Exception e) {
+            log.error("清空回收站失败", e);
+            return Result.error("清空失败: " + e.getMessage());
+        }
     }
 }
 

@@ -46,6 +46,23 @@
         </template>
       </el-table-column>
       
+      <!-- 所属用户列（仅管理员可见） -->
+      <el-table-column
+        prop="userId"
+        label="所属用户"
+        width="120"
+        sortable
+        align="center"
+        v-if="userStore.isAdmin && !isMobile"
+      >
+        <template #default="{ row }">
+          <el-tag v-if="row.userId" size="small" type="info">
+            {{ getUserName(row.userId) }}
+          </el-tag>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      
       <!-- 类型列（可配置显示） -->
       <el-table-column 
         prop="extendName" 
@@ -233,7 +250,10 @@ import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
 import { deleteFolder } from '@/api/folderApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
+import { useUserStore } from '@/store/userStore'
+import { getUserList } from '@/api/userApi'
 import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
 
 const props = defineProps({
   fileType: { type: Number, required: true },
@@ -246,8 +266,31 @@ const props = defineProps({
 const emit = defineEmits(['refresh', 'row-click', 'selection-change'])
 
 const transferStore = useTransferStore()
+const userStore = useUserStore()
 const router = useRouter()
 const tableRef = ref(null)
+
+// 用户列表（仅管理员使用）
+const userList = ref([])
+
+// 加载用户列表（仅管理员）
+onMounted(async () => {
+  if (userStore.isAdmin) {
+    try {
+      const res = await getUserList()
+      userList.value = res || []
+    } catch (error) {
+      console.error('加载用户列表失败', error)
+    }
+  }
+})
+
+// 获取用户名（根据用户ID）
+const getUserName = (userId) => {
+  if (!userId) return '-'
+  const user = userList.value.find(u => u.id === userId)
+  return user ? (user.nickname || user.username) : `用户${userId}`
+}
 
 // 屏幕宽度检测
 const screenWidth = ref(window.innerWidth)

@@ -81,6 +81,27 @@ export const getSystemStorageStats = () => {
 }
 
 /**
+ * 获取用户详情（存储使用、传输统计）（管理员）
+ */
+export const getUserDetail = (userId) => {
+  return request.get({ url: `/user/detail/${userId}` })
+}
+
+/**
+ * 批量更新用户状态（管理员）
+ */
+export const batchUpdateUserStatus = (userIds, status) => {
+  return request.put({ url: '/user/batch-status', data: { userIds, status } })
+}
+
+/**
+ * 批量删除用户（管理员）
+ */
+export const batchDeleteUsers = (userIds) => {
+  return request.del({ url: '/user/batch', data: { userIds } })
+}
+
+/**
  * 上传头像
  */
 export const uploadAvatar = (file) => {

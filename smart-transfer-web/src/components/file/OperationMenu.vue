@@ -51,6 +51,25 @@
     
     <!-- 右侧操作 -->
     <div class="right-operations">
+      <!-- 管理员：用户筛选 -->
+      <el-select
+        v-if="userStore.isAdmin"
+        v-model="selectedUserId"
+        placeholder="全部用户"
+        clearable
+        filterable
+        style="width: 150px; margin-right: 10px"
+        @change="handleUserChange"
+      >
+        <el-option label="全部用户" :value="null" />
+        <el-option
+          v-for="user in userList"
+          :key="user.id"
+          :label="user.nickname || user.username"
+          :value="user.id"
+        />
+      </el-select>
+      
       <!-- 搜索框 -->
       <el-input
         v-model="searchKeyword"
@@ -149,9 +168,13 @@ import { batchDeleteFiles, batchMoveFiles, getBatchDownloadUrl } from '@/api/fil
 import { deleteFolder } from '@/api/folderApi'
 import { batchRestoreRecoveryFiles, batchDeleteRecoveryFiles, clearAllRecoveryFiles } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
+import { useUserStore } from '@/store/userStore'
+import { getUserList } from '@/api/userApi'
+import { onMounted } from 'vue'
 
 const router = useRouter()
 const transferStore = useTransferStore()
+const userStore = useUserStore()
 
 const props = defineProps({
   fileType: { type: Number, required: true },
@@ -161,7 +184,28 @@ const props = defineProps({
   fileList: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['refresh', 'upload-file', 'new-folder', 'search-file', 'show-upload', 'change-mode', 'change-grid-size', 'change-columns'])
+const emit = defineEmits(['refresh', 'upload-file', 'new-folder', 'search-file', 'show-upload', 'change-mode', 'change-grid-size', 'change-columns', 'user-change'])
+
+// 用户筛选（仅管理员）
+const selectedUserId = ref(null)
+const userList = ref([])
+
+// 用户筛选变化
+const handleUserChange = (userId) => {
+  emit('user-change', userId)
+}
+
+// 加载用户列表（仅管理员）
+onMounted(async () => {
+  if (userStore.isAdmin) {
+    try {
+      const res = await getUserList()
+      userList.value = res || []
+    } catch (error) {
+      console.error('加载用户列表失败', error)
+    }
+  }
+})
 
 // 搜索关键词
 const searchKeyword = ref('')

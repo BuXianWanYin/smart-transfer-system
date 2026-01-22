@@ -22,6 +22,11 @@ public class FileInfoVO {
     private Long id;
     
     /**
+     * 用户ID（用于管理员查看所有用户文件时显示）
+     */
+    private Long userId;
+    
+    /**
      * 文件名
      */
     private String fileName;

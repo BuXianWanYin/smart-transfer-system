@@ -7,12 +7,15 @@ import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.entity.User;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.UserMapper;
+import com.server.smarttransferserver.service.TransferHistoryService;
 import com.server.smarttransferserver.service.UserService;
 import com.server.smarttransferserver.util.JwtUtil;
+import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.LoginVO;
 import com.server.smarttransferserver.vo.UserInfoVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 用户服务实现
@@ -46,6 +50,9 @@ public class UserServiceImpl implements UserService {
     
     @Resource
     private JwtUtil jwtUtil;
+    
+    @Resource
+    private TransferHistoryService transferHistoryService;
     
     /**
      * 头像存储路径
@@ -153,6 +160,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserInfoVO getUserInfo(Long userId) {
+        if (userId == null) {
+            throw new RuntimeException("请先登录");
+        }
+        
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new RuntimeException("用户不存在");
@@ -169,13 +180,21 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void changePassword(Long userId, String oldPassword, String newPassword) {
+        if (userId == null) {
+            throw new RuntimeException("请先登录");
+        }
+        
+        if (oldPassword == null || newPassword == null) {
+            throw new RuntimeException("参数不完整");
+        }
+        
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new RuntimeException("用户不存在");
         }
         
         // 验证新密码长度
-        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 20) {
+        if (newPassword.length() < 6 || newPassword.length() > 20) {
             throw new RuntimeException("新密码长度必须在6-20个字符之间");
         }
         
@@ -199,6 +218,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void updateUserInfo(Long userId, String nickname, String email, String phone) {
+        if (userId == null) {
+            throw new RuntimeException("请先登录");
+        }
+        
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new RuntimeException("用户不存在");
@@ -266,6 +289,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void updateUserStatus(Long userId, Integer status) {
+        if (status == null) {
+            throw new RuntimeException("状态参数不能为空");
+        }
+        
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new RuntimeException("用户不存在");
@@ -305,6 +332,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Map<String, Object> getStorageStats(Long userId) {
+        if (userId == null) {
+            throw new RuntimeException("请先登录");
+        }
+        
         Map<String, Object> stats = new HashMap<>();
         
         // 查询用户所有文件
@@ -531,6 +562,158 @@ public class UserServiceImpl implements UserService {
         } catch (IOException e) {
             throw new RuntimeException("头像上传失败: " + e.getMessage());
         }
+    }
+    
+    /**
+     * 获取用户详情（存储使用、传输统计）
+     */
+    @Override
+    public Map<String, Object> getUserDetail(Long userId) {
+        // 参数验证
+        if (userId == null) {
+            throw new RuntimeException("用户ID不能为空");
+        }
+        
+        // 权限检查：管理员可以查看任何用户，普通用户只能查看自己
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        
+        if (!"ADMIN".equals(currentUserRole) && (currentUserId == null || !userId.equals(currentUserId))) {
+            throw new RuntimeException("无权查看其他用户的详情");
+        }
+        
+        Map<String, Object> detail = new HashMap<>();
+        
+        // 1. 用户基本信息
+        UserInfoVO userInfo = getUserInfo(userId);
+        detail.put("userInfo", userInfo);
+        
+        // 2. 存储统计
+        Map<String, Object> storageStats = getStorageStats(userId);
+        detail.put("storageStats", storageStats);
+        
+        // 3. 传输统计
+        Map<String, Object> transferStats = transferHistoryService.getTransferStats("month", userId);
+        detail.put("transferStats", transferStats);
+        
+        // 4. 算法使用统计
+        Map<String, Object> algorithmStats = transferHistoryService.getAlgorithmStats(userId);
+        detail.put("algorithmStats", algorithmStats);
+        
+        return detail;
+    }
+    
+    /**
+     * 批量更新用户状态
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchUpdateUserStatus(List<Long> userIds, Integer status) {
+        if (userIds == null || userIds.isEmpty()) {
+            throw new RuntimeException("用户ID列表不能为空");
+        }
+        
+        // 去重，避免重复操作
+        List<Long> uniqueUserIds = userIds.stream().distinct().collect(Collectors.toList());
+        
+        // 检查是否有管理员用户
+        for (Long userId : uniqueUserIds) {
+            if (userId == null) {
+                continue; // 跳过null值
+            }
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                throw new RuntimeException("用户不存在，ID: " + userId);
+            }
+            if ("ADMIN".equals(user.getRole())) {
+                throw new RuntimeException("不能批量操作管理员用户: " + user.getUsername());
+            }
+        }
+        
+        // 批量更新
+        for (Long userId : uniqueUserIds) {
+            updateUserStatus(userId, status);
+        }
+    }
+    
+    /**
+     * 批量删除用户
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDeleteUsers(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            throw new RuntimeException("用户ID列表不能为空");
+        }
+        
+        // 去重，避免重复操作
+        List<Long> uniqueUserIds = userIds.stream().distinct().collect(Collectors.toList());
+        
+        // 检查是否有管理员用户
+        for (Long userId : uniqueUserIds) {
+            if (userId == null) {
+                continue; // 跳过null值
+            }
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                throw new RuntimeException("用户不存在，ID: " + userId);
+            }
+            if ("ADMIN".equals(user.getRole())) {
+                throw new RuntimeException("不能删除管理员用户: " + user.getUsername());
+            }
+        }
+        
+        // 批量删除
+        for (Long userId : uniqueUserIds) {
+            deleteUser(userId);
+        }
+    }
+    
+    @Override
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> getAvatar(String avatarPathFromRequest) {
+        // 验证路径格式：avatars/userId/filename
+        if (avatarPathFromRequest == null || avatarPathFromRequest.isEmpty() || !avatarPathFromRequest.startsWith("avatars/")) {
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        
+        // 构建完整文件路径
+        // avatarPathFromRequest格式：avatars/userId/filename
+        // 需要去掉"avatars/"前缀
+        String relativePath = avatarPathFromRequest.substring("avatars/".length());
+        
+        // 获取头像存储的绝对路径（与initAvatarPath逻辑一致）
+        String userDir = System.getProperty("user.dir");
+        String absoluteAvatarPath;
+        if (this.avatarPath.startsWith("./") || this.avatarPath.startsWith(".\\")) {
+            absoluteAvatarPath = Paths.get(userDir, this.avatarPath.substring(2)).toString();
+        } else if (!Paths.get(this.avatarPath).isAbsolute()) {
+            absoluteAvatarPath = Paths.get(userDir, this.avatarPath).toString();
+        } else {
+            absoluteAvatarPath = this.avatarPath;
+        }
+        
+        // 构建完整文件路径：absoluteAvatarPath/userId/filename
+        Path avatarFilePath = Paths.get(absoluteAvatarPath, relativePath);
+        File avatarFile = avatarFilePath.toFile();
+        
+        if (!avatarFile.exists() || !avatarFile.isFile()) {
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        
+        // 根据文件扩展名确定Content-Type
+        String fileName = avatarFile.getName().toLowerCase();
+        org.springframework.http.MediaType mediaType = org.springframework.http.MediaType.IMAGE_JPEG; // 默认
+        if (fileName.endsWith(".png")) {
+            mediaType = org.springframework.http.MediaType.IMAGE_PNG;
+        } else if (fileName.endsWith(".gif")) {
+            mediaType = org.springframework.http.MediaType.IMAGE_GIF;
+        }
+        
+        org.springframework.core.io.Resource resource = new org.springframework.core.io.FileSystemResource(avatarFile);
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=31536000") // 缓存1年
+                .body(resource);
     }
     
     /**

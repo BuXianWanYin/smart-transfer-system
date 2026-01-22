@@ -56,5 +56,17 @@ public interface RecoveryFileService extends IService<RecoveryFile> {
      * 清空回收站
      */
     void clearRecoveryBin();
+    
+    /**
+     * 批量还原文件
+     * @param recoveryIds 回收站记录ID列表
+     */
+    void batchRestoreFiles(List<Long> recoveryIds);
+    
+    /**
+     * 批量彻底删除文件
+     * @param recoveryIds 回收站记录ID列表
+     */
+    void batchDeleteFilesPermanently(List<Long> recoveryIds);
 }
 

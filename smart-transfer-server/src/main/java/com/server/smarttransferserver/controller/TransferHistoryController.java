@@ -1,6 +1,7 @@
 package com.server.smarttransferserver.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.domain.TransferHistory;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -29,10 +31,21 @@ public class TransferHistoryController {
     
     /**
      * 查询传输历史记录列表
+     * @param history 查询条件
+     * @param userId 用户ID（可选，仅管理员可用，用于筛选指定用户的数据）
      */
     @GetMapping("/list")
-    public Result<List<TransferHistory>> list(TransferHistory history) {
+    public Result<List<TransferHistory>> list(TransferHistory history, 
+                                               @RequestParam(required = false) Long userId) {
         try {
+            // 如果传入了userId参数，设置到history对象中
+            if (history == null) {
+                history = new TransferHistory();
+            }
+            if (userId != null) {
+                history.setUserId(userId);
+            }
+            
             List<TransferHistory> list = historyService.selectHistoryList(history);
             return Result.success(list);
         } catch (Exception e) {
@@ -61,8 +74,8 @@ public class TransferHistoryController {
     @PostMapping
     public Result<Void> add(@RequestBody TransferHistory history) {
         try {
-            int result = historyService.insertHistory(history);
-            return result > 0 ? Result.success() : Result.error("新增失败");
+            historyService.insertHistory(history);
+            return Result.success();
         } catch (Exception e) {
             log.error("新增传输历史记录失败", e);
             return Result.error("新增失败: " + e.getMessage());
@@ -75,8 +88,8 @@ public class TransferHistoryController {
     @DeleteMapping("/{ids}")
     public Result<Void> remove(@PathVariable Long[] ids) {
         try {
-            int result = historyService.deleteHistoryByIds(ids);
-            return result > 0 ? Result.success() : Result.error("删除失败");
+            historyService.deleteHistoryByIds(ids);
+            return Result.success();
         } catch (Exception e) {
             log.error("删除传输历史记录失败", e);
             return Result.error("删除失败: " + e.getMessage());
@@ -94,6 +107,40 @@ public class TransferHistoryController {
         } catch (Exception e) {
             log.error("清空传输历史记录失败", e);
             return Result.error("清空失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取传输统计（按日/周/月）
+     * @param period 统计周期：day-日, week-周, month-月
+     * @param userId 用户ID（可选，仅管理员可用）
+     */
+    @GetMapping("/stats")
+    public Result<Map<String, Object>> getTransferStats(
+            @RequestParam(defaultValue = "day") String period,
+            @RequestParam(required = false) Long userId) {
+        try {
+            Map<String, Object> stats = historyService.getTransferStats(period, userId);
+            return Result.success(stats);
+        } catch (Exception e) {
+            log.error("获取传输统计失败", e);
+            return Result.error("获取统计失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取算法使用统计
+     * @param userId 用户ID（可选，仅管理员可用）
+     */
+    @GetMapping("/algorithm-stats")
+    public Result<Map<String, Object>> getAlgorithmStats(
+            @RequestParam(required = false) Long userId) {
+        try {
+            Map<String, Object> stats = historyService.getAlgorithmStats(userId);
+            return Result.success(stats);
+        } catch (Exception e) {
+            log.error("获取算法统计失败", e);
+            return Result.error("获取统计失败: " + e.getMessage());
         }
     }
 }

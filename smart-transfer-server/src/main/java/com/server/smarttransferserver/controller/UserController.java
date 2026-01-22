@@ -8,21 +8,13 @@ import com.server.smarttransferserver.service.UserService;
 import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.LoginVO;
 import com.server.smarttransferserver.vo.UserInfoVO;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
@@ -36,11 +28,6 @@ public class UserController {
     @Autowired
     private UserService userService;
     
-    /**
-     * 头像存储路径（从配置读取，与UserServiceImpl保持一致）
-     */
-    @Value("${transfer.avatar-path:./uploads/avatars}")
-    private String avatarPath;
 
     /**
      * 用户登录
@@ -74,10 +61,6 @@ public class UserController {
     @GetMapping("/info")
     public Result<UserInfoVO> getUserInfo() {
         Long userId = UserContextHolder.getUserId();
-        if (userId == null) {
-            return Result.error("请先登录");
-        }
-        
         try {
             UserInfoVO userInfo = userService.getUserInfo(userId);
             return Result.success(userInfo);
@@ -92,16 +75,8 @@ public class UserController {
     @PutMapping("/password")
     public Result<Void> changePassword(@RequestBody Map<String, String> params) {
         Long userId = UserContextHolder.getUserId();
-        if (userId == null) {
-            return Result.error("请先登录");
-        }
-        
         String oldPassword = params.get("oldPassword");
         String newPassword = params.get("newPassword");
-        
-        if (oldPassword == null || newPassword == null) {
-            return Result.error("参数不完整");
-        }
         
         try {
             userService.changePassword(userId, oldPassword, newPassword);
@@ -117,10 +92,6 @@ public class UserController {
     @PutMapping("/info")
     public Result<Void> updateUserInfo(@RequestBody Map<String, String> params) {
         Long userId = UserContextHolder.getUserId();
-        if (userId == null) {
-            return Result.error("请先登录");
-        }
-        
         try {
             userService.updateUserInfo(
                 userId,
@@ -149,10 +120,6 @@ public class UserController {
     @GetMapping("/storage")
     public Result<Map<String, Object>> getStorageStats() {
         Long userId = UserContextHolder.getUserId();
-        if (userId == null) {
-            return Result.error("请先登录");
-        }
-        
         try {
             Map<String, Object> stats = userService.getStorageStats(userId);
             return Result.success(stats);
@@ -183,9 +150,6 @@ public class UserController {
     public Result<Void> updateUserStatus(@PathVariable Long userId, @RequestBody Map<String, Integer> params) {
         try {
             Integer status = params.get("status");
-            if (status == null) {
-                return Result.error("状态参数不能为空");
-            }
             userService.updateUserStatus(userId, status);
             return Result.success(null);
         } catch (Exception e) {
@@ -227,13 +191,58 @@ public class UserController {
     @PostMapping("/avatar")
     public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
         Long userId = UserContextHolder.getUserId();
-        if (userId == null) {
-            return Result.error("请先登录");
-        }
-        
         try {
             String avatarPath = userService.uploadAvatar(userId, file);
             return Result.success(avatarPath);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取用户详情（存储使用、传输统计）（管理员）
+     */
+    @RequireAdmin
+    @GetMapping("/detail/{userId}")
+    public Result<Map<String, Object>> getUserDetail(@PathVariable Long userId) {
+        try {
+            Map<String, Object> detail = userService.getUserDetail(userId);
+            return Result.success(detail);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 批量更新用户状态（管理员）
+     */
+    @RequireAdmin
+    @PutMapping("/batch-status")
+    public Result<Void> batchUpdateUserStatus(@RequestBody Map<String, Object> params) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<Long> userIds = (List<Long>) params.get("userIds");
+            Integer status = (Integer) params.get("status");
+            
+            userService.batchUpdateUserStatus(userIds, status);
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 批量删除用户（管理员）
+     */
+    @RequireAdmin
+    @DeleteMapping("/batch")
+    public Result<Void> batchDeleteUsers(@RequestBody Map<String, Object> params) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<Long> userIds = (List<Long>) params.get("userIds");
+            
+            userService.batchDeleteUsers(userIds);
+            return Result.success(null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }
@@ -256,51 +265,9 @@ public class UserController {
             }
             
             String avatarPathFromRequest = requestURI.substring(avatarIndex + "/avatar/".length());
-            
-            // 验证路径格式：avatars/userId/filename
-            if (avatarPathFromRequest == null || avatarPathFromRequest.isEmpty() || !avatarPathFromRequest.startsWith("avatars/")) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            // 构建完整文件路径
-            // avatarPathFromRequest格式：avatars/userId/filename
-            // 需要去掉"avatars/"前缀
-            String relativePath = avatarPathFromRequest.substring("avatars/".length());
-            
-            // 获取头像存储的绝对路径（与UserServiceImpl中的initAvatarPath逻辑一致）
-            String userDir = System.getProperty("user.dir");
-            String absoluteAvatarPath;
-            if (this.avatarPath.startsWith("./") || this.avatarPath.startsWith(".\\")) {
-                absoluteAvatarPath = Paths.get(userDir, this.avatarPath.substring(2)).toString();
-            } else if (!Paths.get(this.avatarPath).isAbsolute()) {
-                absoluteAvatarPath = Paths.get(userDir, this.avatarPath).toString();
-            } else {
-                absoluteAvatarPath = this.avatarPath;
-            }
-            
-            // 构建完整文件路径：absoluteAvatarPath/userId/filename
-            Path avatarFilePath = Paths.get(absoluteAvatarPath, relativePath);
-            File avatarFile = avatarFilePath.toFile();
-            
-            if (!avatarFile.exists() || !avatarFile.isFile()) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            // 根据文件扩展名确定Content-Type
-            String fileName = avatarFile.getName().toLowerCase();
-            MediaType mediaType = MediaType.IMAGE_JPEG; // 默认
-            if (fileName.endsWith(".png")) {
-                mediaType = MediaType.IMAGE_PNG;
-            } else if (fileName.endsWith(".gif")) {
-                mediaType = MediaType.IMAGE_GIF;
-            }
-            
-            Resource resource = new FileSystemResource(avatarFile);
-            return ResponseEntity.ok()
-                    .contentType(mediaType)
-                    .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000") // 缓存1年
-                    .body(resource);
+            return userService.getAvatar(avatarPathFromRequest);
         } catch (Exception e) {
+            log.error("获取头像失败", e);
             return ResponseEntity.internalServerError().build();
         }
     }
