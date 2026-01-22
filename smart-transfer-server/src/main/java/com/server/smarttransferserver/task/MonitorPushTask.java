@@ -92,16 +92,47 @@ public class MonitorPushTask {
                     continue;
                 }
 
-                // 提取任务ID列表
-                List<String> taskIds = activeTasks.stream()
-                        .map(TransferTask::getTaskId)
-                        .collect(Collectors.toList());
-
-                // 聚合所有任务的监控数据
-                CongestionMetricsVO aggregatedMetrics = metricsService.aggregateMetricsByTaskIds(taskIds);
-
+                // **改进：按任务分别推送指标（而不是聚合）**
+                // 为每个任务获取最新的指标
+                Map<String, CongestionMetricsVO> taskMetricsMap = new java.util.HashMap<>();
+                for (TransferTask task : activeTasks) {
+                    List<CongestionMetricsVO> latestMetrics = metricsService.getLatestMetrics(task.getTaskId(), 1);
+                    if (!latestMetrics.isEmpty()) {
+                        CongestionMetricsVO metrics = latestMetrics.get(0);
+                        // 设置taskId
+                        metrics.setTaskId(task.getTaskId());
+                        taskMetricsMap.put(task.getTaskId(), metrics);
+                    }
+                }
+                
+                // 如果没有任何任务的指标，使用空指标
+                if (taskMetricsMap.isEmpty()) {
+                    CongestionMetricsVO emptyMetrics = CongestionMetricsVO.builder()
+                            .algorithm("NONE")
+                            .cwnd(0L)
+                            .ssthresh(0L)
+                            .rate(0L)
+                            .rtt(0L)
+                            .lossRate(0.0)
+                            .bandwidth(0L)
+                            .networkQuality("-")
+                            .build();
+                    // 如果有任务但没有指标，为第一个任务创建一个空指标
+                    if (!activeTasks.isEmpty()) {
+                        emptyMetrics.setTaskId(activeTasks.get(0).getTaskId());
+                        taskMetricsMap.put(activeTasks.get(0).getTaskId(), emptyMetrics);
+                    }
+                }
+                
+                // **改进：构造包含所有任务指标的响应对象**
+                // 使用Map结构，前端可以根据taskId获取对应任务的指标
+                java.util.Map<String, Object> responseData = new java.util.HashMap<>();
+                responseData.put("type", "metrics");
+                responseData.put("tasks", taskMetricsMap);
+                responseData.put("timestamp", System.currentTimeMillis());
+                
                 // 序列化为JSON
-                String json = objectMapper.writeValueAsString(aggregatedMetrics);
+                String json = objectMapper.writeValueAsString(responseData);
                 TextMessage message = new TextMessage(json);
 
                 // 推送消息到该用户的所有会话

@@ -247,6 +247,8 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     private CongestionMetricsVO convertToVO(CongestionMetrics metrics) {
         CongestionMetricsVO vo = new CongestionMetricsVO();
         BeanUtils.copyProperties(metrics, vo);
+        // 设置taskId
+        vo.setTaskId(metrics.getTaskId());
         return vo;
     }
     

@@ -291,7 +291,7 @@ import { formatFileSize, formatSpeed } from '@/utils/format'
 import { formatDateTime } from '@/utils/format'
 import { getHistoryList, deleteHistory, clearAllHistory } from '@/api/historyApi'
 import { getFileIconByType } from '@/utils/fileType'
-import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload } from '@/api/fileApi'
+import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload } from '@/api/fileApi'
 import SparkMD5 from 'spark-md5'
 
 const congestionStore = useCongestionStore()
@@ -534,13 +534,15 @@ const startUploadTask = async (task) => {
     }
     
     // 3. 获取已上传的分片（用于断点续传）
-    // 后端返回的 uploaded 数组包含已上传的分片索引（从0开始）
+    // **修复ISSUE-2: 合并前端和服务器端的已上传分片记录（确保不丢失进度）**
     const serverUploadedChunks = initRes.uploaded || []
-    const uploadedSet = new Set(serverUploadedChunks)
+    const frontendUploadedChunks = currentTask.uploadedChunks || []
+    // 合并两个集合，确保不丢失任何已上传的分片
+    const uploadedSet = new Set([...serverUploadedChunks, ...frontendUploadedChunks])
     
-    // 计算已上传的大小
+    // **修复ISSUE-2-补充: 计算已上传的大小（使用合并后的uploadedSet）**
     let uploadedSize = 0
-    serverUploadedChunks.forEach(chunkIndex => {
+    uploadedSet.forEach(chunkIndex => {
       const start = chunkIndex * CHUNK_SIZE  // 修复：chunkIndex从0开始
       const end = Math.min(start + CHUNK_SIZE, task.fileSize)
       uploadedSize += (end - start)
@@ -551,7 +553,7 @@ const startUploadTask = async (task) => {
       status: 'uploading',
       fileId: initRes.fileId,
       totalChunks,
-      uploadedChunks: [...serverUploadedChunks],
+      uploadedChunks: [...uploadedSet],  // **修复ISSUE-2-补充: 保存合并后的分片列表**
       uploadedSize,
       progress: Math.round((uploadedSize / task.fileSize) * 100)
     })
@@ -567,100 +569,179 @@ const startUploadTask = async (task) => {
     }
     
     // 5. 并发上传分片（根据拥塞窗口动态调整并发数）
-    let chunkIndex = 0
+    // **改进：使用动态队列，每个分片完成后立即更新并发数并开始新的上传**
+    const uploadQueue = [...pendingChunks] // 待上传队列
+    const activeUploads = new Map() // 正在上传的分片 (index -> Promise)
+    let completedCount = uploadedSet.size
     
-    while (chunkIndex < pendingChunks.length) {
-      // 检查任务状态（暂停或取消检测）
+    // **修复CRITICAL-4: 创建AbortController用于取消上传请求（与下载任务保持一致）**
+    const abortController = new AbortController()
+    
+    // **修复CRITICAL-4: 将清理资源存储到任务对象，以便取消/暂停时调用**
+    if (!task._uploadCleanup) {
+      task._uploadCleanup = {
+        abortController,
+        activeUploads,
+        uploadQueue
+      }
+    } else {
+      // 如果已存在，更新引用
+      task._uploadCleanup.abortController = abortController
+      task._uploadCleanup.activeUploads = activeUploads
+      task._uploadCleanup.uploadQueue = uploadQueue
+    }
+    
+    // 动态控制并发上传
+    async function startNextChunk() {
+      // 检查任务状态
       currentTask = transferStore.uploadQueue.find(t => t.id === task.id)
       if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
         console.log(`任务 ${task.fileName} 已暂停或出错，停止上传`)
         return
       }
       
-      // 根据拥塞窗口计算最大并发数（cwnd / 分片大小，最少1个，最多6个）
+      // 如果队列为空且没有正在上传的，上传完成
+      if (uploadQueue.length === 0 && activeUploads.size === 0) {
+        return
+      }
+      
+      // 如果队列为空，等待正在上传的完成
+      if (uploadQueue.length === 0) {
+        return
+      }
+      
+      // **改进：根据当前cwnd动态计算并发数（每个分片完成后立即重新计算）**
       const maxConcurrent = Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))
-      console.log(`拥塞控制 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 并发数: ${maxConcurrent}`)
       
-      // 取当前批次要上传的分片
-      const batchSize = Math.min(maxConcurrent, pendingChunks.length - chunkIndex)
-      const batch = pendingChunks.slice(chunkIndex, chunkIndex + batchSize)
-      
-      // 并发上传当前批次
-      const uploadPromises = batch.map(async (i) => {
-        const start = i * CHUNK_SIZE
-        const end = Math.min(start + CHUNK_SIZE, task.file.size)
-        const chunk = task.file.slice(start, end)
+      // 如果当前活跃数未达到最大并发数，启动新的上传
+      while (activeUploads.size < maxConcurrent && uploadQueue.length > 0) {
+        const i = uploadQueue.shift()
         
-        const formData = new FormData()
-        formData.append('file', chunk)
-        formData.append('fileId', initRes.fileId)
-        formData.append('chunkNumber', i)  // 修复：分片编号从0开始，与后端一致
-        formData.append('totalChunks', totalChunks)
-        formData.append('chunkHash', fileHash)
-        
-        const result = await uploadChunk(formData, () => {})
-        
-        // 后端返回了新的拥塞窗口大小，动态调整
-        if (result && result.cwnd) {
-          // 确保cwnd值合理（至少1MB），避免异常小的值导致并发数过低
-          const receivedCwnd = Number(result.cwnd)
-          if (receivedCwnd > 0 && receivedCwnd < 1024 * 1024) {
-            console.warn(`收到异常的cwnd值: ${receivedCwnd}字节，使用最小值1MB`)
-            currentCwnd = Math.max(currentCwnd, 1024 * 1024) // 至少保持1MB
-          } else {
-            currentCwnd = receivedCwnd
+        // 创建上传Promise
+        const uploadPromise = (async () => {
+          try {
+            const start = i * CHUNK_SIZE
+            const end = Math.min(start + CHUNK_SIZE, task.file.size)
+            const chunk = task.file.slice(start, end)
+            
+            const formData = new FormData()
+            formData.append('file', chunk)
+            formData.append('fileId', initRes.fileId)
+            formData.append('chunkNumber', i)
+            formData.append('totalChunks', totalChunks)
+            formData.append('chunkHash', fileHash)
+            
+            // **修复CRITICAL-4: 传递AbortSignal以支持取消上传**
+            const result = await uploadChunk(formData, () => {}, 3, abortController.signal)
+            
+            // **改进：每个分片完成后立即更新cwnd和并发数**
+            if (result && result.cwnd) {
+              const receivedCwnd = Number(result.cwnd)
+              if (receivedCwnd > 0 && receivedCwnd < 1024 * 1024) {
+                console.warn(`收到异常的cwnd值: ${receivedCwnd}字节，使用最小值1MB`)
+                currentCwnd = Math.max(currentCwnd, 1024 * 1024)
+              } else {
+                currentCwnd = receivedCwnd
+              }
+              console.log(`分片${i}上传完成 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 新并发数: ${Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))}`)
+            }
+            
+            // 更新metrics数据
+            if (result && result.rtt !== undefined) {
+              const metrics = {
+                algorithm: currentMetrics.value.algorithm || 'CUBIC',
+                cwnd: result.cwnd || currentMetrics.value.cwnd || 0,
+                rtt: result.rtt || 0,
+                lossRate: currentMetrics.value.lossRate || 0
+              }
+              currentMetrics.value = { ...currentMetrics.value, ...metrics }
+              congestionStore.updateMetrics(metrics)
+            }
+            
+            // 更新进度
+            completedCount++
+            uploadedSize += chunk.size
+            uploadedSet.add(i)
+            
+            const elapsed = (Date.now() - startTime) / 1000
+            const speed = elapsed > 0 ? Math.round(uploadedSize / elapsed) : 0
+            const progress = Math.round((uploadedSize / task.fileSize) * 100)
+            
+            transferStore.updateUploadTask(task.id, {
+              progress,
+              speed,
+              uploadedSize,
+              uploadedChunks: [...uploadedSet]
+            })
+            
+            return { index: i, size: chunk.size, result }
+          } catch (error) {
+            console.error(`分片${i}上传失败:`, error)
+            // 重新加入队列重试
+            uploadQueue.unshift(i)
+            throw error
+          } finally {
+            // 从活跃队列移除
+            activeUploads.delete(i)
+            // **关键：分片完成后立即尝试启动新的上传（使用新的cwnd计算并发数）**
+            startNextChunk()
           }
-          console.log(`分片${i}上传完成 - 收到cwnd: ${receivedCwnd}字节, 当前cwnd: ${currentCwnd}字节`)
-        }
+        })()
         
-        // 从上传响应中更新metrics数据
-        if (result && result.rtt !== undefined) {
-          const metrics = {
-            algorithm: currentMetrics.value.algorithm || 'CUBIC',
-            cwnd: result.cwnd || currentMetrics.value.cwnd || 0,
-            rtt: result.rtt || 0,
-            lossRate: currentMetrics.value.lossRate || 0
-          }
-          currentMetrics.value = { ...currentMetrics.value, ...metrics }
-          congestionStore.updateMetrics(metrics)
-        }
-        
-        return { index: i, size: chunk.size, result }
-      })
+        activeUploads.set(i, uploadPromise)
+      }
+    }
+    
+    // 启动初始并发上传
+    await startNextChunk()
+    
+    // 等待所有上传完成
+    while (activeUploads.size > 0 || uploadQueue.length > 0) {
+      // 等待至少一个上传完成
+      if (activeUploads.size > 0) {
+        await Promise.race(Array.from(activeUploads.values()))
+      } else {
+        // 如果没有正在上传的，但有队列中的，继续启动
+        await startNextChunk()
+      }
       
-      // 等待当前批次完成
-      const results = await Promise.all(uploadPromises)
-      
-      // 更新进度
-      results.forEach(({ index, size }) => {
-        uploadedSize += size
-        uploadedSet.add(index)  // 修复：分片编号从0开始
-      })
-      
-      const elapsed = (Date.now() - startTime) / 1000
-      const speed = elapsed > 0 ? Math.round(uploadedSize / elapsed) : 0
-      const progress = Math.round((uploadedSize / task.fileSize) * 100)
-      
-      transferStore.updateUploadTask(task.id, {
-        progress,
-        speed,
-        uploadedSize,
-        uploadedChunks: [...uploadedSet]
-      })
-      
-      chunkIndex += batchSize
+      // 检查任务状态
+      currentTask = transferStore.uploadQueue.find(t => t.id === task.id)
+      if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
+        console.log(`任务 ${task.fileName} 已暂停或出错，停止上传`)
+        // **修复CRITICAL-4: 任务暂停/取消时取消所有正在进行的请求**
+        abortController.abort()
+        break
+      }
+    }
+    
+    // **修复CRITICAL-5: 验证所有分片是否已上传完成（使用uploadedSet而不是completedCount）**
+    if (uploadedSet.size < totalChunks) {
+      console.warn(`分片未全部上传 - 已完成: ${uploadedSet.size}/${totalChunks}`)
+      throw new Error(`分片未全部上传，已完成 ${uploadedSet.size}/${totalChunks}，请重试`)
     }
     
     // 5. 合并文件
-    await mergeFile({
+    // **修复CRITICAL-3: 检查合并是否成功，失败则抛出错误**
+    const mergeRes = await mergeFile({
       fileId: initRes.fileId,
       fileName: task.fileName,
       fileHash: fileHash,
       totalChunks
     })
     
+    if (!mergeRes.success) {
+      throw new Error(mergeRes.message || '文件合并失败')
+    }
+    
     // 6. 完成
     await transferStore.completeUploadTask(task.id, fileHash)
+    
+    // **修复CRITICAL-4: 上传完成时清理任务对象上的清理函数引用**
+    if (task._uploadCleanup) {
+      delete task._uploadCleanup
+    }
+    
     ElMessage.success(`${task.fileName} 上传完成`)
     emit('refresh')
     // 刷新已完成列表
@@ -668,6 +749,11 @@ const startUploadTask = async (task) => {
     
   } catch (error) {
     console.error('上传失败:', error)
+    
+    // **修复CRITICAL-4: 上传失败时清理任务对象上的清理函数引用**
+    if (task._uploadCleanup) {
+      delete task._uploadCleanup
+    }
     
     // 不清理后端数据，保留用于重试（断点续传）
     // 只有在用户明确取消时才清理
@@ -751,14 +837,43 @@ const loadCompletedList = async () => {
 }
 
 // WebSocket消息处理
+// **改进：支持按任务分别推送指标**
 const handleWsEvent = (event) => {
   if (event.type === 'connected') {
     wsConnected.value = true
   } else if (event.type === 'disconnected') {
     wsConnected.value = false
   } else if (event.type === 'message' && event.data) {
-    currentMetrics.value = event.data
-    congestionStore.updateMetrics(event.data)
+    const data = event.data
+    
+    // **改进：支持新的按任务推送格式**
+    if (data.type === 'metrics' && data.tasks) {
+      // 新格式：按任务分别推送
+      // data.tasks 是一个Map，key是taskId，value是CongestionMetricsVO
+      const taskMetricsMap = data.tasks
+      
+      // 如果有活跃的上传任务，使用第一个任务的指标（或可以按任务ID匹配）
+      const activeUploadTask = transferStore.uploadQueue.find(t => 
+        t.status === 'uploading' && taskMetricsMap[t.taskId]
+      )
+      
+      if (activeUploadTask && taskMetricsMap[activeUploadTask.taskId]) {
+        // 使用当前活跃任务的指标
+        const taskMetrics = taskMetricsMap[activeUploadTask.taskId]
+        currentMetrics.value = taskMetrics
+        congestionStore.updateMetrics(taskMetrics)
+      } else if (Object.keys(taskMetricsMap).length > 0) {
+        // 如果没有活跃任务，使用第一个任务的指标
+        const firstTaskId = Object.keys(taskMetricsMap)[0]
+        const taskMetrics = taskMetricsMap[firstTaskId]
+        currentMetrics.value = taskMetrics
+        congestionStore.updateMetrics(taskMetrics)
+      }
+    } else {
+      // 兼容旧格式：单个指标对象
+      currentMetrics.value = data
+      congestionStore.updateMetrics(data)
+    }
   }
 }
 
@@ -889,8 +1004,34 @@ const handleDeleteAll = async () => {
 
 const handlePause = (item) => {
   if (activeMenu.value === 'upload') {
+    // **修复CRITICAL-4: 上传暂停时取消所有正在进行的请求并清理前端资源**
+    if (item._uploadCleanup) {
+      // 取消所有正在进行的上传请求
+      if (item._uploadCleanup.abortController) {
+        item._uploadCleanup.abortController.abort()
+        console.log('已取消所有正在进行的上传请求')
+      }
+      // 清理前端资源（但不删除uploadedSet，以便恢复时继续）
+      if (item._uploadCleanup.activeUploads) {
+        item._uploadCleanup.activeUploads.clear()
+      }
+      // 注意：不清理uploadedSet，以便恢复时继续
+    }
     transferStore.updateUploadTask(item.id, { status: 'paused', speed: 0 })
   } else {
+    // **修复P3: 下载暂停时取消所有正在进行的请求并清理前端资源**
+    if (item._downloadCleanup) {
+      // 取消所有正在进行的下载请求
+      if (item._downloadCleanup.abortController) {
+        item._downloadCleanup.abortController.abort()
+        console.log('已取消所有正在进行的下载请求')
+      }
+      // 清理前端资源（但不删除chunkDataMap，以便恢复时继续）
+      if (item._downloadCleanup.activeDownloads) {
+        item._downloadCleanup.activeDownloads.clear()
+      }
+      // 注意：不清理chunkDataMap，以便恢复时继续
+    }
     transferStore.updateDownloadTask(item.id, { status: 'paused', speed: 0 })
   }
   ElMessage.info(`已暂停: ${item.fileName}`)
@@ -926,6 +1067,21 @@ const handleCancel = async (item) => {
   try {
     await ElMessageBox.confirm(`确定取消 "${item.fileName}" 的传输吗？取消后无法恢复。`, '提示', { type: 'warning' })
     if (activeMenu.value === 'upload') {
+      // **修复CRITICAL-4: 上传取消时取消所有正在进行的请求并清理前端资源**
+      if (item._uploadCleanup) {
+        // 取消所有正在进行的上传请求
+        if (item._uploadCleanup.abortController) {
+          item._uploadCleanup.abortController.abort()
+          console.log('已取消所有正在进行的上传请求')
+        }
+        // 清理前端资源
+        if (item._uploadCleanup.activeUploads) {
+          item._uploadCleanup.activeUploads.clear()
+        }
+        // 删除清理函数引用
+        delete item._uploadCleanup
+      }
+      
       // 如果有fileId，清理后端数据
       if (item.fileId) {
         try {
@@ -937,21 +1093,48 @@ const handleCancel = async (item) => {
       }
       transferStore.removeUploadTask(item.id)
     } else {
+      // **修复M1: 下载取消时也清理后端资源（Redis、算法实例）**
+      // **修复P2: 下载取消时取消所有正在进行的请求并清理前端资源**
+      if (item._downloadCleanup) {
+        // 取消所有正在进行的下载请求
+        if (item._downloadCleanup.abortController) {
+          item._downloadCleanup.abortController.abort()
+          console.log('已取消所有正在进行的下载请求')
+        }
+        // 清理前端资源
+        if (item._downloadCleanup.activeDownloads) {
+          item._downloadCleanup.activeDownloads.clear()
+        }
+        if (item._downloadCleanup.chunkDataMap) {
+          item._downloadCleanup.chunkDataMap.clear()
+        }
+        // 删除清理函数引用
+        delete item._downloadCleanup
+      }
+      
+      if (item.taskId) {
+        try {
+          await cancelDownload(item.taskId)
+          console.log('已清理后端下载数据')
+        } catch (cleanupError) {
+          console.error('清理下载数据失败:', cleanupError)
+          // 即使清理失败也继续取消任务
+        }
+      }
       transferStore.removeDownloadTask(item.id)
     }
     ElMessage.success('已取消')
   } catch {}
 }
 
-// 开始下载任务（支持断点续传）
+// 开始下载任务（支持断点续传 + 拥塞控制分块下载）
 const startDownloadTask = async (task) => {
   // 获取当前任务状态
   let currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
   if (!currentTask) return
   
-  // 获取已下载的字节数（用于断点续传）
-  const downloadedSize = currentTask.downloadedSize || 0
-  const existingChunks = currentTask.downloadedChunks || []
+  const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB分块
+  let currentCwnd = 10 * 1024 * 1024 // 初始拥塞窗口10MB
   
   transferStore.updateDownloadTask(task.id, { 
     status: 'downloading', 
@@ -959,110 +1142,397 @@ const startDownloadTask = async (task) => {
   })
   
   try {
-    // 获取token用于认证
-    const token = localStorage.getItem('token')
-    
-    // 构建请求头（支持Range请求进行断点续传）
-    const headers = {}
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-    // 如果有已下载的数据，使用Range请求从断点继续
-    if (downloadedSize > 0) {
-      headers['Range'] = `bytes=${downloadedSize}-`
+    // 1. 初始化下载（获取分块信息）
+    const initRes = await initDownload(task.fileId, CHUNK_SIZE)
+    if (!initRes.success) {
+      throw new Error(initRes.message || '初始化下载失败')
     }
     
-    // 使用 fetch 获取文件并跟踪进度
-    const response = await fetch(getDownloadUrl(task.fileId), { headers })
+    const { totalChunks, chunkSize, taskId, downloaded } = initRes.data
+    const downloadedSet = new Set(downloaded || [])
     
-    if (!response.ok && response.status !== 206) {
-      if (response.status === 404) {
-        throw new Error('文件不存在或已被删除')
-      } else if (response.status === 401) {
-        throw new Error('未授权，请重新登录')
-      } else if (response.status === 416) {
-        // Range不满足，可能文件已下载完成或文件变化
-        throw new Error('文件已变化，请重新下载')
-      } else {
-        throw new Error(`下载失败 (${response.status})`)
+    // 2. 计算待下载的分块
+    const pendingChunks = []
+    for (let i = 0; i < totalChunks; i++) {
+      if (!downloadedSet.has(i)) {
+        pendingChunks.push(i)
       }
     }
     
-    // 获取文件总大小
-    const contentLength = response.headers.get('content-length')
-    const contentRange = response.headers.get('content-range')
-    let total = task.fileSize
-    
-    if (contentRange) {
-      // 断点续传响应: bytes 0-999/1000
-      const match = contentRange.match(/\/(\d+)$/)
-      if (match) {
-        total = parseInt(match[1], 10)
+    if (pendingChunks.length === 0) {
+      // **修复C3: 空文件或所有分块已下载，直接完成（也调用completeDownload清理资源）**
+      transferStore.updateDownloadTask(task.id, { 
+        status: 'completed', 
+        progress: 100,
+        speed: 0
+      })
+      
+      // **修复C3: 空文件完成时也调用completeDownload清理后端资源**
+      try {
+        if (taskId) {
+          await completeDownload(taskId)
+          console.log('空文件下载完成，已清理后端资源')
+        }
+      } catch (error) {
+        console.error('标记空文件下载完成失败:', error)
       }
-    } else if (contentLength) {
-      total = parseInt(contentLength, 10) + downloadedSize
+      
+      ElMessage.success(`${task.fileName} 下载完成`)
+      loadCompletedList()
+      return
     }
     
-    // 更新文件大小
-    if (total && total !== task.fileSize) {
-      transferStore.updateDownloadTask(task.id, { fileSize: total })
+    // 3. **修复ISSUE-1: 复用已有的chunkDataMap（如果任务从暂停恢复，保留已下载的分块）**
+    const existingChunkDataMap = task._downloadCleanup?.chunkDataMap || new Map()
+    const chunkDataMap = existingChunkDataMap // 复用已有的Map，不创建新的
+    
+    // **修复ISSUE-5: 合并chunkDataMap和downloadedSet计算已下载大小**
+    let downloadedSize = 0
+    
+    // 从chunkDataMap计算已下载大小（已下载到内存的分块）
+    chunkDataMap.forEach((chunkData, chunkNumber) => {
+      downloadedSize += chunkData.length
+      // 同步到downloadedSet（确保进度一致性）
+      downloadedSet.add(chunkNumber)
+    })
+    
+    // 从downloadedSet补充（服务器端已确认但chunkDataMap中没有的）
+    downloadedSet.forEach(chunkNumber => {
+      if (!chunkDataMap.has(chunkNumber)) {
+        const start = chunkNumber * chunkSize
+        const end = Math.min(start + chunkSize - 1, task.fileSize - 1)
+        downloadedSize += (end - start + 1)
+      }
+    })
+    
+    // 重新计算待下载的分块（排除已下载的）
+    const pendingChunksAfterRecovery = []
+    for (let i = 0; i < totalChunks; i++) {
+      if (!downloadedSet.has(i)) {
+        pendingChunksAfterRecovery.push(i)
+      }
     }
     
-    const reader = response.body.getReader()
-    let receivedLength = downloadedSize // 从已下载的位置继续计算
-    const chunks = [...existingChunks] // 保留已下载的数据
     const startTime = currentTask.startTime || Date.now()
     
-    while (true) {
-      // 检查任务状态（暂停检测）
+    // 4. **改进：使用动态队列，每个分块完成后立即更新并发数**
+    const downloadQueue = [...pendingChunksAfterRecovery]  // 使用重新计算后的队列
+    const activeDownloads = new Map() // 正在下载的分块 (chunkNumber -> Promise)
+    
+    // **修复CRITICAL-1: 创建AbortController用于取消下载请求（必须在使用前创建）**
+    const abortController = new AbortController()
+    
+    // **修复M3: 为每个分块添加重试次数计数器（防止无限重试）**
+    const chunkRetryCount = new Map() // chunkNumber -> retryCount
+    const MAX_CHUNK_RETRIES = 3 // 每个分块最大重试次数
+    
+    // **修复ISSUE-1: 将AbortController存储到任务对象，复用chunkDataMap**
+    if (!task._downloadCleanup) {
+      task._downloadCleanup = {
+        abortController,
+        activeDownloads,
+        chunkDataMap,  // 使用复用的Map
+        downloadQueue
+      }
+    } else {
+      // 如果已存在，更新引用（但保留chunkDataMap）
+      task._downloadCleanup.abortController = abortController
+      task._downloadCleanup.activeDownloads = activeDownloads
+      // ❌ 不要覆盖 chunkDataMap，保留已下载的数据
+      // task._downloadCleanup.chunkDataMap = chunkDataMap  // 删除这行
+      task._downloadCleanup.downloadQueue = downloadQueue
+    }
+    
+    // 动态控制并发下载
+    async function startNextChunk() {
+      // 检查任务状态
       currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
-      if (!currentTask || currentTask.status === 'paused') {
-        console.log(`下载任务 ${task.fileName} 已暂停`)
+      if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
+        console.log(`下载任务 ${task.fileName} 已暂停或出错`)
         return
       }
       
-      const { done, value } = await reader.read()
+      if (downloadQueue.length === 0 && activeDownloads.size === 0) {
+        return
+      }
       
-      if (done) break
+      if (downloadQueue.length === 0) {
+        return
+      }
       
-      chunks.push(value)
-      receivedLength += value.length
+      // **改进：根据当前cwnd动态计算并发数**
+      const maxConcurrent = Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))
       
-      // 计算进度和速度
-      const progress = total > 0 ? Math.round((receivedLength / total) * 100) : 0
-      const elapsed = (Date.now() - startTime) / 1000
-      const speed = elapsed > 0 ? Math.round(receivedLength / elapsed) : 0
-      
-      transferStore.updateDownloadTask(task.id, {
-        progress,
-        speed,
-        downloadedSize: receivedLength,
-        downloadedChunks: chunks // 保存已下载的数据块用于断点续传
-      })
+      // 如果当前活跃数未达到最大并发数，启动新的下载
+      while (activeDownloads.size < maxConcurrent && downloadQueue.length > 0) {
+        const chunkNumber = downloadQueue.shift()
+        
+        // **修复P2-3：防止重复下载同一分块**
+        if (activeDownloads.has(chunkNumber)) {
+          console.warn(`分块${chunkNumber}正在下载中，跳过`)
+          continue  // 继续处理下一个分块，而不是直接return
+        }
+        
+        // 创建下载Promise
+        const downloadPromise = (async () => {
+          try {
+            const startByte = chunkNumber * chunkSize
+            const endByte = Math.min(startByte + chunkSize - 1, task.fileSize - 1)
+            
+            // **优化：使用二进制流传输，从响应头获取元数据**
+            // **修复P2/P3: 支持请求取消（通过AbortController）**
+            const response = await downloadChunk(task.fileId, chunkNumber, startByte, endByte, abortController.signal)
+            
+            // **修复P3: 在下载完成后检查任务状态，如果被暂停/取消则中断处理**
+            currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
+            if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
+              throw new Error('任务已暂停或取消')
+            }
+            
+            // 从响应头获取元数据（axios会将响应头转换为小写）
+            const headers = response.headers
+            const getHeader = (name) => {
+              // axios会将响应头转换为小写，但尝试多种可能
+              const lowerName = name.toLowerCase()
+              return headers[lowerName] || headers[name] || headers[name.toUpperCase()] || ''
+            }
+            
+            const success = getHeader('x-success') === 'true'
+            
+            if (success) {
+              // **改进：每个分块完成后立即更新cwnd和并发数**
+              // **修复P5: 增强响应头解析错误处理，防止NaN**
+              const receivedCwndStr = getHeader('x-cwnd') || '0'
+              const receivedCwnd = parseInt(receivedCwndStr) || 0
+              if (isNaN(receivedCwnd)) {
+                console.warn(`收到无效的cwnd值: "${receivedCwndStr}", 保持当前cwnd`)
+              } else if (receivedCwnd > 0 && receivedCwnd < 1024 * 1024) {
+                console.warn(`收到异常的cwnd值: ${receivedCwnd}字节，使用最小值1MB`)
+                currentCwnd = Math.max(currentCwnd, 1024 * 1024)
+              } else if (receivedCwnd > 0) {
+                currentCwnd = receivedCwnd
+              }
+              console.log(`分块${chunkNumber}下载完成 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 新并发数: ${Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))}`)
+              
+              // **优化：直接使用二进制数据（无需Base64解码）**
+              const chunkData = new Uint8Array(response.data)  // 直接使用二进制数据
+              chunkDataMap.set(chunkNumber, chunkData)  // 存储Uint8Array
+              downloadedSet.add(chunkNumber)
+              downloadedSize += (endByte - startByte + 1)
+              
+              // 从响应头获取进度
+              // **修复P5: 增强响应头解析错误处理，防止NaN**
+              const progressStr = getHeader('x-progress') || '0'
+              const progress = parseFloat(progressStr) || 0
+              if (isNaN(progress)) {
+                console.warn(`收到无效的进度值: "${progressStr}", 使用0`)
+              }
+              const elapsed = (Date.now() - startTime) / 1000
+              const speed = elapsed > 0 ? Math.round(downloadedSize / elapsed) : 0
+              
+              transferStore.updateDownloadTask(task.id, {
+                progress: Math.round(progress),
+                speed,
+                downloadedSize,
+                downloadedChunks: [...downloadedSet]
+              })
+              
+              return { chunkNumber, success: true }
+            } else {
+              // 下载失败，重新加入队列重试
+              const errorMessage = getHeader('x-error-message') || '下载分块失败'
+              downloadQueue.unshift(chunkNumber)
+              throw new Error(errorMessage)
+            }
+          } catch (error) {
+            console.error(`分块${chunkNumber}下载失败:`, error)
+            
+            // **修复P2/P3: 如果是取消错误，不重试，直接退出**
+            if (error.name === 'AbortError' || error.message?.includes('取消') || error.message?.includes('Abort')) {
+              console.log(`分块${chunkNumber}下载已取消`)
+              throw error
+            }
+            
+            // **修复P3: 如果任务已暂停/取消，不重试**
+            currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
+            if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
+              console.log(`分块${chunkNumber}下载已暂停或取消，不重试`)
+              throw error
+            }
+            
+            // **修复M3: 检查重试次数，超过最大重试次数则标记失败**
+            const retryCount = chunkRetryCount.get(chunkNumber) || 0
+            if (retryCount >= MAX_CHUNK_RETRIES) {
+              console.error(`分块${chunkNumber}重试次数已达上限(${MAX_CHUNK_RETRIES})，标记下载失败`)
+              transferStore.updateDownloadTask(task.id, {
+                status: 'error',
+                error: `分块${chunkNumber}下载失败，已重试${MAX_CHUNK_RETRIES}次`
+              })
+              throw new Error(`分块${chunkNumber}下载失败，已重试${MAX_CHUNK_RETRIES}次`)
+            }
+            
+            // **修复P2-3：下载失败时，如果已在activeDownloads中，需要确保清理**
+            // **修复M3: 增加重试次数并重新加入队列重试（但要避免重复）**
+            chunkRetryCount.set(chunkNumber, retryCount + 1)
+            if (!downloadQueue.includes(chunkNumber)) {
+              downloadQueue.unshift(chunkNumber)
+              console.warn(`分块${chunkNumber}下载失败，${(retryCount + 1)}/${MAX_CHUNK_RETRIES}次重试`)
+            }
+            throw error
+          } finally {
+            // 从活跃队列移除
+            activeDownloads.delete(chunkNumber)
+            // **关键：分块完成后立即尝试启动新的下载（使用新的cwnd计算并发数）**
+            startNextChunk()
+          }
+        })()
+        
+        activeDownloads.set(chunkNumber, downloadPromise)
+      }
     }
     
-    // 创建 Blob 并下载
-    const blob = new Blob(chunks)
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = task.fileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
+    // 启动初始并发下载
+    await startNextChunk()
     
-    // 标记完成
-    await transferStore.completeDownloadTask(task.id)
-    ElMessage.success(`${task.fileName} 下载完成`)
-    // 刷新已完成列表
-    loadCompletedList()
+    // 等待所有下载完成
+    while (activeDownloads.size > 0 || downloadQueue.length > 0) {
+      if (activeDownloads.size > 0) {
+        await Promise.race(Array.from(activeDownloads.values()))
+      } else {
+        await startNextChunk()
+      }
+      
+          // 检查任务状态
+          currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
+          if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
+            console.log(`下载任务 ${task.fileName} 已暂停或出错`)
+            // **修复P3: 任务暂停/取消时取消所有正在进行的请求**
+            abortController.abort()
+            break
+          }
+    }
     
+    // 5. **修复P2-2：合并分块数据并下载（优化大文件内存使用）**
+    if (chunkDataMap.size === totalChunks) {
+      // **优化：直接使用Uint8Array，无需Base64解码**
+      // 按分块编号顺序合并数据
+      const chunks = []
+      let totalSize = 0
+      
+      // 先计算总大小（用于内存优化判断）
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkData = chunkDataMap.get(i)
+        if (chunkData) {
+          totalSize += chunkData.length
+        }
+      }
+      
+      // **修复P2-2：对于大文件（>100MB），使用流式下载方式，减少内存占用**
+      // 但考虑到浏览器API限制，当前仍使用Blob方式
+      // 建议：如果文件超过100MB，可以考虑提示用户或使用其他下载方式
+      if (totalSize > 100 * 1024 * 1024) {
+        console.warn(`文件较大(${(totalSize / 1024 / 1024).toFixed(2)}MB)，可能占用较多内存`)
+      }
+      
+      // **修复C4 + m3: 验证所有分块是否都存在（0到totalChunks-1）**
+      const missingChunks = []
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkData = chunkDataMap.get(i)
+        if (chunkData) {
+          // 直接使用Uint8Array（已经是二进制数据）
+          chunks.push(chunkData)
+        } else {
+          missingChunks.push(i)
+          console.error(`分块${i}缺失，下载不完整`)
+        }
+      }
+      
+      // **修复C4: 如果发现分块缺失，不创建Blob，标记下载失败**
+      if (missingChunks.length > 0) {
+        console.error(`分块缺失，下载失败 - 缺失分块: ${missingChunks.join(', ')}`)
+        transferStore.updateDownloadTask(task.id, {
+          status: 'error',
+          error: `下载失败：缺失${missingChunks.length}个分块（${missingChunks.slice(0, 5).join(', ')}${missingChunks.length > 5 ? '...' : ''}）`
+        })
+        ElMessage.error(`${task.fileName} 下载失败：缺失${missingChunks.length}个分块，请重试`)
+        // 清理内存
+        chunkDataMap.clear()
+        activeDownloads.clear()
+        return
+      }
+      
+      // **修复M4: 验证文件大小是否与预期一致**
+      const blob = new Blob(chunks)
+      if (blob.size !== task.fileSize) {
+        console.error(`文件大小不匹配 - 预期: ${task.fileSize}字节, 实际: ${blob.size}字节, 差异: ${Math.abs(blob.size - task.fileSize)}字节`)
+        transferStore.updateDownloadTask(task.id, {
+          status: 'error',
+          error: `文件大小不匹配：预期${task.fileSize}字节，实际${blob.size}字节`
+        })
+        ElMessage.error(`${task.fileName} 下载失败：文件大小不匹配，请重试`)
+        // 清理内存
+        chunkDataMap.clear()
+        activeDownloads.clear()
+        return
+      }
+      
+      // 创建 Blob 并下载
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = task.fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      
+      // **修复P2-2：下载完成后清理内存（显式清空chunkDataMap）**
+      chunkDataMap.clear()
+      
+      // **关键：标记下载完成，清理后端资源（包括算法实例）**
+      // 更新前端状态
+      transferStore.updateDownloadTask(task.id, {
+        status: 'completed',
+        progress: 100,
+        speed: 0
+      })
+      
+      // 调用后端接口标记下载完成（清理算法实例和更新任务状态）
+      try {
+        if (taskId) {
+          await completeDownload(taskId)
+          console.log('下载任务完成，已清理后端资源')
+        }
+      } catch (error) {
+        console.error('标记下载完成失败:', error)
+        // 即使清理失败也不影响下载完成
+      }
+      
+      ElMessage.success(`${task.fileName} 下载完成`)
+      // 刷新已完成列表
+      loadCompletedList()
+    } else {
+      // 分块未全部下载完成（可能被暂停或出错）
+      console.warn('分块未全部下载完成')
+    }
   } catch (error) {
-    // 使用 failDownloadTask 记录失败历史
-    await transferStore.failDownloadTask(task.id, error.message)
+    console.error('下载失败:', error)
+    // **修复P2-1：下载失败时清理内存和资源**
+    chunkDataMap.clear()
+    activeDownloads.clear()
+    
+    // **修复P2/P3: 下载失败时清理任务对象上的清理函数引用**
+    if (task._downloadCleanup) {
+      delete task._downloadCleanup
+    }
+    
+    // 标记失败
+    transferStore.updateDownloadTask(task.id, {
+      status: 'error',
+      speed: 0
+    })
     ElMessage.error(`下载失败: ${error.message}，可点击重试`)
-    // 失败也刷新列表（记录失败历史）
+    // 失败也刷新列表
     loadCompletedList()
   }
 }

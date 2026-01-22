@@ -258,6 +258,15 @@ public class FolderServiceImpl implements FolderService {
         if (file == null) {
             throw new RuntimeException("文件不存在");
         }
+        
+        // **改进：验证目标文件夹是否存在（与copyFile保持一致）**
+        if (folderId != null && folderId > 0) {
+            Folder targetFolder = folderMapper.selectById(folderId);
+            if (targetFolder == null) {
+                throw new RuntimeException("目标文件夹不存在");
+            }
+        }
+        
         file.setFolderId(folderId == null ? 0L : folderId);
         file.setUpdateTime(LocalDateTime.now());
         fileInfoMapper.updateById(file);
@@ -266,6 +275,11 @@ public class FolderServiceImpl implements FolderService {
     @Override
     @Transactional
     public void moveFolderTo(Long folderId, Long targetFolderId) {
+        // **修复MODULE-2: 处理targetFolderId为null的情况，转换为0（根目录）**
+        if (targetFolderId == null) {
+            targetFolderId = 0L;
+        }
+        
         if (folderId.equals(targetFolderId)) {
             throw new RuntimeException("不能移动到自身");
         }
@@ -275,12 +289,21 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件夹不存在");
         }
 
-        // 检查是否移动到子文件夹（会造成循环）
-        if (isSubFolder(folderId, targetFolderId)) {
-            throw new RuntimeException("不能移动到子文件夹");
+        // **修复MODULE-2: 只有targetFolderId不为0时才检查循环依赖（0是根目录，无需检查）**
+        if (targetFolderId != null && targetFolderId > 0) {
+            // 验证目标文件夹存在
+            Folder targetFolder = folderMapper.selectById(targetFolderId);
+            if (targetFolder == null) {
+                throw new RuntimeException("目标文件夹不存在");
+            }
+            
+            // 检查是否移动到子文件夹（会造成循环）
+            if (isSubFolder(folderId, targetFolderId)) {
+                throw new RuntimeException("不能移动到子文件夹");
+            }
         }
 
-        folder.setParentId(targetFolderId == null ? 0L : targetFolderId);
+        folder.setParentId(targetFolderId);
         folder.setUpdateTime(LocalDateTime.now());
 
         // 更新路径

@@ -63,17 +63,24 @@ router.beforeEach((to, from, next) => {
   
   // 检查是否需要登录
   const token = localStorage.getItem('token')
-  const isPublic = to.meta.public
+  // 确保 token 是有效值（不是 null、undefined 或空字符串）
+  const hasToken = token && token.trim() !== ''
+  const isPublic = to.meta.public === true
   
-  if (!isPublic && !token) {
-    // 未登录且不是公开页面，跳转到登录页
-    next({ path: '/login', query: { redirect: to.fullPath } })
-  } else if (to.path === '/login' && token) {
-    // 已登录但访问登录页，跳转到首页
+  // 如果是登录页且已登录，跳转到首页
+  if (to.path === '/login' && hasToken) {
     next('/')
-  } else {
-    next()
+    return
   }
+  
+  // 如果不是公开页面且没有有效 token，跳转到登录页
+  if (!isPublic && !hasToken) {
+    next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+  
+  // 其他情况正常放行
+  next()
 })
 
 export default router

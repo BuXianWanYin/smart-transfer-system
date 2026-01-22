@@ -15,6 +15,11 @@ import lombok.NoArgsConstructor;
 public class CongestionMetricsVO {
     
     /**
+     * 任务ID（用于按任务分别推送指标）
+     */
+    private String taskId;
+    
+    /**
      * 当前算法名称
      */
     private String algorithm;

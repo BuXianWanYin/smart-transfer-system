@@ -1,4 +1,5 @@
 import request from '@/utils/http'
+import axios from 'axios'
 
 /**
  * 文件传输 API
@@ -22,9 +23,10 @@ export function initUpload(data) {
  * @param {FormData} formData - 分片数据
  * @param {Function} onProgress - 进度回调
  * @param {number} maxRetries - 最大重试次数
+ * @param {AbortSignal} signal - 取消信号（可选，用于取消请求）
  * @returns {Promise}
  */
-export async function uploadChunk(formData, onProgress, maxRetries = 3) {
+export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) {
   const STALL_TIMEOUT = 30000 // 30秒无进度才认为卡死
 
   const uploadWithStallDetection = () => {
@@ -42,11 +44,14 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3) {
       }
       stallTimer = setInterval(checkStall, 5000)
 
+      // 使用外部传入的 signal 或内部创建的 abortController
+      const finalSignal = signal || abortController.signal
+
       request.post({
         url: '/file/upload/chunk',
         data: formData,
         timeout: 0, // 不设超时，但axios可能仍使用实例默认值
-        signal: abortController.signal,
+        signal: finalSignal,  // **修复CRITICAL-4: 支持外部传入的signal**
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -151,7 +156,57 @@ export function getFileInfo(id) {
 }
 
 /**
- * 获取文件下载URL
+ * 初始化文件下载（分块下载）
+ * @param {Number} fileId - 文件ID
+ * @param {Number} chunkSize - 分块大小（可选，默认5MB）
+ * @returns {Promise}
+ */
+export function initDownload(fileId, chunkSize) {
+  return request.get({
+    url: `/file/download/init/${fileId}`,
+    params: chunkSize ? { chunkSize } : {}
+  })
+}
+
+/**
+ * 下载文件分块（集成拥塞控制，二进制流传输）
+ * **优化：使用二进制流传输（标准做法），元数据通过响应头传输**
+ * @param {Number} fileId - 文件ID
+ * @param {Number} chunkNumber - 分块编号
+ * @param {Number} startByte - 起始字节位置（可选）
+ * @param {Number} endByte - 结束字节位置（可选）
+ * @param {AbortSignal} signal - 取消信号（可选，用于取消请求）
+ * @returns {Promise} 返回完整的axios响应对象（包含响应头和二进制数据）
+ */
+export function downloadChunk(fileId, chunkNumber, startByte, endByte, signal) {
+  const params = {}
+  if (startByte !== undefined) params.startByte = startByte
+  if (endByte !== undefined) params.endByte = endByte
+  
+  // 使用axios直接调用，接收二进制数据
+  // 注意：需要绕过request封装，直接使用axios实例（因为需要responseType: 'arraybuffer'）
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const token = localStorage.getItem('token')
+  
+  // 创建独立的axios实例用于二进制下载（不受响应拦截器影响）
+  const axiosInstance = axios.create({
+    baseURL,
+    timeout: 0,  // 不设超时
+    responseType: 'arraybuffer',  // 接收二进制数据
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  })
+  
+  // **修复P2/P3: 支持请求取消（通过AbortSignal）**
+  return axiosInstance.get(`/file/download/chunk/${fileId}/${chunkNumber}`, { 
+    params,
+    signal  // 传递取消信号
+  })
+}
+
+/**
+ * 获取文件下载URL（兼容旧接口）
  * @param {Number} id - 文件ID
  * @returns {String} - 下载URL
  */
@@ -320,4 +375,28 @@ export function unzipFile(data) {
 export function getBatchDownloadUrl(ids) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
   return `${baseURL}/file/download/batch?ids=${ids.join(',')}`
+}
+
+/**
+ * 标记下载任务完成
+ * 清理后端资源（包括算法实例和Redis数据）
+ * @param {String} taskId - 任务ID
+ * @returns {Promise}
+ */
+export function completeDownload(taskId) {
+  return request.post({
+    url: `/file/download/complete/${taskId}`
+  })
+}
+
+/**
+ * 取消下载任务
+ * 清理后端资源（包括算法实例和Redis数据）
+ * @param {String} taskId - 任务ID
+ * @returns {Promise}
+ */
+export function cancelDownload(taskId) {
+  return request.del({
+    url: `/file/download/${taskId}`
+  })
 }

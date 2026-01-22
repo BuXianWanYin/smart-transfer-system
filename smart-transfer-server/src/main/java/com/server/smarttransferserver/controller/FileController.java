@@ -5,11 +5,14 @@ import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.dto.FileMergeDTO;
 import com.server.smarttransferserver.dto.FileUploadInitDTO;
 import com.server.smarttransferserver.dto.TransferTaskQueryDTO;
+import com.server.smarttransferserver.service.DownloadCompleteService;
+import com.server.smarttransferserver.service.FileDownloadService;
 import com.server.smarttransferserver.service.FileInfoService;
 import com.server.smarttransferserver.service.FileMergeService;
 import com.server.smarttransferserver.service.FileUploadService;
 import com.server.smarttransferserver.service.TransferTaskService;
 import com.server.smarttransferserver.vo.ChunkUploadVO;
+import com.server.smarttransferserver.vo.FileDownloadInitVO;
 import com.server.smarttransferserver.vo.FileMergeVO;
 import com.server.smarttransferserver.vo.FileInfoVO;
 import com.server.smarttransferserver.vo.FileUploadInitVO;
@@ -57,6 +60,12 @@ public class FileController {
     
     @Autowired
     private com.server.smarttransferserver.service.IFileStorageService fileStorageService;
+    
+    @Autowired
+    private FileDownloadService downloadService;
+    
+    @Autowired
+    private DownloadCompleteService downloadCompleteService;
     
     /**
      * 初始化文件上传
@@ -282,7 +291,94 @@ public class FileController {
     }
     
     /**
-     * 下载文件（支持断点续传）
+     * 初始化文件下载（分块下载）
+     *
+     * @param id 文件ID
+     * @param chunkSize 分块大小（可选，默认5MB）
+     * @return 下载初始化结果
+     */
+    @GetMapping("/download/init/{id}")
+    public Result<FileDownloadInitVO> initDownload(
+            @PathVariable Long id,
+            @RequestParam(value = "chunkSize", required = false) Long chunkSize) {
+        log.info("初始化文件下载 - ID: {}, 分块大小: {}", id, chunkSize);
+        try {
+            FileDownloadInitVO vo = downloadService.initDownload(id, chunkSize);
+            return Result.success(vo);
+        } catch (Exception e) {
+            log.error("初始化下载失败", e);
+            return Result.error("初始化下载失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 下载文件分块（集成拥塞控制，二进制流传输）
+     * **优化：使用二进制流传输（标准做法），元数据通过响应头传输**
+     *
+     * @param id 文件ID
+     * @param chunkNumber 分块编号
+     * @param startByte 起始字节位置
+     * @param endByte 结束字节位置
+     * @return 二进制数据流（元数据在响应头中）
+     */
+    @GetMapping("/download/chunk/{id}/{chunkNumber}")
+    public ResponseEntity<byte[]> downloadChunk(
+            @PathVariable Long id,
+            @PathVariable Integer chunkNumber,
+            @RequestParam(value = "startByte", required = false) Long startByte,
+            @RequestParam(value = "endByte", required = false) Long endByte) {
+        log.info("下载分块 - 文件ID: {}, 分块: {}, 范围: {}-{}", id, chunkNumber, startByte, endByte);
+        try {
+            return downloadService.downloadChunk(id, chunkNumber, startByte, endByte);
+        } catch (Exception e) {
+            log.error("下载分块失败", e);
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("X-Success", "false");
+            headers.set("X-Error-Message", e.getMessage());
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .headers(headers)
+                    .body(("下载分块失败: " + e.getMessage()).getBytes());
+        }
+    }
+    
+    /**
+     * 标记下载任务完成
+     *
+     * @param taskId 任务ID
+     * @return 完成结果
+     */
+    @PostMapping("/download/complete/{taskId}")
+    public Result<String> completeDownload(@PathVariable String taskId) {
+        log.info("标记下载任务完成 - 任务ID: {}", taskId);
+        try {
+            downloadCompleteService.completeDownload(taskId);
+            return Result.success("下载任务完成");
+        } catch (Exception e) {
+            log.error("标记下载任务完成失败", e);
+            return Result.error("标记下载任务完成失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 取消下载任务（修复M1: 任务取消时资源清理）
+     *
+     * @param taskId 任务ID
+     * @return 操作结果
+     */
+    @DeleteMapping("/download/{taskId}")
+    public Result<String> cancelDownload(@PathVariable String taskId) {
+        log.info("取消下载任务 - 任务ID: {}", taskId);
+        try {
+            downloadCompleteService.cancelDownload(taskId);
+            return Result.success("取消下载成功");
+        } catch (Exception e) {
+            log.error("取消下载任务失败", e);
+            return Result.error("取消下载任务失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 下载文件（支持断点续传，兼容旧接口）
      *
      * @param id 文件ID
      * @param rangeHeader Range请求头（用于断点续传）

@@ -59,6 +59,13 @@ service.interceptors.request.use(
  */
 service.interceptors.response.use(
   response => {
+    // **特殊处理：二进制下载接口（/download/chunk/）直接返回响应对象**
+    const url = response.config?.url || ''
+    if (url.includes('/download/chunk/')) {
+      // 二进制下载接口：返回完整的response对象（包含响应头和二进制数据）
+      return response
+    }
+    
     const res = response.data
     
     // 如果返回的状态码不是 200，则认为是错误

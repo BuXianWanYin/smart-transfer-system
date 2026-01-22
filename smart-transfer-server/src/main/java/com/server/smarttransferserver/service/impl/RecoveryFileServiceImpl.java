@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.domain.Folder;
 import com.server.smarttransferserver.domain.RecoveryFile;
 import com.server.smarttransferserver.entity.FileInfo;
+import com.server.smarttransferserver.entity.TransferTask;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.FolderMapper;
 import com.server.smarttransferserver.mapper.RecoveryFileMapper;
@@ -278,6 +279,20 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
             deleteFolderAndChildrenPermanently(batchNum);
             log.info("文件夹已彻底删除，recoveryId: {}, folderName: {}", recoveryId, recoveryFile.getFileName());
         } else {
+            // **修复MODULE-4: 检查是否有活跃的下载任务**
+            if (recoveryFile.getFileId() != null) {
+                List<TransferTask> activeTasks = transferTaskMapper.selectByFileId(recoveryFile.getFileId());
+                if (activeTasks != null && !activeTasks.isEmpty()) {
+                    boolean hasActiveDownload = activeTasks.stream()
+                        .anyMatch(t -> "DOWNLOAD".equals(t.getTaskType()) && 
+                                      ("PENDING".equals(t.getTransferStatus()) || 
+                                       "PROCESSING".equals(t.getTransferStatus())));
+                    if (hasActiveDownload) {
+                        throw new RuntimeException("文件正在被下载，无法彻底删除。请先取消下载任务或等待下载完成");
+                    }
+                }
+            }
+            
             // 1. 优先从FileInfo获取文件路径，如果不存在则从RecoveryFile获取
             String filePath = null;
             FileInfo fileInfo = fileInfoMapper.selectById(recoveryFile.getFileId());
@@ -353,6 +368,20 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                 // 彻底删除文件夹及其所有内容（包括物理文件）
                 deleteFolderAndChildrenPermanently(batchNum);
             } else if (recoveryFile.getFileId() != null) {
+                // **改进：清空回收站时也检查是否有活跃的下载任务（防止误删）**
+                List<TransferTask> activeTasks = transferTaskMapper.selectByFileId(recoveryFile.getFileId());
+                if (activeTasks != null && !activeTasks.isEmpty()) {
+                    boolean hasActiveDownload = activeTasks.stream()
+                        .anyMatch(t -> "DOWNLOAD".equals(t.getTaskType()) && 
+                                      ("PENDING".equals(t.getTransferStatus()) || 
+                                       "PROCESSING".equals(t.getTransferStatus())));
+                    if (hasActiveDownload) {
+                        log.warn("跳过删除正在下载的文件 - recoveryId: {}, fileId: {}", 
+                                recoveryFile.getId(), recoveryFile.getFileId());
+                        continue; // 跳过此文件，继续处理下一个
+                    }
+                }
+                
                 // 1. 优先从FileInfo获取文件路径，如果不存在则从RecoveryFile获取
                 String filePath = null;
                 FileInfo fileInfo = fileInfoMapper.selectById(recoveryFile.getFileId());

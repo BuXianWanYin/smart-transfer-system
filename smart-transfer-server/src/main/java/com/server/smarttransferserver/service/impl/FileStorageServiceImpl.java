@@ -132,12 +132,21 @@ public class FileStorageServiceImpl implements IFileStorageService {
             long position = 0;
             
             // 按顺序合并分片（从用户临时目录读取）
+            // **修复ISSUE-4: 需要先获取文件大小才能验证分片大小（暂时无法验证，但至少检查文件存在）**
+            // 注意：文件大小验证在mergeChunks调用前已完成（通过FileChunk记录），这里主要检查文件完整性
             for (int i = 0; i < totalChunks; i++) {
                 Path chunkPath = Paths.get(tempPath, userDir, fileId.toString(), "chunk_" + i);
                 File chunkFile = chunkPath.toFile();
                 
                 if (!chunkFile.exists()) {
                     throw new IOException("分片文件不存在: chunk_" + i);
+                }
+                
+                // **修复ISSUE-4: 验证分片文件大小（非零文件大小表示文件存在且可读）**
+                long chunkFileSize = chunkFile.length();
+                if (chunkFileSize <= 0 && i < totalChunks - 1) {
+                    // 最后一个分片可能为0（空文件），但中间分片不应该为0
+                    throw new IOException(String.format("分片文件大小为0: chunk_%d, 这可能表示文件不完整", i));
                 }
                 
                 // 使用FileChannel合并，手动维护位置
@@ -149,7 +158,8 @@ public class FileStorageServiceImpl implements IFileStorageService {
                     position += chunkSize;
                 }
                 
-                log.debug("合并分片 - 文件ID: {}, 分片: {}/{}, 当前位置: {}", fileId, i + 1, totalChunks, position);
+                log.debug("合并分片 - 文件ID: {}, 分片: {}/{}, 大小: {}字节, 当前位置: {}", 
+                         fileId, i + 1, totalChunks, chunkFileSize, position);
             }
         }
         

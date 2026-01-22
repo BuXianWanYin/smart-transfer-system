@@ -203,5 +203,53 @@ public class CongestionController {
             return Result.error("获取状态失败: " + e.getMessage());
         }
     }
+    
+    /**
+     * 获取当前系统算法实例（供算法管理器使用）
+     * 
+     * @return 当前算法实例
+     */
+    public CongestionControlAlgorithm getCurrentAlgorithmInstance() {
+        return currentAlgorithm;
+    }
+    
+    /**
+     * 获取当前系统算法类型名称
+     * 
+     * @return 算法类型名称（RENO, VEGAS, CUBIC, BBR, ADAPTIVE）
+     */
+    public String getCurrentAlgorithmType() {
+        if (currentAlgorithm == null) {
+            return "NONE";
+        }
+        String name = currentAlgorithm.getAlgorithmName();
+        if (name.startsWith("Adaptive")) {
+            return "ADAPTIVE";
+        }
+        return name.toUpperCase();
+    }
+    
+    /**
+     * 获取算法bean（供算法管理器创建新实例使用）
+     */
+    public RenoAlgorithm getRenoAlgorithm() {
+        return renoAlgorithm;
+    }
+    
+    public VegasAlgorithm getVegasAlgorithm() {
+        return vegasAlgorithm;
+    }
+    
+    public CubicAlgorithm getCubicAlgorithm() {
+        return cubicAlgorithm;
+    }
+    
+    public BBRAlgorithm getBbrAlgorithm() {
+        return bbrAlgorithm;
+    }
+    
+    public AdaptiveAlgorithm getAdaptiveAlgorithm() {
+        return adaptiveAlgorithm;
+    }
 }
 

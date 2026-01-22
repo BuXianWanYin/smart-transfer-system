@@ -8,6 +8,7 @@ import com.server.smarttransferserver.entity.TransferTask;
 import com.server.smarttransferserver.mapper.FileChunkMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.TransferTaskMapper;
+import com.server.smarttransferserver.service.CongestionAlgorithmManager;
 import com.server.smarttransferserver.service.IFileChecksumService;
 import com.server.smarttransferserver.service.FileMergeService;
 import com.server.smarttransferserver.service.IFileStorageService;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -46,6 +48,9 @@ public class FileMergeServiceImpl implements FileMergeService {
     
     @Autowired
     private IFileChecksumService checksumService;
+    
+    @Autowired
+    private CongestionAlgorithmManager algorithmManager;
     
     /**
      * 合并文件
@@ -146,11 +151,34 @@ public class FileMergeServiceImpl implements FileMergeService {
             // 6. 删除临时分片
             storageService.deleteTempChunks(dto.getFileId());
             
-            // 7. 创建传输任务记录（使用Service方法统一管理）
-            // 先创建PENDING状态的任务（会自动添加到活跃用户集合）
-            String taskId = transferTaskService.createTask(dto.getFileId(), "UPLOAD");
-            // 然后立即更新为COMPLETED状态（会自动从活跃用户集合移除）
-            transferTaskService.updateTaskStatus(taskId, "COMPLETED");
+            // 7. 查找并更新已有的活跃传输任务，如果没有则创建新任务
+            String taskId = null;
+            List<TransferTask> existingTasks = transferTaskMapper.selectByFileId(dto.getFileId());
+            if (existingTasks != null && !existingTasks.isEmpty()) {
+                // 查找活跃的任务（PENDING或PROCESSING状态）
+                TransferTask activeTask = existingTasks.stream()
+                        .filter(t -> "PENDING".equals(t.getTransferStatus()) || "PROCESSING".equals(t.getTransferStatus()))
+                        .findFirst()
+                        .orElse(null);
+                
+                if (activeTask != null) {
+                    taskId = activeTask.getTaskId();
+                    // 更新任务状态为COMPLETED（会自动从活跃用户集合移除）
+                    transferTaskService.updateTaskStatus(taskId, "COMPLETED");
+                    
+                    // **关键修复：清理任务的算法实例**
+                    if (algorithmManager != null) {
+                        algorithmManager.removeAlgorithm(taskId);
+                        log.debug("清理任务算法实例 - 任务ID: {}", taskId);
+                    }
+                }
+            }
+            
+            // 如果没有找到活跃任务，创建新任务（兼容处理）
+            if (taskId == null) {
+                taskId = transferTaskService.createTask(dto.getFileId(), "UPLOAD");
+                transferTaskService.updateTaskStatus(taskId, "COMPLETED");
+            }
             
             log.info("文件合并成功 - 文件ID: {}, 文件名: {}, 任务ID: {}", 
                      dto.getFileId(), fileInfo.getFileName(), taskId);
@@ -181,6 +209,7 @@ public class FileMergeServiceImpl implements FileMergeService {
     /**
      * 取消上传
      * 清理未完成的上传数据
+     * **修复MODULE-5: 取消上传时清理算法实例**
      *
      * @param fileId 文件ID
      * @return 是否成功
@@ -190,6 +219,20 @@ public class FileMergeServiceImpl implements FileMergeService {
     public boolean cancelUpload(Long fileId) {
         log.info("取消上传 - 文件ID: {}", fileId);
         try {
+            // **修复MODULE-5: 查找并清理关联的算法实例**
+            QueryWrapper<TransferTask> taskWrapper = new QueryWrapper<>();
+            taskWrapper.eq("file_id", fileId)
+                       .eq("task_type", "UPLOAD")
+                       .in("transfer_status", Arrays.asList("PENDING", "PROCESSING"));
+            List<TransferTask> activeTasks = transferTaskMapper.selectList(taskWrapper);
+            
+            for (TransferTask task : activeTasks) {
+                if (algorithmManager != null && task.getTaskId() != null) {
+                    algorithmManager.removeAlgorithm(task.getTaskId());
+                    log.debug("取消上传时清理算法实例 - 任务ID: {}", task.getTaskId());
+                }
+            }
+            
             FileInfo fileInfo = fileInfoMapper.selectById(fileId);
             if (fileInfo == null) {
                 log.warn("文件不存在 - ID: {}", fileId);

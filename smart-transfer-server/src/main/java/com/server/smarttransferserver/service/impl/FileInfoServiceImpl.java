@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.domain.Folder;
+import com.server.smarttransferserver.mapper.FolderMapper;
 import com.server.smarttransferserver.service.FileInfoService;
 import com.server.smarttransferserver.service.FolderService;
 import com.server.smarttransferserver.service.IFileStorageService;
@@ -50,6 +51,9 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     
     @Autowired
     private FolderService folderService;
+    
+    @Autowired
+    private FolderMapper folderMapper;
     
     @Autowired
     private IFileStorageService fileStorageService;
@@ -158,6 +162,14 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteFile(Long id) {
+        FileInfo fileInfo = getById(id);
+        if (fileInfo == null) {
+            throw new RuntimeException("文件不存在");
+        }
+        
+        // 注意：上传中的文件不会出现在文件列表中（只显示uploadStatus=COMPLETED的文件）
+        // 用户只能在传输中心暂停或取消上传，无法删除正在上传的文件
+        
         // 将文件移至回收站（逻辑删除）
         recoveryFileService.deleteFileToRecovery(id);
         log.info("文件已移至回收站 - ID: {}", id);
@@ -271,6 +283,14 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             File source = sourcePath.toFile();
             if (!source.exists()) {
                 throw new RuntimeException("源文件物理路径不存在: " + sourcePath);
+            }
+            
+            // **修复MODULE-3: 验证目标文件夹是否存在（如果targetFolderId不为0）**
+            if (targetFolderId != null && targetFolderId > 0) {
+                Folder targetFolder = folderMapper.selectById(targetFolderId);
+                if (targetFolder == null) {
+                    throw new RuntimeException("目标文件夹不存在");
+                }
             }
             
             // 生成新的文件名
