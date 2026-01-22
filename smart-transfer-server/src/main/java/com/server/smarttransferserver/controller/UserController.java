@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
@@ -34,6 +35,12 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+    
+    /**
+     * 头像存储路径（从配置读取，与UserServiceImpl保持一致）
+     */
+    @Value("${transfer.avatar-path:./uploads/avatars}")
+    private String avatarPath;
 
     /**
      * 用户登录
@@ -248,19 +255,31 @@ public class UserController {
                 return ResponseEntity.notFound().build();
             }
             
-            String avatarPath = requestURI.substring(avatarIndex + "/avatar/".length());
+            String avatarPathFromRequest = requestURI.substring(avatarIndex + "/avatar/".length());
             
             // 验证路径格式：avatars/userId/filename
-            if (avatarPath == null || avatarPath.isEmpty() || !avatarPath.startsWith("avatars/")) {
+            if (avatarPathFromRequest == null || avatarPathFromRequest.isEmpty() || !avatarPathFromRequest.startsWith("avatars/")) {
                 return ResponseEntity.notFound().build();
             }
             
             // 构建完整文件路径
-            // avatarPath格式：avatars/userId/filename
-            // 需要去掉"avatars/"前缀，因为avatarPath配置已经包含了avatars目录
-            String relativePath = avatarPath.substring("avatars/".length());
+            // avatarPathFromRequest格式：avatars/userId/filename
+            // 需要去掉"avatars/"前缀
+            String relativePath = avatarPathFromRequest.substring("avatars/".length());
+            
+            // 获取头像存储的绝对路径（与UserServiceImpl中的initAvatarPath逻辑一致）
             String userDir = System.getProperty("user.dir");
-            Path avatarFilePath = Paths.get(userDir, "uploads", "avatars", relativePath);
+            String absoluteAvatarPath;
+            if (this.avatarPath.startsWith("./") || this.avatarPath.startsWith(".\\")) {
+                absoluteAvatarPath = Paths.get(userDir, this.avatarPath.substring(2)).toString();
+            } else if (!Paths.get(this.avatarPath).isAbsolute()) {
+                absoluteAvatarPath = Paths.get(userDir, this.avatarPath).toString();
+            } else {
+                absoluteAvatarPath = this.avatarPath;
+            }
+            
+            // 构建完整文件路径：absoluteAvatarPath/userId/filename
+            Path avatarFilePath = Paths.get(absoluteAvatarPath, relativePath);
             File avatarFile = avatarFilePath.toFile();
             
             if (!avatarFile.exists() || !avatarFile.isFile()) {

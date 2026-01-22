@@ -57,7 +57,9 @@ const routes = [
   },
   {
     path: '/monitor',
-    redirect: '/transfer'
+    name: 'CongestionMonitor',
+    component: () => import('@/views/CongestionMonitor.vue'),
+    meta: { title: '拥塞控制监控', requiresAdmin: true }
   },
   {
     path: '/recovery',

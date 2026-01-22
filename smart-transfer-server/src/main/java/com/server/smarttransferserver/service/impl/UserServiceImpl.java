@@ -207,14 +207,46 @@ public class UserServiceImpl implements UserService {
         if (nickname != null) {
             user.setNickname(nickname);
         }
-        if (email != null) {
+        if (email != null && !email.isEmpty()) {
+            // 验证邮箱格式
+            if (!isValidEmail(email)) {
+                throw new RuntimeException("邮箱格式不正确");
+            }
             user.setEmail(email);
         }
-        if (phone != null) {
+        if (phone != null && !phone.isEmpty()) {
+            // 验证手机号格式（中国手机号：11位数字，以1开头）
+            if (!isValidPhone(phone)) {
+                throw new RuntimeException("手机号格式不正确，请输入11位数字且以1开头");
+            }
             user.setPhone(phone);
         }
         user.setUpdateTime(new Date());
         userMapper.updateById(user);
+    }
+    
+    /**
+     * 验证邮箱格式
+     */
+    private boolean isValidEmail(String email) {
+        if (email == null || email.isEmpty()) {
+            return false;
+        }
+        // 简单的邮箱格式验证：包含@和.，且@前后都有字符
+        String emailPattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$";
+        return email.matches(emailPattern);
+    }
+    
+    /**
+     * 验证手机号格式（中国手机号：11位数字，以1开头）
+     */
+    private boolean isValidPhone(String phone) {
+        if (phone == null || phone.isEmpty()) {
+            return false;
+        }
+        // 中国手机号格式：11位数字，以1开头
+        String phonePattern = "^1[3-9]\\d{9}$";
+        return phone.matches(phonePattern);
     }
 
     @Override

@@ -111,6 +111,12 @@
         <template #title><span>系统配置</span></template>
       </el-menu-item>
       
+      <!-- 管理员：拥塞控制监控 -->
+      <el-menu-item v-if="userStore.isAdmin" index="monitor" :title="collapsed ? '拥塞控制监控' : undefined">
+        <el-icon><VideoPlay /></el-icon>
+        <template #title><span>拥塞控制监控</span></template>
+      </el-menu-item>
+      
       <!-- 管理员：用户管理 -->
       <el-menu-item v-if="userStore.isAdmin" index="admin-users" :title="collapsed ? '用户管理' : undefined">
         <el-icon><User /></el-icon>
@@ -188,6 +194,11 @@ const activeIndex = computed(() => {
     return 'config'
   }
   
+  // 拥塞控制监控
+  if (routeName === 'CongestionMonitor') {
+    return 'monitor'
+  }
+  
   // 用户管理
   if (routeName === 'UserManagement') {
     return 'admin-users'
@@ -243,6 +254,12 @@ const handleMenuSelect = (index) => {
   // 系统配置
   if (index === 'config') {
     router.push({ name: 'CongestionConfig' })
+    return
+  }
+  
+  // 拥塞控制监控
+  if (index === 'monitor') {
+    router.push({ name: 'CongestionMonitor' })
     return
   }
   

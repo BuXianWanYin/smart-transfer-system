@@ -16,6 +16,7 @@
               :http-request="handleAvatarUpload"
               :show-file-list="false"
               :before-upload="beforeAvatarUpload"
+            >
               <el-avatar :size="80" :src="avatarUrl">
                 <el-icon :size="40"><UserFilled /></el-icon>
               </el-avatar>
