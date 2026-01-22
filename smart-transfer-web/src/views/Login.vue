@@ -220,9 +220,23 @@ const handleLogin = async () => {
     
     ElMessage.success('登录成功')
     
-    // 跳转到之前的页面或首页
-    const redirect = route.query.redirect || '/'
-    router.replace(redirect)
+    // 根据角色和redirect参数决定跳转页面
+    const redirect = route.query.redirect
+    if (redirect) {
+      // 如果有redirect参数，检查是否有权限访问
+      if (redirect.includes('/admin/') || redirect.includes('/config')) {
+        // 如果是管理员页面，检查权限
+        if (!userStore.isAdmin) {
+          // 普通用户尝试访问管理员页面，跳转到传输中心
+          router.replace('/transfer')
+          return
+        }
+      }
+      router.replace(redirect)
+    } else {
+      // 没有redirect参数，默认跳转到传输中心（所有用户可访问）
+      router.replace('/transfer')
+    }
     
   } catch (error) {
     if (error !== 'cancel') {
@@ -270,7 +284,7 @@ const handleRegister = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #395fff 0%, #61cfff 50%, #f9ffe3 100%);
   position: relative;
   overflow: hidden;
 }
@@ -347,7 +361,7 @@ const handleRegister = async () => {
   
   .logo-icon {
     font-size: 48px;
-    color: #667eea;
+    color: #395fff;
     margin-bottom: 16px;
   }
   
@@ -375,7 +389,7 @@ const handleRegister = async () => {
     }
     
     &.is-focus {
-      box-shadow: 0 0 0 1px #667eea inset;
+      box-shadow: 0 0 0 1px #395fff inset;
     }
   }
   
@@ -393,12 +407,12 @@ const handleRegister = async () => {
   height: 48px;
   font-size: 16px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #395fff 0%, #61cfff 100%);
   border: none;
   
   &:hover {
     opacity: 0.9;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #395fff 0%, #61cfff 100%);
   }
 }
 

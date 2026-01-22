@@ -1,4 +1,5 @@
 import request from '@/utils/http'
+import axios from 'axios'
 
 /**
  * 用户登录
@@ -70,5 +71,37 @@ export const updateUserStatus = (userId, status) => {
  */
 export const deleteUser = (userId) => {
   return request.del({ url: `/user/${userId}` })
+}
+
+/**
+ * 获取系统级存储统计（管理员）
+ */
+export const getSystemStorageStats = () => {
+  return request.get({ url: '/user/system-storage' })
+}
+
+/**
+ * 上传头像
+ */
+export const uploadAvatar = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  // 使用axios直接上传，因为需要multipart/form-data
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const token = localStorage.getItem('token')
+  
+  return axios.post(`${baseURL}/user/avatar`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      'Authorization': `Bearer ${token}`
+    }
+  }).then(res => {
+    // 统一响应格式处理
+    if (res.data.code === 200) {
+      return res.data.data
+    } else {
+      throw new Error(res.data.message || '上传失败')
+    }
+  })
 }
 

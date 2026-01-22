@@ -955,8 +955,6 @@ const getTrendType = (trend) => {
     '平稳': 'info'
   }
   return typeMap[trend] || 'info'
-  }
-  return typeMap[quality] || 'info'
 }
 
 // 获取文件图标

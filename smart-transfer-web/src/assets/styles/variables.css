@@ -1,9 +1,22 @@
 /* Theme Variables - 参考 greenhouse-management-web */
 
 :root {
-  /* 主题色 - Theme color */
-  --art-primary: 93, 135, 255;
-  --art-secondary: 73, 190, 255;
+  /* 项目主色调 - Project Primary Colors */
+  /* 主色调1：深蓝色 - Primary Color 1: Deep Blue */
+  --art-primary-color-1: #395fff;
+  --art-primary-color-1-rgb: 57, 95, 255;
+  
+  /* 主色调2：亮蓝色 - Primary Color 2: Bright Blue */
+  --art-primary-color-2: #61cfff;
+  --art-primary-color-2-rgb: 97, 207, 255;
+  
+  /* 主色调3：浅黄绿色 - Primary Color 3: Light Yellow-Green */
+  --art-primary-color-3: #f9ffe3;
+  --art-primary-color-3-rgb: 249, 255, 227;
+  
+  /* 主题色 - Theme color (基于主色调) */
+  --art-primary: 57, 95, 255;
+  --art-secondary: 97, 207, 255;
   --art-error: 250, 137, 107;
   --art-info: 83, 155, 255;
   --art-success: 19, 222, 185;

@@ -57,5 +57,19 @@ public interface UserService {
      * 获取用户存储统计
      */
     Map<String, Object> getStorageStats(Long userId);
+    
+    /**
+     * 获取系统级存储统计（管理员）
+     * 统计所有用户的文件存储情况
+     */
+    Map<String, Object> getSystemStorageStats();
+    
+    /**
+     * 上传头像
+     * @param userId 用户ID
+     * @param file 头像文件
+     * @return 头像相对路径（如：avatars/1/avatar.jpg）
+     */
+    String uploadAvatar(Long userId, org.springframework.web.multipart.MultipartFile file);
 }
 

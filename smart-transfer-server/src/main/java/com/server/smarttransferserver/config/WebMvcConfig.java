@@ -23,6 +23,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/user/login",
                         "/user/register",
+                        "/user/avatar/**",      // 头像访问（静态资源）
                         "/file/download/**",    // 文件下载（通过 window.open 打开）
                         "/file/preview/**",     // 文件预览
                         "/error"

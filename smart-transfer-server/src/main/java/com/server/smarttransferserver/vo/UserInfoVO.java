@@ -25,5 +25,10 @@ public class UserInfoVO {
     private Date lastLoginTime;
     
     private Date createTime;
+    
+    /**
+     * 用户角色：ADMIN-管理员，USER-普通用户
+     */
+    private String role;
 }
 

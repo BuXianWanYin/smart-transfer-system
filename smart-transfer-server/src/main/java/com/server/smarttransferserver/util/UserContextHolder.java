@@ -8,6 +8,7 @@ public class UserContextHolder {
     
     private static final ThreadLocal<Long> USER_ID_HOLDER = new ThreadLocal<>();
     private static final ThreadLocal<String> USERNAME_HOLDER = new ThreadLocal<>();
+    private static final ThreadLocal<String> USER_ROLE_HOLDER = new ThreadLocal<>();
     
     /**
      * 设置当前用户ID
@@ -38,11 +39,26 @@ public class UserContextHolder {
     }
     
     /**
+     * 设置当前用户角色
+     */
+    public static void setRole(String role) {
+        USER_ROLE_HOLDER.set(role);
+    }
+    
+    /**
+     * 获取当前用户角色
+     */
+    public static String getRole() {
+        return USER_ROLE_HOLDER.get();
+    }
+    
+    /**
      * 清除当前用户信息
      */
     public static void clear() {
         USER_ID_HOLDER.remove();
         USERNAME_HOLDER.remove();
+        USER_ROLE_HOLDER.remove();
     }
 }
 

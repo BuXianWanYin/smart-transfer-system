@@ -22,6 +22,12 @@ export const useUserStore = defineStore('user', () => {
   // 头像
   const avatar = computed(() => userInfo.value?.avatar || '')
   
+  // 用户角色
+  const role = computed(() => userInfo.value?.role || 'USER')
+  
+  // 是否是管理员
+  const isAdmin = computed(() => role.value === 'ADMIN')
+  
   
   /**
    * 登录
@@ -38,7 +44,8 @@ export const useUserStore = defineStore('user', () => {
       id: data.userId,
       username: data.username,
       nickname: data.nickname,
-      avatar: data.avatar
+      avatar: data.avatar,
+      role: data.role || 'USER'
     }
     localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
     
@@ -98,6 +105,8 @@ export const useUserStore = defineStore('user', () => {
     username,
     nickname,
     avatar,
+    role,
+    isAdmin,
     login,
     logout,
     refreshUserInfo,

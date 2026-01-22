@@ -1,5 +1,6 @@
 package com.server.smarttransferserver.controller;
 
+import com.server.smarttransferserver.annotation.RequireAdmin;
 import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.dto.CongestionConfigDTO;
 import com.server.smarttransferserver.entity.SystemConfig;
@@ -14,10 +15,12 @@ import java.util.Map;
 
 /**
  * 系统配置Controller
+ * 需要管理员权限
  */
 @Slf4j
 @RestController
 @RequestMapping("/config")
+@RequireAdmin
 public class ConfigController {
     
     @Autowired

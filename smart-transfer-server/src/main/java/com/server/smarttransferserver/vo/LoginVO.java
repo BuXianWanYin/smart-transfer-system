@@ -32,5 +32,10 @@ public class LoginVO {
      * 头像
      */
     private String avatar;
+    
+    /**
+     * 用户角色：ADMIN-管理员，USER-普通用户
+     */
+    private String role;
 }
 

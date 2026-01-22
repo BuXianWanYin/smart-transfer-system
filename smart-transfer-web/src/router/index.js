@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getUserInfo } from '@/api/userApi'
+import { useUserStore } from '@/store/userStore'
+import { ElMessage } from 'element-plus'
 
 const routes = [
   {
@@ -28,7 +30,19 @@ const routes = [
     path: '/config',
     name: 'CongestionConfig',
     component: () => import('@/views/CongestionConfig.vue'),
-    meta: { title: '系统配置' }
+    meta: { title: '系统配置', requiresAdmin: true }
+  },
+  {
+    path: '/admin/users',
+    name: 'UserManagement',
+    component: () => import('@/views/UserManagement.vue'),
+    meta: { title: '用户管理', requiresAdmin: true }
+  },
+  {
+    path: '/admin/stats',
+    name: 'SystemStats',
+    component: () => import('@/views/SystemStats.vue'),
+    meta: { title: '系统统计', requiresAdmin: true }
   },
   {
     path: '/profile',
@@ -96,8 +110,12 @@ const validateToken = async () => {
   isVerifyingToken = true
   
   try {
-    // 尝试获取用户信息来验证 token
-    await getUserInfo()
+    // 尝试获取用户信息来验证 token，并更新userStore
+    const userStore = useUserStore()
+    const userInfo = await getUserInfo()
+    // 更新userStore中的用户信息（包括role）
+    userStore.userInfo = userInfo
+    localStorage.setItem('userInfo', JSON.stringify(userInfo))
     tokenValidated = true
     return true
   } catch (error) {
@@ -127,8 +145,17 @@ router.beforeEach(async (to, from, next) => {
       // 如果已有 token，验证其有效性
       const isValid = await validateToken()
       if (isValid) {
-        // Token 有效，跳转到首页
-        next('/')
+        // Token 有效，根据角色跳转
+        const userStore = useUserStore()
+        // 确保userStore已更新
+        if (!userStore.userInfo || !userStore.userInfo.role) {
+          const storedUserInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
+          if (storedUserInfo) {
+            userStore.userInfo = storedUserInfo
+          }
+        }
+        // 跳转到传输中心（所有用户都可以访问）
+        next('/transfer')
         return
       }
     }
@@ -154,6 +181,25 @@ router.beforeEach(async (to, from, next) => {
       // Token 无效，跳转到登录页
       next({ path: '/login', query: { redirect: to.fullPath } })
       return
+    }
+    
+    // 检查是否需要管理员权限
+    if (to.meta.requiresAdmin) {
+      const userStore = useUserStore()
+      // 确保userStore已更新（从localStorage读取或从getUserInfo获取）
+      if (!userStore.userInfo || !userStore.userInfo.role) {
+        // 如果userInfo中没有role，尝试从localStorage读取
+        const storedUserInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
+        if (storedUserInfo && storedUserInfo.role) {
+          userStore.userInfo = storedUserInfo
+        }
+      }
+      
+      if (!userStore.isAdmin) {
+        ElMessage.error('需要管理员权限')
+        next('/transfer')
+        return
+      }
     }
   }
   

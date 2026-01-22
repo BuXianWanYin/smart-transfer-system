@@ -56,6 +56,8 @@ transfer:
   chunk-size: 5242880
   # 临时文件路径（用于分片上传）
   temp-path: ./file-storage/temp
+  # 头像存储路径（项目根目录/uploads/avatars）
+  avatar-path: ./uploads/avatars
 
 # TCP拥塞控制配置
 congestion-control:

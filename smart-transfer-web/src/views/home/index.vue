@@ -29,7 +29,7 @@ function goToLogin() {
   height: 100%;
   min-height: 100vh;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #395fff 0%, #61cfff 50%, #f9ffe3 100%);
   box-sizing: border-box;
 }
 

@@ -77,6 +77,17 @@ service.interceptors.response.use(
         return Promise.reject(new Error('未登录或登录已过期'))
       }
       
+      // 403: 禁止访问（权限不足）
+      if (res.code === 403) {
+        ElMessage.error(res.message || res.msg || '权限不足')
+        // 如果是管理员页面，跳转到传输中心
+        const currentPath = window.location.pathname
+        if (currentPath.includes('/admin/') || currentPath.includes('/config')) {
+          window.location.href = '/transfer'
+        }
+        return Promise.reject(new Error(res.message || res.msg || '权限不足'))
+      }
+      
       ElMessage.error(res.message || res.msg || '请求失败')
       return Promise.reject(new Error(res.message || res.msg || '请求失败'))
     }
@@ -93,6 +104,18 @@ service.interceptors.response.use(
       ElMessage.error('登录已过期，请重新登录')
       redirectToLogin()
       return Promise.reject(new Error('未登录或登录已过期'))
+    }
+    
+    if (status === 403) {
+      // 403 禁止访问（权限不足）
+      const message = error.response?.data?.message || error.response?.data?.msg || '权限不足'
+      ElMessage.error(message)
+      // 如果是管理员页面，跳转到传输中心
+      const currentPath = window.location.pathname
+      if (currentPath.includes('/admin/') || currentPath.includes('/config')) {
+        window.location.href = '/transfer'
+      }
+      return Promise.reject(new Error(message))
     }
     
     // 其他错误

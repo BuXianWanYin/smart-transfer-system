@@ -1,5 +1,6 @@
 package com.server.smarttransferserver.controller;
 
+import com.server.smarttransferserver.annotation.RequireAdmin;
 import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.congestion.AdaptiveAlgorithm;
 import com.server.smarttransferserver.congestion.BBRAlgorithm;
@@ -18,10 +19,12 @@ import javax.annotation.PostConstruct;
 
 /**
  * 拥塞控制Controller
+ * 需要管理员权限
  */
 @Slf4j
 @RestController
 @RequestMapping("/congestion")
+@RequireAdmin
 public class CongestionController {
     
     @Autowired

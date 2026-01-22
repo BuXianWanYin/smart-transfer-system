@@ -22,85 +22,105 @@
         </template>
       </el-menu-item>
       
-      <!-- 我的文件 -->
-      <el-sub-menu index="files" v-if="!collapsed">
-        <template #title>
-          <el-icon><Files /></el-icon>
-          <span>我的文件</span>
-        </template>
+      <!-- 普通用户：我的文件 -->
+      <template v-if="!userStore.isAdmin">
+        <el-sub-menu index="files" v-if="!collapsed">
+          <template #title>
+            <el-icon><Files /></el-icon>
+            <span>我的文件</span>
+          </template>
+          
+          <el-menu-item index="file-0">
+            <el-icon><FolderOpened /></el-icon>
+            <span>全部</span>
+          </el-menu-item>
+          
+          <el-menu-item index="file-1">
+            <el-icon><Picture /></el-icon>
+            <span>图片</span>
+          </el-menu-item>
+          
+          <el-menu-item index="file-2">
+            <el-icon><Document /></el-icon>
+            <span>文档</span>
+          </el-menu-item>
+          
+          <el-menu-item index="file-3">
+            <el-icon><VideoPlay /></el-icon>
+            <span>视频</span>
+          </el-menu-item>
+          
+          <el-menu-item index="file-4">
+            <el-icon><Headset /></el-icon>
+            <span>音乐</span>
+          </el-menu-item>
+          
+          <el-menu-item index="file-5">
+            <el-icon><MoreFilled /></el-icon>
+            <span>其他</span>
+          </el-menu-item>
+        </el-sub-menu>
         
-        <el-menu-item index="file-0">
+        <!-- 折叠模式下的文件分类菜单 -->
+        <el-menu-item v-if="collapsed" index="file-0" title="全部">
           <el-icon><FolderOpened /></el-icon>
-          <span>全部</span>
+          <template #title><span>全部</span></template>
         </el-menu-item>
         
-        <el-menu-item index="file-1">
+        <el-menu-item v-if="collapsed" index="file-1" title="图片">
           <el-icon><Picture /></el-icon>
-          <span>图片</span>
+          <template #title><span>图片</span></template>
         </el-menu-item>
         
-        <el-menu-item index="file-2">
+        <el-menu-item v-if="collapsed" index="file-2" title="文档">
           <el-icon><Document /></el-icon>
-          <span>文档</span>
+          <template #title><span>文档</span></template>
         </el-menu-item>
         
-        <el-menu-item index="file-3">
+        <el-menu-item v-if="collapsed" index="file-3" title="视频">
           <el-icon><VideoPlay /></el-icon>
-          <span>视频</span>
+          <template #title><span>视频</span></template>
         </el-menu-item>
         
-        <el-menu-item index="file-4">
+        <el-menu-item v-if="collapsed" index="file-4" title="音乐">
           <el-icon><Headset /></el-icon>
-          <span>音乐</span>
+          <template #title><span>音乐</span></template>
         </el-menu-item>
         
-        <el-menu-item index="file-5">
+        <el-menu-item v-if="collapsed" index="file-5" title="其他">
           <el-icon><MoreFilled /></el-icon>
-          <span>其他</span>
+          <template #title><span>其他</span></template>
         </el-menu-item>
-      </el-sub-menu>
+        
+        <!-- 回收站 -->
+        <el-menu-item index="file-6" :title="collapsed ? '回收站' : undefined">
+          <el-icon><Delete /></el-icon>
+          <template #title><span>回收站</span></template>
+        </el-menu-item>
+      </template>
       
-      <!-- 折叠模式下的文件分类菜单 -->
-      <el-menu-item v-if="collapsed" index="file-0" title="全部">
-        <el-icon><FolderOpened /></el-icon>
-        <template #title><span>全部</span></template>
+      <!-- 管理员：文件管理 -->
+      <el-menu-item v-if="userStore.isAdmin" index="files" :title="collapsed ? '文件管理' : undefined">
+        <el-icon><Files /></el-icon>
+        <template #title><span>文件管理</span></template>
       </el-menu-item>
       
-      <el-menu-item v-if="collapsed" index="file-1" title="图片">
-        <el-icon><Picture /></el-icon>
-        <template #title><span>图片</span></template>
-      </el-menu-item>
-      
-      <el-menu-item v-if="collapsed" index="file-2" title="文档">
-        <el-icon><Document /></el-icon>
-        <template #title><span>文档</span></template>
-      </el-menu-item>
-      
-      <el-menu-item v-if="collapsed" index="file-3" title="视频">
-        <el-icon><VideoPlay /></el-icon>
-        <template #title><span>视频</span></template>
-      </el-menu-item>
-      
-      <el-menu-item v-if="collapsed" index="file-4" title="音乐">
-        <el-icon><Headset /></el-icon>
-        <template #title><span>音乐</span></template>
-      </el-menu-item>
-      
-      <el-menu-item v-if="collapsed" index="file-5" title="其他">
-        <el-icon><MoreFilled /></el-icon>
-        <template #title><span>其他</span></template>
-      </el-menu-item>
-      
-      <!-- 回收站 -->
-      <el-menu-item index="file-6" :title="collapsed ? '回收站' : undefined">
-        <el-icon><Delete /></el-icon>
-        <template #title><span>回收站</span></template>
-      </el-menu-item>
-      
-      <!-- 系统配置 -->
-      <el-menu-item index="config" :title="collapsed ? '系统配置' : undefined">
+      <!-- 管理员：系统配置 -->
+      <el-menu-item v-if="userStore.isAdmin" index="config" :title="collapsed ? '系统配置' : undefined">
         <el-icon><Setting /></el-icon>
         <template #title><span>系统配置</span></template>
+      </el-menu-item>
+      
+      <!-- 管理员：用户管理 -->
+      <el-menu-item v-if="userStore.isAdmin" index="admin-users" :title="collapsed ? '用户管理' : undefined">
+        <el-icon><User /></el-icon>
+        <template #title><span>用户管理</span></template>
+      </el-menu-item>
+      
+      <!-- 管理员：系统统计 -->
+      <el-menu-item v-if="userStore.isAdmin" index="admin-stats" :title="collapsed ? '系统统计' : undefined">
+        <el-icon><DataAnalysis /></el-icon>
+        <template #title><span>系统统计</span></template>
       </el-menu-item>
     </el-menu>
     
@@ -134,10 +154,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { 
   Files, FolderOpened, Picture, Document, VideoPlay, 
-  Headset, MoreFilled, Delete, Coin, Upload, Setting 
+  Headset, MoreFilled, Delete, Coin, Upload, Setting, 
+  User, DataAnalysis
 } from '@element-plus/icons-vue'
 import { useAppStore } from '@/store/appStore'
 import { useTransferStore } from '@/store/transferStore'
+import { useUserStore } from '@/store/userStore'
 
 const props = defineProps({
   collapsed: { type: Boolean, default: false }
@@ -147,6 +169,7 @@ const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
 const transferStore = useTransferStore()
+const userStore = useUserStore()
 
 // 传输任务数量
 const transferCount = computed(() => transferStore.totalTransferCount)
@@ -165,8 +188,21 @@ const activeIndex = computed(() => {
     return 'config'
   }
   
+  // 用户管理
+  if (routeName === 'UserManagement') {
+    return 'admin-users'
+  }
+  
+  // 系统统计
+  if (routeName === 'SystemStats') {
+    return 'admin-stats'
+  }
+  
   // 文件管理
   if (routeName === 'File') {
+    if (userStore.isAdmin) {
+      return 'files'
+    }
     const fileType = route.query.fileType
     return fileType !== undefined ? `file-${fileType}` : 'file-0'
   }
@@ -210,7 +246,25 @@ const handleMenuSelect = (index) => {
     return
   }
   
-  // 文件管理
+  // 文件管理（管理员）
+  if (index === 'files' && userStore.isAdmin) {
+    router.push({ name: 'File' })
+    return
+  }
+  
+  // 用户管理
+  if (index === 'admin-users') {
+    router.push({ name: 'UserManagement' })
+    return
+  }
+  
+  // 系统统计
+  if (index === 'admin-stats') {
+    router.push({ name: 'SystemStats' })
+    return
+  }
+  
+  // 文件管理（普通用户）
   if (index.startsWith('file-')) {
     const fileType = parseInt(index.replace('file-', ''))
     router.push({

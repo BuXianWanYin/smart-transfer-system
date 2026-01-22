@@ -15,13 +15,22 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 用户服务实现
@@ -37,11 +46,40 @@ public class UserServiceImpl implements UserService {
     
     @Resource
     private JwtUtil jwtUtil;
+    
+    /**
+     * 头像存储路径
+     */
+    @Value("${transfer.avatar-path:./uploads/avatars}")
+    private String avatarPath;
 
     /**
      * 密码加盐
      */
     private static final String SALT = "smart-transfer-salt";
+    
+    /**
+     * 初始化头像存储目录
+     */
+    @PostConstruct
+    public void initAvatarPath() {
+        try {
+            // 获取项目根目录
+            String userDir = System.getProperty("user.dir");
+            
+            // 转换为绝对路径
+            if (avatarPath.startsWith("./") || avatarPath.startsWith(".\\")) {
+                avatarPath = Paths.get(userDir, avatarPath.substring(2)).toString();
+            } else if (!Paths.get(avatarPath).isAbsolute()) {
+                avatarPath = Paths.get(userDir, avatarPath).toString();
+            }
+            
+            // 创建目录
+            Files.createDirectories(Paths.get(avatarPath));
+        } catch (IOException e) {
+            throw new RuntimeException("创建头像存储目录失败", e);
+        }
+    }
 
     @Override
     public LoginVO login(LoginDTO loginDTO) {
@@ -79,6 +117,7 @@ public class UserServiceImpl implements UserService {
         loginVO.setUsername(user.getUsername());
         loginVO.setNickname(user.getNickname());
         loginVO.setAvatar(user.getAvatar());
+        loginVO.setRole(user.getRole() != null ? user.getRole() : "USER");
         
         return loginVO;
     }
@@ -105,6 +144,7 @@ public class UserServiceImpl implements UserService {
         user.setPassword(encryptPassword(registerDTO.getPassword()));
         user.setNickname(registerDTO.getNickname() != null ? registerDTO.getNickname() : registerDTO.getUsername());
         user.setStatus(1); // 启用
+        user.setRole("USER"); // 默认普通用户
         user.setCreateTime(new Date());
         user.setUpdateTime(new Date());
         
@@ -120,6 +160,10 @@ public class UserServiceImpl implements UserService {
         
         UserInfoVO userInfoVO = new UserInfoVO();
         BeanUtils.copyProperties(user, userInfoVO);
+        // 确保role字段被正确设置
+        if (userInfoVO.getRole() == null) {
+            userInfoVO.setRole(user.getRole() != null ? user.getRole() : "USER");
+        }
         return userInfoVO;
     }
 
@@ -130,14 +174,25 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("用户不存在");
         }
         
-        // 验证旧密码
+        // 验证新密码长度
+        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 20) {
+            throw new RuntimeException("新密码长度必须在6-20个字符之间");
+        }
+        
+        // 验证新密码不能和旧密码相同
         String encryptedOldPassword = encryptPassword(oldPassword);
+        String encryptedNewPassword = encryptPassword(newPassword);
+        if (encryptedNewPassword.equals(user.getPassword())) {
+            throw new RuntimeException("新密码不能和原密码相同");
+        }
+        
+        // 验证旧密码
         if (!encryptedOldPassword.equals(user.getPassword())) {
             throw new RuntimeException("原密码错误");
         }
         
         // 更新密码
-        user.setPassword(encryptPassword(newPassword));
+        user.setPassword(encryptedNewPassword);
         user.setUpdateTime(new Date());
         userMapper.updateById(user);
     }
@@ -184,6 +239,18 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("用户不存在");
         }
         
+        // 如果要禁用管理员，检查是否还有其他的启用状态的管理员
+        if ("ADMIN".equals(user.getRole()) && status == 0) {
+            LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(User::getRole, "ADMIN");
+            wrapper.eq(User::getStatus, 1);
+            wrapper.ne(User::getId, userId); // 排除当前用户
+            long adminCount = userMapper.selectCount(wrapper);
+            if (adminCount == 0) {
+                throw new RuntimeException("不能禁用最后一个管理员");
+            }
+        }
+        
         user.setStatus(status);
         user.setUpdateTime(new Date());
         userMapper.updateById(user);
@@ -196,6 +263,11 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("用户不存在");
         }
         
+        // 不能删除管理员
+        if ("ADMIN".equals(user.getRole())) {
+            throw new RuntimeException("不能删除管理员用户");
+        }
+        
         userMapper.deleteById(userId);
     }
 
@@ -206,6 +278,77 @@ public class UserServiceImpl implements UserService {
         // 查询用户所有文件
         LambdaQueryWrapper<FileInfo> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileInfo::getUserId, userId);
+        wrapper.eq(FileInfo::getDelFlag, 0);
+        wrapper.eq(FileInfo::getIsDir, 0); // 只统计文件，不统计文件夹
+        
+        List<FileInfo> files = fileInfoMapper.selectList(wrapper);
+        
+        // 统计总存储空间
+        long totalSize = 0;
+        long imageSize = 0;
+        long videoSize = 0;
+        long audioSize = 0;
+        long docSize = 0;
+        long otherSize = 0;
+        
+        int fileCount = files.size();
+        int imageCount = 0;
+        int videoCount = 0;
+        int audioCount = 0;
+        int docCount = 0;
+        int otherCount = 0;
+        
+        for (FileInfo file : files) {
+            long size = file.getFileSize() != null ? file.getFileSize() : 0;
+            totalSize += size;
+            
+            String ext = file.getExtendName();
+            if (ext != null) {
+                ext = ext.toLowerCase();
+                if (isImage(ext)) {
+                    imageSize += size;
+                    imageCount++;
+                } else if (isVideo(ext)) {
+                    videoSize += size;
+                    videoCount++;
+                } else if (isAudio(ext)) {
+                    audioSize += size;
+                    audioCount++;
+                } else if (isDocument(ext)) {
+                    docSize += size;
+                    docCount++;
+                } else {
+                    otherSize += size;
+                    otherCount++;
+                }
+            } else {
+                otherSize += size;
+                otherCount++;
+            }
+        }
+        
+        stats.put("totalSize", totalSize);
+        stats.put("fileCount", fileCount);
+        stats.put("imageSize", imageSize);
+        stats.put("imageCount", imageCount);
+        stats.put("videoSize", videoSize);
+        stats.put("videoCount", videoCount);
+        stats.put("audioSize", audioSize);
+        stats.put("audioCount", audioCount);
+        stats.put("docSize", docSize);
+        stats.put("docCount", docCount);
+        stats.put("otherSize", otherSize);
+        stats.put("otherCount", otherCount);
+        
+        return stats;
+    }
+    
+    @Override
+    public Map<String, Object> getSystemStorageStats() {
+        Map<String, Object> stats = new HashMap<>();
+        
+        // 查询所有用户的文件（未删除）
+        LambdaQueryWrapper<FileInfo> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FileInfo::getDelFlag, 0);
         wrapper.eq(FileInfo::getIsDir, 0); // 只统计文件，不统计文件夹
         
@@ -287,6 +430,77 @@ public class UserServiceImpl implements UserService {
         return "doc,docx,xls,xlsx,ppt,pptx,pdf,txt,md".contains(ext);
     }
 
+    @Override
+    public String uploadAvatar(Long userId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("头像文件不能为空");
+        }
+        
+        // 验证文件类型
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null) {
+            throw new RuntimeException("文件名不能为空");
+        }
+        
+        // 提取文件扩展名
+        int lastDotIndex = originalFilename.lastIndexOf(".");
+        if (lastDotIndex == -1 || lastDotIndex == originalFilename.length() - 1) {
+            throw new RuntimeException("文件名必须包含有效的扩展名");
+        }
+        
+        String ext = originalFilename.substring(lastDotIndex + 1).toLowerCase();
+        if (!"jpg".equals(ext) && !"jpeg".equals(ext) && !"png".equals(ext) && !"gif".equals(ext)) {
+            throw new RuntimeException("头像只支持 jpg、jpeg、png、gif 格式");
+        }
+        
+        // 验证文件大小（最大5MB）
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new RuntimeException("头像大小不能超过5MB");
+        }
+        
+        try {
+            // 创建用户头像目录
+            Path userAvatarDir = Paths.get(avatarPath, userId.toString());
+            Files.createDirectories(userAvatarDir);
+            
+            // 生成唯一文件名
+            String fileName = "avatar_" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
+            Path targetPath = userAvatarDir.resolve(fileName);
+            
+            // 保存文件
+            file.transferTo(targetPath.toFile());
+            
+            // 删除旧头像（如果存在）
+            User user = userMapper.selectById(userId);
+            if (user != null && user.getAvatar() != null && !user.getAvatar().isEmpty()) {
+                // 旧头像路径格式：avatars/userId/filename
+                String oldAvatar = user.getAvatar();
+                if (oldAvatar.startsWith("avatars/")) {
+                    Path oldPath = Paths.get(avatarPath, oldAvatar.substring("avatars/".length()));
+                    try {
+                        Files.deleteIfExists(oldPath);
+                    } catch (IOException e) {
+                        // 忽略删除旧头像失败的错误
+                    }
+                }
+            }
+            
+            // 返回相对路径（格式：avatars/userId/filename）
+            String relativePath = "avatars/" + userId + "/" + fileName;
+            
+            // 更新数据库
+            if (user != null) {
+                user.setAvatar(relativePath);
+                user.setUpdateTime(new Date());
+                userMapper.updateById(user);
+            }
+            
+            return relativePath;
+        } catch (IOException e) {
+            throw new RuntimeException("头像上传失败: " + e.getMessage());
+        }
+    }
+    
     /**
      * 加密密码（MD5 + 盐）
      */

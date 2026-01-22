@@ -47,7 +47,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { LoginService } from '@/api/loginApi'
-import { useUserStore } from '@/store'
+import { useUserStore } from '@/store/userStore'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -112,7 +112,7 @@ function handleLogin() {
   height: 100%;
   min-height: 100vh;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #395fff 0%, #61cfff 50%, #f9ffe3 100%);
   box-sizing: border-box;
 }
 

@@ -11,9 +11,19 @@
         
         <div class="user-info">
           <div class="avatar-section">
-            <el-avatar :size="80" :src="userInfo.avatar || undefined">
-              <el-icon :size="40"><UserFilled /></el-icon>
-            </el-avatar>
+            <el-upload
+              class="avatar-uploader"
+              :http-request="handleAvatarUpload"
+              :show-file-list="false"
+              :before-upload="beforeAvatarUpload"
+              <el-avatar :size="80" :src="avatarUrl">
+                <el-icon :size="40"><UserFilled /></el-icon>
+              </el-avatar>
+              <div class="avatar-upload-tip">
+                <el-icon><Camera /></el-icon>
+                <span>点击上传头像</span>
+              </div>
+            </el-upload>
             <div class="user-basic">
               <h3>{{ userInfo.nickname || userInfo.username }}</h3>
             </div>
@@ -141,14 +151,54 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Refresh, Picture, VideoPlay, Headset, Document, Folder } from '@element-plus/icons-vue'
+import { UserFilled, Refresh, Picture, VideoPlay, Headset, Document, Folder, Camera } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/userStore'
-import { updateUserInfo, changePassword, getStorageStats } from '@/api/userApi'
+import { updateUserInfo, changePassword, getStorageStats, uploadAvatar } from '@/api/userApi'
 
 const userStore = useUserStore()
 
 // 用户信息
 const userInfo = computed(() => userStore.userInfo || {})
+
+// 头像URL（根据baseURL拼接）
+const avatarUrl = computed(() => {
+  if (!userInfo.value?.avatar) return undefined
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  // 如果avatar已经是完整URL，直接返回；否则拼接
+  if (userInfo.value.avatar.startsWith('http://') || userInfo.value.avatar.startsWith('https://')) {
+    return userInfo.value.avatar
+  }
+  // 相对路径格式：avatars/userId/filename
+  return `${baseURL}/user/avatar/${userInfo.value.avatar}`
+})
+
+const beforeAvatarUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt5M = file.size / 1024 / 1024 < 5
+
+  if (!isImage) {
+    ElMessage.error('头像只能是图片格式!')
+    return false
+  }
+  if (!isLt5M) {
+    ElMessage.error('头像大小不能超过 5MB!')
+    return false
+  }
+  return true
+}
+
+const handleAvatarUpload = async (options) => {
+  try {
+    const avatarPath = await uploadAvatar(options.file)
+    if (avatarPath) {
+      ElMessage.success('头像上传成功')
+      // 更新用户信息
+      await userStore.refreshUserInfo()
+    }
+  } catch (error) {
+    ElMessage.error('头像上传失败: ' + (error.message || '未知错误'))
+  }
+}
 
 // 信息表单
 const infoFormRef = ref(null)
@@ -320,6 +370,44 @@ onMounted(() => {
       margin-bottom: 30px;
       padding-bottom: 20px;
       border-bottom: 1px solid #ebeef5;
+      
+      .avatar-uploader {
+        position: relative;
+        
+        :deep(.el-upload) {
+          position: relative;
+          cursor: pointer;
+          
+          &:hover {
+            .avatar-upload-tip {
+              opacity: 1;
+            }
+          }
+        }
+        
+        .avatar-upload-tip {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          border-radius: 50%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          font-size: 12px;
+          opacity: 0;
+          transition: opacity 0.3s;
+          
+          .el-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+          }
+        }
+      }
       
       .user-basic {
         h3 {
