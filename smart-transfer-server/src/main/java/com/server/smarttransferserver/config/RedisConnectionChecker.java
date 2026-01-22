@@ -25,7 +25,6 @@ public class RedisConnectionChecker implements ApplicationRunner {
     
     @Override
     public void run(ApplicationArguments args) {
-        log.info("开始检查 Redis 连接...");
         
         RedisConnection connection = null;
         try {
@@ -37,14 +36,13 @@ public class RedisConnectionChecker implements ApplicationRunner {
             
             // 检查 PING 响应（可能返回 "PONG" 或 "pong"）
             if (pong != null && ("PONG".equalsIgnoreCase(pong))) {
-                log.info("✓ Redis 连接成功！");
             } else {
-                log.error("✗ Redis 连接异常：PING 命令返回异常值: {}", pong);
+                log.error("Redis 连接异常：PING 命令返回异常值: {}", pong);
                 shutdownApplication("Redis 连接异常");
             }
             
         } catch (Exception e) {
-            log.error("✗ Redis 连接失败！", e);
+            log.error("Redis 连接失败！", e);
             log.error("错误信息: {}", e.getMessage());
             shutdownApplication("Redis 连接失败: " + e.getMessage());
         } finally {

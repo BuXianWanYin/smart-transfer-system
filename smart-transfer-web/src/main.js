@@ -8,6 +8,7 @@ import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import '@/assets/styles/variables.css'
 import '@/assets/styles/index.css'
+import { getUserInfo } from '@/api/userApi'
 
 const app = createApp(App)
 
@@ -21,4 +22,30 @@ app.use(router)
 app.use(ElementPlus, { locale: zhCn })
 
 app.mount('#app')
+
+// 应用启动时验证 token 有效性（在路由准备好后）
+router.isReady().then(async () => {
+  const token = localStorage.getItem('token')
+  if (token && token.trim() !== '') {
+    try {
+      // 验证 token 是否有效
+      await getUserInfo()
+      console.log('Token 验证成功')
+    } catch (error) {
+      // Token 无效，清除登录信息
+      console.warn('Token 无效，清除登录信息')
+      localStorage.removeItem('token')
+      localStorage.removeItem('userInfo')
+      // 如果当前不在登录页，跳转到登录页
+      if (router.currentRoute.value.path !== '/login') {
+        router.push('/login')
+      }
+    }
+  } else {
+    // 没有 token，如果不在登录页，跳转到登录页
+    if (router.currentRoute.value.path !== '/login') {
+      router.push('/login')
+    }
+  }
+})
 

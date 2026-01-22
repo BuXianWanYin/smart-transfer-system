@@ -102,19 +102,22 @@ const handleCommand = async (command) => {
   .header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
     
     .menu-toggle,
     .collapse-toggle {
-      font-size: 22px;
+      font-size: 26px;
       color: #606266;
       cursor: pointer;
-      padding: 8px;
-      border-radius: 6px;
+      padding: 10px 12px;
+      border-radius: 8px;
       transition: all 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
+      min-width: 44px;
+      min-height: 44px;
+      flex-shrink: 0;
       
       &:hover {
         background: #f5f7fa;

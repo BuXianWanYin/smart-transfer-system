@@ -4,6 +4,7 @@
       :default-active="activeIndex"
       :default-openeds="collapsed ? [] : ['files']"
       :collapse="collapsed"
+      :collapse-transition="false"
       class="file-menu"
       @select="handleMenuSelect"
     >
@@ -13,7 +14,7 @@
         <template #title>
           <span>传输中心</span>
           <el-badge 
-            v-if="transferCount > 0" 
+            v-if="transferCount > 0 && !collapsed" 
             :value="transferCount" 
             :max="99"
             class="transfer-badge"
@@ -59,20 +60,45 @@
         </el-menu-item>
       </el-sub-menu>
       
-      <!-- 折叠模式下的文件菜单 -->
-      <el-menu-item index="file-0" v-if="collapsed">
+      <!-- 折叠模式下的文件分类菜单 -->
+      <el-menu-item v-if="collapsed" index="file-0" title="全部">
         <el-icon><FolderOpened /></el-icon>
-        <template #title><span>全部文件</span></template>
+        <template #title><span>全部</span></template>
+      </el-menu-item>
+      
+      <el-menu-item v-if="collapsed" index="file-1" title="图片">
+        <el-icon><Picture /></el-icon>
+        <template #title><span>图片</span></template>
+      </el-menu-item>
+      
+      <el-menu-item v-if="collapsed" index="file-2" title="文档">
+        <el-icon><Document /></el-icon>
+        <template #title><span>文档</span></template>
+      </el-menu-item>
+      
+      <el-menu-item v-if="collapsed" index="file-3" title="视频">
+        <el-icon><VideoPlay /></el-icon>
+        <template #title><span>视频</span></template>
+      </el-menu-item>
+      
+      <el-menu-item v-if="collapsed" index="file-4" title="音乐">
+        <el-icon><Headset /></el-icon>
+        <template #title><span>音乐</span></template>
+      </el-menu-item>
+      
+      <el-menu-item v-if="collapsed" index="file-5" title="其他">
+        <el-icon><MoreFilled /></el-icon>
+        <template #title><span>其他</span></template>
       </el-menu-item>
       
       <!-- 回收站 -->
-      <el-menu-item index="file-6">
+      <el-menu-item index="file-6" :title="collapsed ? '回收站' : undefined">
         <el-icon><Delete /></el-icon>
         <template #title><span>回收站</span></template>
       </el-menu-item>
       
       <!-- 系统配置 -->
-      <el-menu-item index="config">
+      <el-menu-item index="config" :title="collapsed ? '系统配置' : undefined">
         <el-icon><Setting /></el-icon>
         <template #title><span>系统配置</span></template>
       </el-menu-item>
