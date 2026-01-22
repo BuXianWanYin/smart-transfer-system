@@ -13,6 +13,7 @@ import com.server.smarttransferserver.service.IFileChecksumService;
 import com.server.smarttransferserver.service.FileMergeService;
 import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.TransferTaskService;
+import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.FileMergeVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,8 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 文件合并服务实现
@@ -119,13 +122,21 @@ public class FileMergeServiceImpl implements FileMergeService {
                         .build();
             }
             
-            // 3. 合并分片文件
+            // 3. 检查同名文件，如果存在则自动重命名
+            String finalFileName = checkAndRenameDuplicateFile(fileInfo);
+            if (!finalFileName.equals(fileInfo.getFileName())) {
+                log.info("检测到同名文件，自动重命名 - 原文件名: {}, 新文件名: {}", 
+                         fileInfo.getFileName(), finalFileName);
+                fileInfo.setFileName(finalFileName);
+            }
+            
+            // 4. 合并分片文件
             String filePath = storageService.mergeChunks(
                     dto.getFileId(), 
-                    fileInfo.getFileName(), 
+                    finalFileName, 
                     allChunks.size());
             
-            // 4. 校验文件完整性（需要绝对路径）
+            // 5. 校验文件完整性（需要绝对路径）
             // mergeChunks返回的是相对路径，需要转换为绝对路径才能用于文件操作
             java.nio.file.Path absolutePath = storageService.getAbsoluteFilePath(filePath);
             String absolutePathStr = absolutePath.toString();
@@ -142,16 +153,16 @@ public class FileMergeServiceImpl implements FileMergeService {
                         .build();
             }
             
-            // 5. 更新文件记录
+            // 6. 更新文件记录（包含可能的重命名）
             fileInfo.setFilePath(filePath);
             fileInfo.setUploadStatus("COMPLETED");
             fileInfo.setUpdateTime(LocalDateTime.now());
             fileInfoMapper.updateById(fileInfo);
             
-            // 6. 删除临时分片
+            // 7. 删除临时分片
             storageService.deleteTempChunks(dto.getFileId());
             
-            // 7. 查找并更新已有的活跃传输任务，如果没有则创建新任务
+            // 8. 查找并更新已有的活跃传输任务，如果没有则创建新任务
             String taskId = null;
             List<TransferTask> existingTasks = transferTaskMapper.selectByFileId(dto.getFileId());
             if (existingTasks != null && !existingTasks.isEmpty()) {
@@ -284,6 +295,67 @@ public class FileMergeServiceImpl implements FileMergeService {
         } catch (Exception e) {
             log.error("清理上传失败的文件数据时出错 - 文件ID: {}, 错误: {}", fileId, e.getMessage());
         }
+    }
+    
+    /**
+     * 检查同名文件并自动重命名
+     * 如果同一文件夹下已存在同名文件，自动生成新文件名（如：图片(1).jpg）
+     *
+     * @param fileInfo 文件信息
+     * @return 最终文件名（如果存在同名则重命名，否则返回原文件名）
+     */
+    private String checkAndRenameDuplicateFile(FileInfo fileInfo) {
+        Long userId = UserContextHolder.getUserId();
+        Long folderId = fileInfo.getFolderId() != null ? fileInfo.getFolderId() : 0L;
+        String originalFileName = fileInfo.getFileName();
+        
+        // 查询同名文件（排除当前文件）
+        List<FileInfo> duplicateFiles = fileInfoMapper.selectByFileNameAndFolder(
+                originalFileName, folderId, userId);
+        
+        // 过滤掉当前文件本身
+        duplicateFiles.removeIf(f -> f.getId().equals(fileInfo.getId()));
+        
+        // 如果没有同名文件，直接返回原文件名
+        if (duplicateFiles.isEmpty()) {
+            return originalFileName;
+        }
+        
+        // 有同名文件，需要重命名
+        // 提取文件名和扩展名
+        int lastDotIndex = originalFileName.lastIndexOf('.');
+        String baseName;
+        String extension;
+        
+        if (lastDotIndex > 0 && lastDotIndex < originalFileName.length() - 1) {
+            baseName = originalFileName.substring(0, lastDotIndex);
+            extension = originalFileName.substring(lastDotIndex);
+        } else {
+            baseName = originalFileName;
+            extension = "";
+        }
+        
+        // 查找已存在的编号（如：图片(1).jpg, 图片(2).jpg）
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(baseName) + "\\((\\d+)\\)" + Pattern.quote(extension) + "$");
+        int maxNumber = 0;
+        
+        for (FileInfo duplicate : duplicateFiles) {
+            String dupFileName = duplicate.getFileName();
+            Matcher matcher = pattern.matcher(dupFileName);
+            if (matcher.matches()) {
+                int number = Integer.parseInt(matcher.group(1));
+                maxNumber = Math.max(maxNumber, number);
+            }
+        }
+        
+        // 生成新文件名
+        int newNumber = maxNumber + 1;
+        String newFileName = baseName + "(" + newNumber + ")" + extension;
+        
+        log.info("检测到同名文件，自动重命名 - 原文件名: {}, 新文件名: {}, 文件夹ID: {}", 
+                 originalFileName, newFileName, folderId);
+        
+        return newFileName;
     }
 }
 

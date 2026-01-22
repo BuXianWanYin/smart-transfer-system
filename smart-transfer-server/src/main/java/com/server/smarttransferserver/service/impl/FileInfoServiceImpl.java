@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -70,8 +72,16 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
      */
     @Override
     public FileInfoVO getFileById(Long id) {
+        Long userId = UserContextHolder.getUserId();
         FileInfo fileInfo = fileInfoMapper.selectById(id);
         if (fileInfo == null) {
+            return null;
+        }
+        
+        // 检查用户权限：只能访问自己的文件
+        if (userId == null || !userId.equals(fileInfo.getUserId())) {
+            log.warn("用户尝试访问其他用户的文件 - 用户ID: {}, 文件ID: {}, 文件所有者: {}", 
+                     userId, id, fileInfo.getUserId());
             return null;
         }
         
@@ -96,7 +106,13 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
      */
     @Override
     public IPage<FileInfoVO> getFileList(Integer pageNum, Integer pageSize, String status) {
+        Long userId = UserContextHolder.getUserId();
         QueryWrapper<FileInfo> queryWrapper = new QueryWrapper<>();
+        
+        // 用户数据隔离：只查询当前用户的文件
+        if (userId != null) {
+            queryWrapper.eq("user_id", userId);
+        }
         
         if (status != null && !status.isEmpty()) {
             queryWrapper.eq("upload_status", status);
@@ -124,7 +140,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             return vo;
         }).collect(Collectors.toList()));
         
-        log.info("查询文件列表 - 状态: {}, 结果数: {}", status, voPage.getRecords().size());
+        log.info("查询文件列表 - 用户ID: {}, 状态: {}, 结果数: {}", userId, status, voPage.getRecords().size());
         return voPage;
     }
     
@@ -183,7 +199,14 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
      */
     @Override
     public List<FileInfoVO> searchByFileName(String fileName) {
+        Long userId = UserContextHolder.getUserId();
         LambdaQueryWrapper<FileInfo> queryWrapper = new LambdaQueryWrapper<>();
+        
+        // 用户数据隔离：只搜索当前用户的文件
+        if (userId != null) {
+            queryWrapper.eq(FileInfo::getUserId, userId);
+        }
+        
         queryWrapper.like(FileInfo::getFileName, fileName)
                     .eq(FileInfo::getDelFlag, 0)
                     .orderByDesc(FileInfo::getCreateTime);
@@ -210,10 +233,15 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             throw new RuntimeException("文件不存在");
         }
         
-        fileInfo.setFileName(newFileName);
+        // 检查同名文件并自动重命名（同一文件夹下，排除当前文件）
+        Long userId = UserContextHolder.getUserId();
+        Long folderId = fileInfo.getFolderId() != null ? fileInfo.getFolderId() : 0L;
+        String finalFileName = checkAndRenameDuplicateFileForRename(newFileName, folderId, userId, id);
+        
+        fileInfo.setFileName(finalFileName);
         fileInfo.setUpdateTime(LocalDateTime.now());
         updateById(fileInfo);
-        log.info("文件重命名 - ID: {}, 新文件名: {}", id, newFileName);
+        log.info("文件重命名 - ID: {}, 新文件名: {}", id, finalFileName);
     }
     
     /**
@@ -230,10 +258,35 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             throw new RuntimeException("文件不存在");
         }
         
-        fileInfo.setFolderId(targetFolderId);
+        // 规范化目标文件夹ID
+        Long normalizedTargetFolderId = (targetFolderId == null || targetFolderId == 0) ? 0L : targetFolderId;
+        
+        // 如果目标文件夹不为0，验证目标文件夹是否存在
+        if (normalizedTargetFolderId > 0) {
+            Folder targetFolder = folderMapper.selectById(normalizedTargetFolderId);
+            if (targetFolder == null) {
+                throw new RuntimeException("目标文件夹不存在");
+            }
+        }
+        
+        // 如果移动到不同文件夹，检查目标文件夹是否有同名文件
+        Long currentFolderId = fileInfo.getFolderId() != null ? fileInfo.getFolderId() : 0L;
+        if (!currentFolderId.equals(normalizedTargetFolderId)) {
+            Long userId = UserContextHolder.getUserId();
+            String finalFileName = checkAndRenameDuplicateFileForRename(
+                    fileInfo.getFileName(), normalizedTargetFolderId, userId, id);
+            
+            if (!finalFileName.equals(fileInfo.getFileName())) {
+                log.info("移动文件时检测到同名文件，自动重命名 - 原文件名: {}, 新文件名: {}, 目标文件夹: {}", 
+                         fileInfo.getFileName(), finalFileName, normalizedTargetFolderId);
+                fileInfo.setFileName(finalFileName);
+            }
+        }
+        
+        fileInfo.setFolderId(normalizedTargetFolderId);
         fileInfo.setUpdateTime(LocalDateTime.now());
         updateById(fileInfo);
-        log.info("文件移动 - ID: {}, 目标文件夹: {}", id, targetFolderId);
+        log.info("文件移动 - ID: {}, 目标文件夹: {}", id, normalizedTargetFolderId);
     }
     
     /**
@@ -285,19 +338,23 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                 throw new RuntimeException("源文件物理路径不存在: " + sourcePath);
             }
             
-            // **修复MODULE-3: 验证目标文件夹是否存在（如果targetFolderId不为0）**
-            if (targetFolderId != null && targetFolderId > 0) {
-                Folder targetFolder = folderMapper.selectById(targetFolderId);
+            // 规范化目标文件夹ID
+            Long normalizedTargetFolderId = (targetFolderId == null || targetFolderId == 0) ? 0L : targetFolderId;
+            
+            // 验证目标文件夹是否存在（如果targetFolderId不为0）
+            if (normalizedTargetFolderId > 0) {
+                Folder targetFolder = folderMapper.selectById(normalizedTargetFolderId);
                 if (targetFolder == null) {
                     throw new RuntimeException("目标文件夹不存在");
                 }
             }
             
-            // 生成新的文件名
-            String newFileName = generateCopyFileName(sourceFile.getFileName());
-            
             // 创建新的文件记录
             Long userId = UserContextHolder.getUserId();
+            
+            // 检查目标文件夹是否有同名文件，如果有则自动重命名
+            String newFileName = checkAndRenameDuplicateFileForCopy(
+                    sourceFile.getFileName(), normalizedTargetFolderId, userId);
             
             // 使用FileStorageService保存文件，返回相对路径
             String relativePath = fileStorageService.saveFile(source, newFileName, userId);
@@ -310,15 +367,15 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             newFile.setFileHash(sourceFile.getFileHash());
             newFile.setFilePath(relativePath);
             newFile.setIsDir(0);
-            newFile.setFolderId(targetFolderId);
+            newFile.setFolderId(normalizedTargetFolderId);
             newFile.setUploadStatus("COMPLETED");
             newFile.setDelFlag(0);
             newFile.setCreateTime(LocalDateTime.now());
             newFile.setUpdateTime(LocalDateTime.now());
             
             save(newFile);
-            log.info("文件复制成功 - 源ID: {}, 新ID: {}, 目标文件夹: {}", 
-                    fileId, newFile.getId(), targetFolderId);
+            log.info("文件复制成功 - 源ID: {}, 新ID: {}, 目标文件夹: {}, 文件名: {}", 
+                    fileId, newFile.getId(), normalizedTargetFolderId, newFileName);
             
         } catch (IOException e) {
             log.error("复制文件失败", e);
@@ -327,17 +384,119 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     }
     
     /**
-     * 生成复制文件的新名称
+     * 检查同名文件并自动重命名（用于重命名操作）
+     * 如果同一文件夹下已存在同名文件，自动生成新文件名（如：图片(1).jpg）
+     * 排除当前正在重命名的文件本身
+     *
+     * @param fileName 原始文件名
+     * @param folderId 文件夹ID（0表示根目录）
+     * @param userId 用户ID
+     * @param excludeFileId 要排除的文件ID（当前正在重命名的文件）
+     * @return 最终文件名（如果存在同名则重命名，否则返回原文件名）
      */
-    private String generateCopyFileName(String originalName) {
-        int dotIndex = originalName.lastIndexOf('.');
-        if (dotIndex > 0) {
-            String baseName = originalName.substring(0, dotIndex);
-            String extension = originalName.substring(dotIndex);
-            return baseName + "_副本" + extension;
-        } else {
-            return originalName + "_副本";
+    private String checkAndRenameDuplicateFileForRename(String fileName, Long folderId, Long userId, Long excludeFileId) {
+        // 查询同名文件（同一用户、同一文件夹下，排除当前文件）
+        List<FileInfo> duplicateFiles = fileInfoMapper.selectByFileNameAndFolder(fileName, folderId, userId);
+        
+        // 过滤掉当前文件本身
+        duplicateFiles.removeIf(f -> f.getId().equals(excludeFileId));
+        
+        // 如果没有同名文件，直接返回原文件名
+        if (duplicateFiles.isEmpty()) {
+            return fileName;
         }
+        
+        // 有同名文件，需要重命名
+        return generateUniqueFileName(fileName, duplicateFiles);
+    }
+    
+    /**
+     * 检查同名文件并自动重命名（用于复制操作）
+     * 如果目标文件夹下已存在同名文件，自动生成新文件名
+     *
+     * @param fileName 原始文件名
+     * @param folderId 文件夹ID（0表示根目录）
+     * @param userId 用户ID
+     * @return 最终文件名（如果存在同名则重命名，否则返回原文件名）
+     */
+    private String checkAndRenameDuplicateFileForCopy(String fileName, Long folderId, Long userId) {
+        // 查询同名文件（同一用户、同一文件夹下）
+        List<FileInfo> duplicateFiles = fileInfoMapper.selectByFileNameAndFolder(fileName, folderId, userId);
+        
+        // 如果没有同名文件，直接返回原文件名
+        if (duplicateFiles.isEmpty()) {
+            return fileName;
+        }
+        
+        // 有同名文件，需要重命名
+        return generateUniqueFileName(fileName, duplicateFiles);
+    }
+    
+    /**
+     * 检查同名文件并自动重命名（用于解压操作）
+     * 如果目标文件夹下已存在同名文件，自动生成新文件名
+     *
+     * @param fileName 原始文件名
+     * @param folderId 文件夹ID（0表示根目录）
+     * @param userId 用户ID
+     * @return 最终文件名（如果存在同名则重命名，否则返回原文件名）
+     */
+    private String checkAndRenameDuplicateFileForUnzip(String fileName, Long folderId, Long userId) {
+        // 查询同名文件（同一用户、同一文件夹下）
+        List<FileInfo> duplicateFiles = fileInfoMapper.selectByFileNameAndFolder(fileName, folderId, userId);
+        
+        // 如果没有同名文件，直接返回原文件名
+        if (duplicateFiles.isEmpty()) {
+            return fileName;
+        }
+        
+        // 有同名文件，需要重命名
+        return generateUniqueFileName(fileName, duplicateFiles);
+    }
+    
+    /**
+     * 生成唯一的文件名（自动编号）
+     * 如果存在同名文件，自动生成新文件名（如：图片(1).jpg）
+     *
+     * @param originalFileName 原始文件名
+     * @param duplicateFiles 同名文件列表
+     * @return 唯一的文件名
+     */
+    private String generateUniqueFileName(String originalFileName, List<FileInfo> duplicateFiles) {
+        // 提取文件名和扩展名
+        int lastDotIndex = originalFileName.lastIndexOf('.');
+        String baseName;
+        String extension;
+        
+        if (lastDotIndex > 0 && lastDotIndex < originalFileName.length() - 1) {
+            baseName = originalFileName.substring(0, lastDotIndex);
+            extension = originalFileName.substring(lastDotIndex);
+        } else {
+            baseName = originalFileName;
+            extension = "";
+        }
+        
+        // 查找已存在的编号（如：图片(1).jpg, 图片(2).jpg）
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(baseName) + "\\((\\d+)\\)" + Pattern.quote(extension) + "$");
+        int maxNumber = 0;
+        
+        for (FileInfo duplicate : duplicateFiles) {
+            String dupFileName = duplicate.getFileName();
+            Matcher matcher = pattern.matcher(dupFileName);
+            if (matcher.matches()) {
+                int number = Integer.parseInt(matcher.group(1));
+                maxNumber = Math.max(maxNumber, number);
+            }
+        }
+        
+        // 生成新文件名
+        int newNumber = maxNumber + 1;
+        String newFileName = baseName + "(" + newNumber + ")" + extension;
+        
+        log.info("检测到同名文件，自动重命名 - 原文件名: {}, 新文件名: {}", 
+                 originalFileName, newFileName);
+        
+        return newFileName;
     }
     
     /**
@@ -385,16 +544,25 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         
         // 确定目标文件夹ID
         Long destFolderId;
+        Long currentFolderId = fileInfo.getFolderId() != null ? fileInfo.getFolderId() : 0L;
         switch (unzipMode) {
             case 1: // 当前文件夹
-                destFolderId = fileInfo.getFolderId();
+                destFolderId = currentFolderId;
                 break;
             case 2: // 新建文件夹
-                Folder newFolder = folderService.createFolder(folderName, fileInfo.getFolderId());
+                Folder newFolder = folderService.createFolder(folderName, currentFolderId);
                 destFolderId = newFolder.getId();
                 break;
             case 3: // 指定路径
-                destFolderId = targetFolderId;
+                Long normalizedTargetFolderId = (targetFolderId == null || targetFolderId == 0) ? 0L : targetFolderId;
+                // 验证目标文件夹是否存在（如果targetFolderId不为0）
+                if (normalizedTargetFolderId > 0) {
+                    Folder targetFolder = folderMapper.selectById(normalizedTargetFolderId);
+                    if (targetFolder == null) {
+                        throw new RuntimeException("目标文件夹不存在");
+                    }
+                }
+                destFolderId = normalizedTargetFolderId;
                 break;
             default:
                 throw new RuntimeException("无效的解压模式");
@@ -438,12 +606,16 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     // 创建文件记录
                     Long userId = UserContextHolder.getUserId();
                     
+                    // 检查目标文件夹是否有同名文件，如果有则自动重命名
+                    String finalEntryName = checkAndRenameDuplicateFileForUnzip(
+                            entryName, destFolderId, userId);
+                    
                     // 使用FileStorageService保存文件，返回相对路径
-                    String relativePath = fileStorageService.saveFile(tempFile, entryName, userId);
+                    String relativePath = fileStorageService.saveFile(tempFile, finalEntryName, userId);
                     
                     FileInfo extractedFile = new FileInfo();
                     extractedFile.setUserId(userId);
-                    extractedFile.setFileName(entryName);
+                    extractedFile.setFileName(finalEntryName);
                     extractedFile.setExtendName(extractExtendName(entryName));
                     extractedFile.setFileSize(tempFile.length());
                     extractedFile.setFileHash(fileHash);
@@ -456,7 +628,7 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     extractedFile.setUpdateTime(LocalDateTime.now());
                     
                     save(extractedFile);
-                    log.info("解压文件 - 文件名: {}, ID: {}", entryName, extractedFile.getId());
+                    log.info("解压文件 - 文件名: {}, ID: {}", finalEntryName, extractedFile.getId());
                 } finally {
                     // 清理临时文件
                     if (tempFile.exists()) {

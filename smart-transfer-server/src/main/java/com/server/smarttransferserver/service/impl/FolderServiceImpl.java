@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -53,19 +55,16 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("请先登录");
         }
         
-        // 检查同名文件夹（同一用户下）
-        LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Folder::getUserId, userId)
-               .eq(Folder::getParentId, parentId)
-               .eq(Folder::getFolderName, folderName);
-        if (folderMapper.selectCount(wrapper) > 0) {
-            throw new RuntimeException("同名文件夹已存在");
-        }
+        // 规范化 parentId（null 或 0 都视为根目录）
+        Long normalizedParentId = (parentId == null || parentId == 0) ? 0L : parentId;
+        
+        // 检查同名文件夹并自动重命名（同一用户、同一父目录下）
+        String finalFolderName = checkAndRenameDuplicateFolder(folderName, normalizedParentId, userId);
 
         // 构建路径
         String path = "/";
-        if (parentId != null && parentId > 0) {
-            Folder parent = folderMapper.selectById(parentId);
+        if (normalizedParentId != null && normalizedParentId > 0) {
+            Folder parent = folderMapper.selectById(normalizedParentId);
             if (parent != null) {
                 path = parent.getPath() + parent.getFolderName() + "/";
             }
@@ -73,15 +72,16 @@ public class FolderServiceImpl implements FolderService {
 
         Folder folder = Folder.builder()
                 .userId(userId)
-                .folderName(folderName)
-                .parentId(parentId == null ? 0L : parentId)
+                .folderName(finalFolderName)
+                .parentId(normalizedParentId)
                 .path(path)
                 .createTime(LocalDateTime.now())
                 .updateTime(LocalDateTime.now())
                 .build();
 
         folderMapper.insert(folder);
-        log.info("创建文件夹成功 - ID: {}, 名称: {}, 用户: {}", folder.getId(), folderName, userId);
+        log.info("创建文件夹成功 - ID: {}, 名称: {}, 父目录ID: {}, 用户: {}", 
+                 folder.getId(), finalFolderName, normalizedParentId, userId);
         return folder;
     }
 
@@ -206,23 +206,27 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件夹不存在");
         }
 
-        // 检查同名
-        LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Folder::getParentId, folder.getParentId())
-               .eq(Folder::getFolderName, newName)
-               .ne(Folder::getId, folderId);
-        if (folderMapper.selectCount(wrapper) > 0) {
-            throw new RuntimeException("同名文件夹已存在");
-        }
+        Long userId = UserContextHolder.getUserId();
+        Long parentId = folder.getParentId() != null ? folder.getParentId() : 0L;
+        
+        // 检查同名文件夹并自动重命名（排除当前文件夹本身）
+        String finalFolderName = checkAndRenameDuplicateFolderForRename(newName, parentId, userId, folderId);
 
-        folder.setFolderName(newName);
+        folder.setFolderName(finalFolderName);
         folder.setUpdateTime(LocalDateTime.now());
         folderMapper.updateById(folder);
+        
+        log.info("重命名文件夹成功 - ID: {}, 新名称: {}", folderId, finalFolderName);
     }
 
     @Override
     @Transactional
     public void deleteFolder(Long folderId) {
+        Folder folder = folderMapper.selectById(folderId);
+        if (folder == null) {
+            throw new RuntimeException("文件夹不存在");
+        }
+        
         // 使用回收站服务进行软删除（会递归删除子文件夹和子文件）
         recoveryFileService.deleteFolderToRecovery(folderId);
         log.info("文件夹已移至回收站 - ID: {}", folderId);
@@ -259,17 +263,77 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件不存在");
         }
         
-        // **改进：验证目标文件夹是否存在（与copyFile保持一致）**
-        if (folderId != null && folderId > 0) {
-            Folder targetFolder = folderMapper.selectById(folderId);
+        // 规范化目标文件夹ID
+        Long normalizedTargetFolderId = (folderId == null || folderId == 0) ? 0L : folderId;
+        
+        // 验证目标文件夹是否存在（如果targetFolderId不为0）
+        if (normalizedTargetFolderId > 0) {
+            Folder targetFolder = folderMapper.selectById(normalizedTargetFolderId);
             if (targetFolder == null) {
                 throw new RuntimeException("目标文件夹不存在");
             }
         }
         
-        file.setFolderId(folderId == null ? 0L : folderId);
+        // 如果移动到不同文件夹，检查目标文件夹是否有同名文件
+        Long currentFolderId = file.getFolderId() != null ? file.getFolderId() : 0L;
+        if (!currentFolderId.equals(normalizedTargetFolderId)) {
+            Long userId = UserContextHolder.getUserId();
+            String finalFileName = fileInfoMapper.selectByFileNameAndFolder(
+                    file.getFileName(), normalizedTargetFolderId, userId).isEmpty() 
+                    ? file.getFileName() 
+                    : generateUniqueFileNameForMove(file.getFileName(), normalizedTargetFolderId, userId);
+            
+            if (!finalFileName.equals(file.getFileName())) {
+                log.info("移动文件时检测到同名文件，自动重命名 - 原文件名: {}, 新文件名: {}, 目标文件夹: {}", 
+                         file.getFileName(), finalFileName, normalizedTargetFolderId);
+                file.setFileName(finalFileName);
+            }
+        }
+        
+        file.setFolderId(normalizedTargetFolderId);
         file.setUpdateTime(LocalDateTime.now());
         fileInfoMapper.updateById(file);
+    }
+    
+    /**
+     * 生成唯一的文件名（用于移动文件时的同名处理）
+     */
+    private String generateUniqueFileNameForMove(String originalFileName, Long folderId, Long userId) {
+        List<FileInfo> duplicateFiles = fileInfoMapper.selectByFileNameAndFolder(originalFileName, folderId, userId);
+        
+        if (duplicateFiles.isEmpty()) {
+            return originalFileName;
+        }
+        
+        // 提取文件名和扩展名
+        int lastDotIndex = originalFileName.lastIndexOf('.');
+        String baseName;
+        String extension;
+        
+        if (lastDotIndex > 0 && lastDotIndex < originalFileName.length() - 1) {
+            baseName = originalFileName.substring(0, lastDotIndex);
+            extension = originalFileName.substring(lastDotIndex);
+        } else {
+            baseName = originalFileName;
+            extension = "";
+        }
+        
+        // 查找已存在的编号
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(baseName) + "\\((\\d+)\\)" + Pattern.quote(extension) + "$");
+        int maxNumber = 0;
+        
+        for (FileInfo duplicate : duplicateFiles) {
+            String dupFileName = duplicate.getFileName();
+            Matcher matcher = pattern.matcher(dupFileName);
+            if (matcher.matches()) {
+                int number = Integer.parseInt(matcher.group(1));
+                maxNumber = Math.max(maxNumber, number);
+            }
+        }
+        
+        // 生成新文件名
+        int newNumber = maxNumber + 1;
+        return baseName + "(" + newNumber + ")" + extension;
     }
 
     @Override
@@ -289,27 +353,43 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件夹不存在");
         }
 
+        // 规范化目标文件夹ID
+        Long normalizedTargetFolderId = (targetFolderId == null || targetFolderId == 0) ? 0L : targetFolderId;
+        
         // **修复MODULE-2: 只有targetFolderId不为0时才检查循环依赖（0是根目录，无需检查）**
-        if (targetFolderId != null && targetFolderId > 0) {
+        if (normalizedTargetFolderId != null && normalizedTargetFolderId > 0) {
             // 验证目标文件夹存在
-            Folder targetFolder = folderMapper.selectById(targetFolderId);
+            Folder targetFolder = folderMapper.selectById(normalizedTargetFolderId);
             if (targetFolder == null) {
                 throw new RuntimeException("目标文件夹不存在");
             }
             
             // 检查是否移动到子文件夹（会造成循环）
-            if (isSubFolder(folderId, targetFolderId)) {
+            if (isSubFolder(folderId, normalizedTargetFolderId)) {
                 throw new RuntimeException("不能移动到子文件夹");
             }
         }
+        
+        // 如果移动到不同父目录，检查目标父目录是否有同名文件夹
+        if (!folder.getParentId().equals(normalizedTargetFolderId)) {
+            Long userId = UserContextHolder.getUserId();
+            String finalFolderName = checkAndRenameDuplicateFolderForRename(
+                    folder.getFolderName(), normalizedTargetFolderId, userId, folderId);
+            
+            if (!finalFolderName.equals(folder.getFolderName())) {
+                log.info("移动文件夹时检测到同名文件夹，自动重命名 - 原文件夹名: {}, 新文件夹名: {}, 目标父目录: {}", 
+                         folder.getFolderName(), finalFolderName, normalizedTargetFolderId);
+                folder.setFolderName(finalFolderName);
+            }
+        }
 
-        folder.setParentId(targetFolderId);
+        folder.setParentId(normalizedTargetFolderId);
         folder.setUpdateTime(LocalDateTime.now());
 
         // 更新路径
         String newPath = "/";
-        if (targetFolderId != null && targetFolderId > 0) {
-            Folder parent = folderMapper.selectById(targetFolderId);
+        if (normalizedTargetFolderId != null && normalizedTargetFolderId > 0) {
+            Folder parent = folderMapper.selectById(normalizedTargetFolderId);
             if (parent != null) {
                 newPath = parent.getPath() + parent.getFolderName() + "/";
             }
@@ -406,6 +486,105 @@ public class FolderServiceImpl implements FolderService {
         }
         
         return children;
+    }
+    
+    /**
+     * 检查同名文件夹并自动重命名
+     * 如果同一父目录下已存在同名文件夹，自动生成新文件夹名（如：图片(1)）
+     *
+     * @param folderName 原始文件夹名
+     * @param parentId 父目录ID（0表示根目录）
+     * @param userId 用户ID
+     * @return 最终文件夹名（如果存在同名则重命名，否则返回原文件夹名）
+     */
+    private String checkAndRenameDuplicateFolder(String folderName, Long parentId, Long userId) {
+        // 查询同名文件夹（同一用户、同一父目录下）
+        LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Folder::getUserId, userId)
+               .eq(Folder::getParentId, parentId)
+               .eq(Folder::getFolderName, folderName)
+               .eq(Folder::getDelFlag, 0);  // 只检查未删除的文件夹
+        
+        List<Folder> duplicateFolders = folderMapper.selectList(wrapper);
+        
+        // 如果没有同名文件夹，直接返回原文件夹名
+        if (duplicateFolders.isEmpty()) {
+            return folderName;
+        }
+        
+        // 有同名文件夹，需要重命名
+        // 查找已存在的编号（如：图片(1), 图片(2)）
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(folderName) + "\\((\\d+)\\)$");
+        int maxNumber = 0;
+        
+        for (Folder duplicate : duplicateFolders) {
+            String dupFolderName = duplicate.getFolderName();
+            Matcher matcher = pattern.matcher(dupFolderName);
+            if (matcher.matches()) {
+                int number = Integer.parseInt(matcher.group(1));
+                maxNumber = Math.max(maxNumber, number);
+            }
+        }
+        
+        // 生成新文件夹名
+        int newNumber = maxNumber + 1;
+        String newFolderName = folderName + "(" + newNumber + ")";
+        
+        log.info("检测到同名文件夹，自动重命名 - 原文件夹名: {}, 新文件夹名: {}, 父目录ID: {}", 
+                 folderName, newFolderName, parentId);
+        
+        return newFolderName;
+    }
+    
+    /**
+     * 检查同名文件夹并自动重命名（用于重命名操作）
+     * 如果同一父目录下已存在同名文件夹，自动生成新文件夹名（如：图片(1)）
+     * 排除当前正在重命名的文件夹本身
+     *
+     * @param folderName 原始文件夹名
+     * @param parentId 父目录ID（0表示根目录）
+     * @param userId 用户ID
+     * @param excludeFolderId 要排除的文件夹ID（当前正在重命名的文件夹）
+     * @return 最终文件夹名（如果存在同名则重命名，否则返回原文件夹名）
+     */
+    private String checkAndRenameDuplicateFolderForRename(String folderName, Long parentId, Long userId, Long excludeFolderId) {
+        // 查询同名文件夹（同一用户、同一父目录下，排除当前文件夹）
+        LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Folder::getUserId, userId)
+               .eq(Folder::getParentId, parentId)
+               .eq(Folder::getFolderName, folderName)
+               .ne(Folder::getId, excludeFolderId)  // 排除当前文件夹
+               .eq(Folder::getDelFlag, 0);  // 只检查未删除的文件夹
+        
+        List<Folder> duplicateFolders = folderMapper.selectList(wrapper);
+        
+        // 如果没有同名文件夹，直接返回原文件夹名
+        if (duplicateFolders.isEmpty()) {
+            return folderName;
+        }
+        
+        // 有同名文件夹，需要重命名
+        // 查找已存在的编号（如：图片(1), 图片(2)）
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(folderName) + "\\((\\d+)\\)$");
+        int maxNumber = 0;
+        
+        for (Folder duplicate : duplicateFolders) {
+            String dupFolderName = duplicate.getFolderName();
+            Matcher matcher = pattern.matcher(dupFolderName);
+            if (matcher.matches()) {
+                int number = Integer.parseInt(matcher.group(1));
+                maxNumber = Math.max(maxNumber, number);
+            }
+        }
+        
+        // 生成新文件夹名
+        int newNumber = maxNumber + 1;
+        String newFolderName = folderName + "(" + newNumber + ")";
+        
+        log.info("重命名时检测到同名文件夹，自动重命名 - 原文件夹名: {}, 新文件夹名: {}, 父目录ID: {}", 
+                 folderName, newFolderName, parentId);
+        
+        return newFolderName;
     }
 }
 

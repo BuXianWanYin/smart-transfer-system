@@ -66,4 +66,18 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
      */
     @Delete("DELETE FROM file_info WHERE delete_batch_num = #{batchNum}")
     int deletePhysicallyByBatchNum(@Param("batchNum") String batchNum);
+
+    /**
+     * 查询同名文件（同一用户、同一文件夹下）
+     * 用于检查文件重名，支持自动重命名
+     *
+     * @param fileName 文件名
+     * @param folderId 文件夹ID
+     * @param userId 用户ID
+     * @return 同名文件列表
+     */
+    @Select("SELECT * FROM file_info WHERE file_name = #{fileName} AND folder_id = #{folderId} AND user_id = #{userId} AND del_flag = 0 AND upload_status = 'COMPLETED'")
+    List<FileInfo> selectByFileNameAndFolder(@Param("fileName") String fileName, 
+                                              @Param("folderId") Long folderId, 
+                                              @Param("userId") Long userId);
 }
