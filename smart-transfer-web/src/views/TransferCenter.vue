@@ -92,6 +92,37 @@
                 </el-tag>
               </div>
             </div>
+            <div class="monitor-item" v-if="currentMetrics.rttJitter !== undefined">
+              <div class="monitor-label">RTT抖动</div>
+              <div class="monitor-value">{{ currentMetrics.rttJitter || 0 }}ms</div>
+            </div>
+            <div class="monitor-item" v-if="currentMetrics.bdp !== undefined">
+              <div class="monitor-label">BDP</div>
+              <div class="monitor-value info">{{ formatFileSize(currentMetrics.bdp) }}</div>
+            </div>
+            <div class="monitor-item" v-if="currentMetrics.networkTrend">
+              <div class="monitor-label">网络趋势</div>
+              <div class="monitor-value">
+                <el-tag 
+                  :type="getTrendType(currentMetrics.networkTrend)" 
+                  size="small"
+                >
+                  <el-icon v-if="currentMetrics.networkTrend === '上升'"><ArrowUp /></el-icon>
+                  <el-icon v-else-if="currentMetrics.networkTrend === '下降'"><ArrowDown /></el-icon>
+                  <el-icon v-else><Minus /></el-icon>
+                  {{ currentMetrics.networkTrend }}
+                </el-tag>
+              </div>
+            </div>
+            <div class="monitor-item" v-if="currentMetrics.isWarmingUp">
+              <div class="monitor-label">算法状态</div>
+              <div class="monitor-value">
+                <el-tag type="warning" size="small">
+                  <el-icon><Loading /></el-icon>
+                  预热中
+                </el-tag>
+              </div>
+            </div>
           </div>
         </div>
       </transition>
@@ -282,7 +313,8 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Upload, Download, VideoPause, VideoPlay, Delete, Monitor,
-  Close, FolderOpened, Document, CircleCheck, RefreshRight
+  Close, FolderOpened, Document, CircleCheck, RefreshRight,
+  ArrowUp, ArrowDown, Minus, Loading
 } from '@element-plus/icons-vue'
 import { useCongestionStore } from '@/store/congestionStore'
 import { useTransferStore } from '@/store/transferStore'
@@ -552,6 +584,7 @@ const startUploadTask = async (task) => {
     transferStore.updateUploadTask(task.id, { 
       status: 'uploading',
       fileId: initRes.fileId,
+      taskId: initRes.taskId,  // **修复：保存taskId用于监控数据匹配**
       totalChunks,
       uploadedChunks: [...uploadedSet],  // **修复ISSUE-2-补充: 保存合并后的分片列表**
       uploadedSize,
@@ -852,9 +885,9 @@ const handleWsEvent = (event) => {
       // data.tasks 是一个Map，key是taskId，value是CongestionMetricsVO
       const taskMetricsMap = data.tasks
       
-      // 如果有活跃的上传任务，使用第一个任务的指标（或可以按任务ID匹配）
+      // **修复：如果有活跃的上传任务，优先使用匹配taskId的任务指标**
       const activeUploadTask = transferStore.uploadQueue.find(t => 
-        t.status === 'uploading' && taskMetricsMap[t.taskId]
+        t.status === 'uploading' && t.taskId && taskMetricsMap[t.taskId]
       )
       
       if (activeUploadTask && taskMetricsMap[activeUploadTask.taskId]) {
@@ -863,11 +896,14 @@ const handleWsEvent = (event) => {
         currentMetrics.value = taskMetrics
         congestionStore.updateMetrics(taskMetrics)
       } else if (Object.keys(taskMetricsMap).length > 0) {
-        // 如果没有活跃任务，使用第一个任务的指标
+        // **修复：如果没有匹配的任务，使用第一个任务的指标（确保有数据时显示）**
         const firstTaskId = Object.keys(taskMetricsMap)[0]
         const taskMetrics = taskMetricsMap[firstTaskId]
-        currentMetrics.value = taskMetrics
-        congestionStore.updateMetrics(taskMetrics)
+        // **修复：只有当指标不是NONE时才更新（避免覆盖有效数据）**
+        if (taskMetrics && taskMetrics.algorithm && taskMetrics.algorithm !== 'NONE') {
+          currentMetrics.value = taskMetrics
+          congestionStore.updateMetrics(taskMetrics)
+        }
       }
     } else {
       // 兼容旧格式：单个指标对象
@@ -907,6 +943,18 @@ const getQualityType = (quality) => {
     '良好': 'primary',
     '一般': 'warning',
     '差': 'danger'
+  }
+  return typeMap[quality] || 'info'
+}
+
+// 获取网络趋势标签类型
+const getTrendType = (trend) => {
+  const typeMap = {
+    '上升': 'danger',
+    '下降': 'success',
+    '平稳': 'info'
+  }
+  return typeMap[trend] || 'info'
   }
   return typeMap[quality] || 'info'
 }
@@ -1088,10 +1136,15 @@ const handleCancel = async (item) => {
           await cancelUpload(item.fileId)
           console.log('已清理后端上传数据')
         } catch (cleanupError) {
+          // **修复：取消上传失败时只记录错误，不阻止前端删除任务**
           console.error('清理上传数据失败:', cleanupError)
+          // 即使后端清理失败，前端也继续删除任务（避免任务残留）
         }
+      } else {
+        console.warn('任务没有fileId，跳过后端清理')
       }
       transferStore.removeUploadTask(item.id)
+      ElMessage.success('已取消上传')
     } else {
       // **修复M1: 下载取消时也清理后端资源（Redis、算法实例）**
       // **修复P2: 下载取消时取消所有正在进行的请求并清理前端资源**

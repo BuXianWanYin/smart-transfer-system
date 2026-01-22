@@ -30,6 +30,28 @@ public class CongestionConfig {
     private long rttJitterThreshold = 50L;     // 50ms
     private long evaluationInterval = 5000L;   // 5秒
     
+    // 网络趋势分析配置
+    private int trendWindowSize = 5;           // 趋势窗口大小
+    private double trendThreshold = 0.1;       // 趋势变化率阈值（10%）
+    
+    // 置信度阈值配置
+    private double confidenceThreshold = 0.1;   // 算法切换置信度阈值（10%）
+    
+    // 基准算法配置
+    private String baselineAlgorithm = "CUBIC"; // 基准算法（用于相对评分）
+    
+    // 算法预热配置
+    private int warmupRttCount = 2;            // 算法预热RTT周期数
+    
+    // 异常值过滤配置
+    private boolean outlierFilterEnabled = true; // 是否启用异常值过滤
+    
+    // 算法回滚配置
+    private double rollbackThreshold = 0.2;     // 算法回滚阈值（20%性能下降）
+    
+    // 最小切换间隔配置
+    private long minSwitchInterval = 10000L;    // 最小切换间隔（毫秒）
+    
     /**
      * 初始化时从数据库加载配置
      */
@@ -55,7 +77,30 @@ public class CongestionConfig {
             rttJitterThreshold = getLongConfig("congestion.rtt-jitter-threshold", rttJitterThreshold);
             evaluationInterval = getLongConfig("congestion.evaluation-interval", evaluationInterval);
             
-            log.info("从数据库加载拥塞控制配置 - initialCwnd: {}, maxCwnd: {}", initialCwnd, maxCwnd);
+            // 网络趋势分析配置
+            trendWindowSize = (int) getLongConfig("congestion.trend-window-size", trendWindowSize);
+            trendThreshold = getDoubleConfig("congestion.trend-threshold", trendThreshold);
+            
+            // 置信度阈值配置
+            confidenceThreshold = getDoubleConfig("congestion.confidence-threshold", confidenceThreshold);
+            
+            // 基准算法配置
+            baselineAlgorithm = getStringConfig("congestion.baseline-algorithm", baselineAlgorithm);
+            
+            // 算法预热配置
+            warmupRttCount = (int) getLongConfig("congestion.warmup-rtt-count", warmupRttCount);
+            
+            // 异常值过滤配置
+            outlierFilterEnabled = getBooleanConfig("congestion.outlier-filter-enabled", outlierFilterEnabled);
+            
+            // 算法回滚配置
+            rollbackThreshold = getDoubleConfig("congestion.rollback-threshold", rollbackThreshold);
+            
+            // 最小切换间隔配置
+            minSwitchInterval = getLongConfig("congestion.min-switch-interval", minSwitchInterval);
+            
+            log.info("从数据库加载拥塞控制配置 - initialCwnd: {}, maxCwnd: {}, trendWindowSize: {}, confidenceThreshold: {}", 
+                    initialCwnd, maxCwnd, trendWindowSize, confidenceThreshold);
         } catch (Exception e) {
             log.error("加载配置失败，使用默认值", e);
         }
@@ -99,6 +144,28 @@ public class CongestionConfig {
         return defaultValue;
     }
     
+    /**
+     * 获取String类型配置
+     */
+    private String getStringConfig(String key, String defaultValue) {
+        SystemConfig config = configMapper.selectByConfigKey(key);
+        if (config != null && config.getConfigValue() != null && !config.getConfigValue().isEmpty()) {
+            return config.getConfigValue();
+        }
+        return defaultValue;
+    }
+    
+    /**
+     * 获取Boolean类型配置
+     */
+    private boolean getBooleanConfig(String key, boolean defaultValue) {
+        SystemConfig config = configMapper.selectByConfigKey(key);
+        if (config != null && config.getConfigValue() != null && !config.getConfigValue().isEmpty()) {
+            return Boolean.parseBoolean(config.getConfigValue());
+        }
+        return defaultValue;
+    }
+    
     // Getter方法
     public long getInitialCwnd() {
         return initialCwnd;
@@ -126,6 +193,38 @@ public class CongestionConfig {
     
     public long getEvaluationInterval() {
         return evaluationInterval;
+    }
+    
+    public int getTrendWindowSize() {
+        return trendWindowSize;
+    }
+    
+    public double getTrendThreshold() {
+        return trendThreshold;
+    }
+    
+    public double getConfidenceThreshold() {
+        return confidenceThreshold;
+    }
+    
+    public String getBaselineAlgorithm() {
+        return baselineAlgorithm;
+    }
+    
+    public int getWarmupRttCount() {
+        return warmupRttCount;
+    }
+    
+    public boolean isOutlierFilterEnabled() {
+        return outlierFilterEnabled;
+    }
+    
+    public double getRollbackThreshold() {
+        return rollbackThreshold;
+    }
+    
+    public long getMinSwitchInterval() {
+        return minSwitchInterval;
     }
 }
 

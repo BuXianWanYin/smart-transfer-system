@@ -5,6 +5,7 @@ import com.server.smarttransferserver.dto.FileMergeDTO;
 import com.server.smarttransferserver.entity.FileChunk;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.entity.TransferTask;
+import com.server.smarttransferserver.mapper.CongestionMetricsMapper;
 import com.server.smarttransferserver.mapper.FileChunkMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.TransferTaskMapper;
@@ -42,6 +43,9 @@ public class FileMergeServiceImpl implements FileMergeService {
     
     @Autowired
     private TransferTaskMapper transferTaskMapper;
+    
+    @Autowired
+    private CongestionMetricsMapper congestionMetricsMapper;
     
     @Autowired
     private TransferTaskService transferTaskService;
@@ -285,10 +289,24 @@ public class FileMergeServiceImpl implements FileMergeService {
             chunkWrapper.eq("file_id", fileId);
             fileChunkMapper.delete(chunkWrapper);
             
-            // 4. 删除关联的传输任务记录
+            // 4. 先删除关联的拥塞指标数据（外键约束要求）
+            // 查询该文件的所有传输任务
+            List<TransferTask> tasks = transferTaskMapper.selectByFileId(fileId);
+            if (tasks != null && !tasks.isEmpty()) {
+                for (TransferTask task : tasks) {
+                    if (task.getTaskId() != null) {
+                        int deletedMetricsCount = congestionMetricsMapper.deleteByTaskId(task.getTaskId());
+                        if (deletedMetricsCount > 0) {
+                            log.debug("删除任务的拥塞指标 - 任务ID: {}, 删除指标数: {}", task.getTaskId(), deletedMetricsCount);
+                        }
+                    }
+                }
+            }
+            
+            // 5. 删除关联的传输任务记录
             transferTaskMapper.deleteByFileId(fileId);
             
-            // 5. 物理删除文件记录（因为文件从未成功上传）
+            // 6. 物理删除文件记录（因为文件从未成功上传）
             fileInfoMapper.deletePhysically(fileId);
             
             log.info("清理上传失败的文件数据完成 - 文件ID: {}", fileId);

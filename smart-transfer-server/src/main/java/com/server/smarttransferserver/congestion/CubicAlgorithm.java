@@ -56,6 +56,11 @@ public class CubicAlgorithm implements CongestionControlAlgorithm {
     private CongestionState state;
     
     /**
+     * ACK 计数，用于 onAck 日志采样（每 N 次打印一次，避免大量分片刷屏）
+     */
+    private long ackCount;
+    
+    /**
      * 拥塞控制配置
      */
     @Autowired
@@ -71,6 +76,7 @@ public class CubicAlgorithm implements CongestionControlAlgorithm {
         this.cwnd = congestionConfig.getInitialCwnd();
         this.ssthresh = congestionConfig.getSsthresh();
         this.wMax = 0;
+        this.ackCount = 0;
         this.lastCongestionTime = System.currentTimeMillis();
         this.currentRtt = 100; // 默认RTT 100ms
         this.state = CongestionState.SLOW_START;
@@ -109,7 +115,10 @@ public class CubicAlgorithm implements CongestionControlAlgorithm {
         // 限制窗口范围（从配置获取）
         cwnd = Math.max(congestionConfig.getMinCwnd(), Math.min(cwnd, congestionConfig.getMaxCwnd()));
         
-        log.debug("CUBIC onAck - cwnd: {}字节, rtt: {}ms, state: {}", cwnd, rtt, state);
+        ackCount++;
+        if (ackCount == 1 || ackCount % 50 == 0) {
+            log.debug("CUBIC onAck - cwnd: {}字节, rtt: {}ms, state: {}, 第 {} 次", cwnd, rtt, state, ackCount);
+        }
     }
     
     /**

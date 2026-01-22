@@ -104,6 +104,126 @@
             <span class="form-hint">= {{ formatFileSize(convertToBytes('minCwnd')) }}</span>
           </div>
         </el-form-item>
+        
+        <el-divider content-position="left">自适应算法配置</el-divider>
+        
+        <el-form-item label="丢包率阈值" prop="lossRateThreshold">
+          <el-input-number
+            v-model="configForm.lossRateThreshold"
+            :min="0.001"
+            :max="0.1"
+            :step="0.001"
+            :precision="3"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（0.001-0.1，默认0.01即1%）</span>
+        </el-form-item>
+        
+        <el-form-item label="RTT抖动阈值" prop="rttJitterThreshold">
+          <el-input-number
+            v-model="configForm.rttJitterThreshold"
+            :min="10"
+            :max="200"
+            :step="5"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（毫秒，默认50ms）</span>
+        </el-form-item>
+        
+        <el-form-item label="评估间隔" prop="evaluationInterval">
+          <el-input-number
+            v-model="configForm.evaluationInterval"
+            :min="1000"
+            :max="30000"
+            :step="500"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（毫秒，默认5000ms）</span>
+        </el-form-item>
+        
+        <el-form-item label="趋势窗口大小" prop="trendWindowSize">
+          <el-input-number
+            v-model="configForm.trendWindowSize"
+            :min="3"
+            :max="20"
+            :step="1"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（评估窗口数量，默认5）</span>
+        </el-form-item>
+        
+        <el-form-item label="趋势变化率阈值" prop="trendThreshold">
+          <el-input-number
+            v-model="configForm.trendThreshold"
+            :min="0.05"
+            :max="0.5"
+            :step="0.01"
+            :precision="2"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（0.05-0.5，默认0.1即10%）</span>
+        </el-form-item>
+        
+        <el-form-item label="置信度阈值" prop="confidenceThreshold">
+          <el-input-number
+            v-model="configForm.confidenceThreshold"
+            :min="0.05"
+            :max="0.3"
+            :step="0.01"
+            :precision="2"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（0.05-0.3，默认0.1即10%）</span>
+        </el-form-item>
+        
+        <el-form-item label="基准算法" prop="baselineAlgorithm">
+          <el-select v-model="configForm.baselineAlgorithm" style="width: 200px">
+            <el-option label="CUBIC" value="CUBIC" />
+            <el-option label="Reno" value="Reno" />
+            <el-option label="Vegas" value="Vegas" />
+            <el-option label="BBR" value="BBR" />
+          </el-select>
+          <span class="form-hint" style="margin-left: 10px">（用于相对评分，默认CUBIC）</span>
+        </el-form-item>
+        
+        <el-form-item label="预热RTT周期数" prop="warmupRttCount">
+          <el-input-number
+            v-model="configForm.warmupRttCount"
+            :min="1"
+            :max="10"
+            :step="1"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（算法预热周期数，默认2）</span>
+        </el-form-item>
+        
+        <el-form-item label="启用异常值过滤" prop="outlierFilterEnabled">
+          <el-switch v-model="configForm.outlierFilterEnabled" />
+          <span class="form-hint" style="margin-left: 10px">（是否启用RTT异常值过滤）</span>
+        </el-form-item>
+        
+        <el-form-item label="回滚阈值" prop="rollbackThreshold">
+          <el-input-number
+            v-model="configForm.rollbackThreshold"
+            :min="0.1"
+            :max="0.5"
+            :step="0.05"
+            :precision="2"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（0.1-0.5，默认0.2即20%）</span>
+        </el-form-item>
+        
+        <el-form-item label="最小切换间隔" prop="minSwitchInterval">
+          <el-input-number
+            v-model="configForm.minSwitchInterval"
+            :min="5000"
+            :max="60000"
+            :step="1000"
+            style="width: 200px"
+          />
+          <span class="form-hint" style="margin-left: 10px">（毫秒，默认10000ms）</span>
+        </el-form-item>
       </el-form>
     </el-card>
     
@@ -126,6 +246,18 @@
         <el-descriptions-item label="慢启动阈值">
           从慢启动切换到拥塞避免的阈值，建议50MB
         </el-descriptions-item>
+        <el-descriptions-item label="自适应算法配置">
+          包含网络趋势分析、动态权重、算法预热、异常值过滤、回滚机制等优化功能
+        </el-descriptions-item>
+        <el-descriptions-item label="趋势窗口大小">
+          用于网络趋势分析的评估窗口数量，建议5个窗口
+        </el-descriptions-item>
+        <el-descriptions-item label="置信度阈值">
+          算法切换所需的最小得分差异，建议10%，避免频繁切换
+        </el-descriptions-item>
+        <el-descriptions-item label="回滚阈值">
+          算法切换后性能下降超过此阈值时自动回滚，建议20%
+        </el-descriptions-item>
       </el-descriptions>
     </el-card>
   </div>
@@ -141,24 +273,36 @@ import { formatFileSize, formatSpeed } from '@/utils/file'
 const configStore = useConfigStore()
 const formRef = ref()
 
-// 实际提交的配置（字节数）
+// 实际提交的配置（从数据库加载，不设置默认值）
 const configForm = ref({
-  algorithm: 'CUBIC',
-  initialCwnd: 10485760,
-  ssthresh: 52428800,
-  maxCwnd: 104857600,
-  minCwnd: 1048576
+  algorithm: null,
+  initialCwnd: null,
+  ssthresh: null,
+  maxCwnd: null,
+  minCwnd: null,
+  // 自适应算法配置（从数据库加载）
+  lossRateThreshold: null,
+  rttJitterThreshold: null,
+  evaluationInterval: null,
+  trendWindowSize: null,
+  trendThreshold: null,
+  confidenceThreshold: null,
+  baselineAlgorithm: null,
+  warmupRttCount: null,
+  outlierFilterEnabled: null,
+  rollbackThreshold: null,
+  minSwitchInterval: null
 })
 
-// 用户友好的显示表单
+// 用户友好的显示表单（从数据库加载后填充）
 const displayForm = ref({
-  initialCwnd: 10,
+  initialCwnd: null,
   initialCwndUnit: 'MB',
-  ssthresh: 50,
+  ssthresh: null,
   ssthreshUnit: 'MB',
-  maxCwnd: 100,
+  maxCwnd: null,
   maxCwndUnit: 'MB',
-  minCwnd: 1,
+  minCwnd: null,
   minCwndUnit: 'MB'
 })
 
@@ -197,6 +341,7 @@ const bytesToDisplay = (bytes) => {
 // 将显示表单的值转换为字节
 const convertToBytes = (field) => {
   const value = displayForm.value[field]
+  if (value == null) return null
   const unit = displayForm.value[field + 'Unit']
   return Math.round(value * unitToBytes[unit])
 }
@@ -208,32 +353,50 @@ onMounted(() => {
 const loadConfig = async () => {
   try {
     const res = await getCongestionConfig()
-    const config = res
+    const config = res.data || res
     
-    // 后端返回短横线格式：initial-cwnd
+    // 后端返回短横线格式：initial-cwnd，直接从数据库加载，不设置默认值
     configForm.value = {
-      algorithm: config.algorithm || 'CUBIC',
-      initialCwnd: Number(config['initial-cwnd']) || 10485760,
-      ssthresh: Number(config.ssthresh) || 52428800,
-      maxCwnd: Number(config['max-cwnd']) || 104857600,
-      minCwnd: Number(config['min-cwnd']) || 1048576
+      algorithm: config.algorithm || null,
+      initialCwnd: config['initial-cwnd'] ? Number(config['initial-cwnd']) : null,
+      ssthresh: config.ssthresh ? Number(config.ssthresh) : null,
+      maxCwnd: config['max-cwnd'] ? Number(config['max-cwnd']) : null,
+      minCwnd: config['min-cwnd'] ? Number(config['min-cwnd']) : null,
+      // 自适应算法配置（从数据库加载）
+      lossRateThreshold: config['loss-rate-threshold'] ? Number(config['loss-rate-threshold']) : null,
+      rttJitterThreshold: config['rtt-jitter-threshold'] ? Number(config['rtt-jitter-threshold']) : null,
+      evaluationInterval: config['evaluation-interval'] ? Number(config['evaluation-interval']) : null,
+      trendWindowSize: config['trend-window-size'] ? Number(config['trend-window-size']) : null,
+      trendThreshold: config['trend-threshold'] ? Number(config['trend-threshold']) : null,
+      confidenceThreshold: config['confidence-threshold'] ? Number(config['confidence-threshold']) : null,
+      baselineAlgorithm: config['baseline-algorithm'] || null,
+      warmupRttCount: config['warmup-rtt-count'] ? Number(config['warmup-rtt-count']) : null,
+      outlierFilterEnabled: config['outlier-filter-enabled'] !== undefined ? 
+        (config['outlier-filter-enabled'] === 'true' || config['outlier-filter-enabled'] === true) : null,
+      rollbackThreshold: config['rollback-threshold'] ? Number(config['rollback-threshold']) : null,
+      minSwitchInterval: config['min-switch-interval'] ? Number(config['min-switch-interval']) : null
     }
     
-    // 转换为用户友好的显示格式
-    const initialCwndDisplay = bytesToDisplay(configForm.value.initialCwnd)
-    const ssthreshDisplay = bytesToDisplay(configForm.value.ssthresh)
-    const maxCwndDisplay = bytesToDisplay(configForm.value.maxCwnd)
-    const minCwndDisplay = bytesToDisplay(configForm.value.minCwnd)
-    
-    displayForm.value = {
-      initialCwnd: initialCwndDisplay.value,
-      initialCwndUnit: initialCwndDisplay.unit,
-      ssthresh: ssthreshDisplay.value,
-      ssthreshUnit: ssthreshDisplay.unit,
-      maxCwnd: maxCwndDisplay.value,
-      maxCwndUnit: maxCwndDisplay.unit,
-      minCwnd: minCwndDisplay.value,
-      minCwndUnit: minCwndDisplay.unit
+    // 转换为用户友好的显示格式（只有非null值才转换）
+    if (configForm.value.initialCwnd != null) {
+      const initialCwndDisplay = bytesToDisplay(configForm.value.initialCwnd)
+      displayForm.value.initialCwnd = initialCwndDisplay.value
+      displayForm.value.initialCwndUnit = initialCwndDisplay.unit
+    }
+    if (configForm.value.ssthresh != null) {
+      const ssthreshDisplay = bytesToDisplay(configForm.value.ssthresh)
+      displayForm.value.ssthresh = ssthreshDisplay.value
+      displayForm.value.ssthreshUnit = ssthreshDisplay.unit
+    }
+    if (configForm.value.maxCwnd != null) {
+      const maxCwndDisplay = bytesToDisplay(configForm.value.maxCwnd)
+      displayForm.value.maxCwnd = maxCwndDisplay.value
+      displayForm.value.maxCwndUnit = maxCwndDisplay.unit
+    }
+    if (configForm.value.minCwnd != null) {
+      const minCwndDisplay = bytesToDisplay(configForm.value.minCwnd)
+      displayForm.value.minCwnd = minCwndDisplay.value
+      displayForm.value.minCwndUnit = minCwndDisplay.unit
     }
     
     configStore.updateCongestionConfig(configForm.value)
@@ -247,20 +410,64 @@ const handleSave = async () => {
   try {
     await formRef.value.validate()
     
-    // 将显示表单的值转换为字节数
-    const submitData = {
-      algorithm: configForm.value.algorithm,
-      initialCwnd: convertToBytes('initialCwnd'),
-      ssthresh: convertToBytes('ssthresh'),
-      maxCwnd: convertToBytes('maxCwnd'),
-      minCwnd: convertToBytes('minCwnd')
+    // 将显示表单的值转换为字节数（只提交非null的配置项）
+    const submitData = {}
+    
+    if (configForm.value.algorithm != null) {
+      submitData.algorithm = configForm.value.algorithm
+    }
+    
+    const initialCwndBytes = convertToBytes('initialCwnd')
+    if (initialCwndBytes != null) submitData['initial-cwnd'] = initialCwndBytes
+    
+    const ssthreshBytes = convertToBytes('ssthresh')
+    if (ssthreshBytes != null) submitData.ssthresh = ssthreshBytes
+    
+    const maxCwndBytes = convertToBytes('maxCwnd')
+    if (maxCwndBytes != null) submitData['max-cwnd'] = maxCwndBytes
+    
+    const minCwndBytes = convertToBytes('minCwnd')
+    if (minCwndBytes != null) submitData['min-cwnd'] = minCwndBytes
+    
+    // 自适应算法配置（使用短横线格式，只提交非null值）
+    if (configForm.value.lossRateThreshold != null) {
+      submitData['loss-rate-threshold'] = configForm.value.lossRateThreshold
+    }
+    if (configForm.value.rttJitterThreshold != null) {
+      submitData['rtt-jitter-threshold'] = configForm.value.rttJitterThreshold
+    }
+    if (configForm.value.evaluationInterval != null) {
+      submitData['evaluation-interval'] = configForm.value.evaluationInterval
+    }
+    if (configForm.value.trendWindowSize != null) {
+      submitData['trend-window-size'] = configForm.value.trendWindowSize
+    }
+    if (configForm.value.trendThreshold != null) {
+      submitData['trend-threshold'] = configForm.value.trendThreshold
+    }
+    if (configForm.value.confidenceThreshold != null) {
+      submitData['confidence-threshold'] = configForm.value.confidenceThreshold
+    }
+    if (configForm.value.baselineAlgorithm != null) {
+      submitData['baseline-algorithm'] = configForm.value.baselineAlgorithm
+    }
+    if (configForm.value.warmupRttCount != null) {
+      submitData['warmup-rtt-count'] = configForm.value.warmupRttCount
+    }
+    if (configForm.value.outlierFilterEnabled != null) {
+      submitData['outlier-filter-enabled'] = configForm.value.outlierFilterEnabled
+    }
+    if (configForm.value.rollbackThreshold != null) {
+      submitData['rollback-threshold'] = configForm.value.rollbackThreshold
+    }
+    if (configForm.value.minSwitchInterval != null) {
+      submitData['min-switch-interval'] = configForm.value.minSwitchInterval
     }
     
     await updateCongestionConfig(submitData)
     
-    // 更新configForm为新的字节值
-    configForm.value = submitData
-    configStore.updateCongestionConfig(submitData)
+    // 重新加载配置（从数据库获取最新值）
+    await loadConfig()
     
     ElMessage.success('配置保存成功')
   } catch (error) {

@@ -2,7 +2,9 @@ package com.server.smarttransferserver.task;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.server.smarttransferserver.entity.TransferTask;
+import com.server.smarttransferserver.congestion.CongestionControlAlgorithm;
 import com.server.smarttransferserver.service.ActiveUserService;
+import com.server.smarttransferserver.service.CongestionAlgorithmManager;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.service.RedisService;
 import com.server.smarttransferserver.service.TransferTaskService;
@@ -52,6 +54,9 @@ public class MonitorPushTask {
 
     @Autowired
     private ObjectMapper objectMapper;
+    
+    @Autowired
+    private CongestionAlgorithmManager algorithmManager;
 
     /**
      * 定时推送监控数据（每500ms）
@@ -92,16 +97,26 @@ public class MonitorPushTask {
                     continue;
                 }
 
-                // **改进：按任务分别推送指标（而不是聚合）**
-                // 为每个任务获取最新的指标
+                // **修复：按任务分别推送指标，从算法实例获取实时指标（而不是从数据库查询）**
+                // 为每个任务获取最新的实时指标
                 Map<String, CongestionMetricsVO> taskMetricsMap = new java.util.HashMap<>();
                 for (TransferTask task : activeTasks) {
-                    List<CongestionMetricsVO> latestMetrics = metricsService.getLatestMetrics(task.getTaskId(), 1);
-                    if (!latestMetrics.isEmpty()) {
-                        CongestionMetricsVO metrics = latestMetrics.get(0);
+                    // **修复：从算法管理器获取算法实例，然后获取实时指标**
+                    CongestionControlAlgorithm algorithm = algorithmManager.getAlgorithm(task.getTaskId());
+                    if (algorithm != null) {
+                        // 从算法实例获取实时指标（包含网络监控数据）
+                        CongestionMetricsVO metrics = metricsService.getCurrentMetrics(algorithm);
                         // 设置taskId
                         metrics.setTaskId(task.getTaskId());
                         taskMetricsMap.put(task.getTaskId(), metrics);
+                    } else {
+                        // 如果算法实例不存在，从数据库查询（兼容处理）
+                        List<CongestionMetricsVO> latestMetrics = metricsService.getLatestMetrics(task.getTaskId(), 1);
+                        if (!latestMetrics.isEmpty()) {
+                            CongestionMetricsVO metrics = latestMetrics.get(0);
+                            metrics.setTaskId(task.getTaskId());
+                            taskMetricsMap.put(task.getTaskId(), metrics);
+                        }
                     }
                 }
                 
@@ -116,6 +131,10 @@ public class MonitorPushTask {
                             .lossRate(0.0)
                             .bandwidth(0L)
                             .networkQuality("-")
+                            .rttJitter(0L)
+                            .bdp(0L)
+                            .networkTrend(null)
+                            .isWarmingUp(false)
                             .build();
                     // 如果有任务但没有指标，为第一个任务创建一个空指标
                     if (!activeTasks.isEmpty()) {

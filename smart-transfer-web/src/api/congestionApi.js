@@ -46,3 +46,12 @@ export function getAlgorithmStatus() {
   })
 }
 
+/**
+ * 获取自适应算法详细指标（用于可观测性）
+ * @returns {Promise}
+ */
+export function getAdaptiveMetrics() {
+  return request.get({
+    url: '/congestion/adaptive-metrics'
+  })
+}

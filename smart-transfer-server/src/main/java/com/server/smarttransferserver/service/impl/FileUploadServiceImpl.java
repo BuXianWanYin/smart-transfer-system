@@ -75,6 +75,9 @@ public class FileUploadServiceImpl implements FileUploadService {
      */
     private final ConcurrentHashMap<String, Long> chunkStartTimes = new ConcurrentHashMap<>();
     
+    /** 分片日志采样间隔：每 N 个分片或首/尾分片才打印进度类日志，减少大量分片时的刷屏 */
+    private static final int CHUNK_LOG_SAMPLE_INTERVAL = 50;
+    
     /**
      * 初始化文件上传
      * 检查是否秒传或断点续传
@@ -124,9 +127,13 @@ public class FileUploadServiceImpl implements FileUploadService {
                 chunkNumbers.forEach(num -> uploadCacheService.markChunkUploaded(existingFile.getId(), num));
             }
             
-            log.info("断点续传 - 文件ID: {}, 已上传分片: {}", existingFile.getId(), chunkNumbers.size());
+            // **修复：获取或创建任务ID（用于监控数据匹配）**
+            String taskId = getOrCreateTaskId(existingFile.getId());
+            
+            log.info("断点续传 - 文件ID: {}, 已上传分片: {}, 任务ID: {}", existingFile.getId(), chunkNumbers.size(), taskId);
             return FileUploadInitVO.builder()
                     .fileId(existingFile.getId())
+                    .taskId(taskId)
                     .skipUpload(false)
                     .quickUpload(false)
                     .uploaded(chunkNumbers)
@@ -175,9 +182,19 @@ public class FileUploadServiceImpl implements FileUploadService {
             fileChunkMapper.insert(chunk);
         }
         
-        log.info("创建新上传任务 - 文件ID: {}, 总分片数: {}", fileInfo.getId(), dto.getTotalChunks());
+        // **修复：创建传输任务并获取taskId（用于监控数据匹配）**
+        String taskId = transferTaskService.createTask(fileInfo.getId(), "UPLOAD");
+        // 立即更新为PROCESSING状态
+        TransferTask newTask = transferTaskMapper.selectByTaskId(taskId);
+        if (newTask != null) {
+            newTask.setTransferStatus("PROCESSING");
+            transferTaskMapper.updateById(newTask);
+        }
+        
+        log.info("创建新上传任务 - 文件ID: {}, 总分片数: {}, 任务ID: {}", fileInfo.getId(), dto.getTotalChunks(), taskId);
         return FileUploadInitVO.builder()
                 .fileId(fileInfo.getId())
+                .taskId(taskId)
                 .skipUpload(false)
                 .quickUpload(false)
                 .uploaded(Collections.emptyList())
@@ -304,9 +321,10 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 4. **关键修复：使用任务独立的算法实例触发ACK响应**
             if (algorithm != null) {
                 algorithm.onAck(chunkSize, rtt);
-                log.debug("拥塞控制响应ACK - 任务ID: {}, 文件ID: {}, 分片: {}, 算法: {}, RTT: {}ms, cwnd: {}字节", 
-                         taskId, dto.getFileId(), dto.getChunkNumber(), algorithm.getAlgorithmName(), rtt, algorithm.getCwnd());
-                
+                if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+                    log.debug("拥塞控制响应ACK - 任务ID: {}, 文件ID: {}, 分片: {}, 算法: {}, RTT: {}ms, cwnd: {}字节", 
+                             taskId, dto.getFileId(), dto.getChunkNumber(), algorithm.getAlgorithmName(), rtt, algorithm.getCwnd());
+                }
                 // **关键修复：记录指标到数据库（关联taskId）**
                 // 使用CongestionMetricsServiceImpl的recordMetrics方法（不是接口方法，需要强制转换）
                 if (metricsService instanceof CongestionMetricsServiceImpl) {
@@ -337,7 +355,9 @@ public class FileUploadServiceImpl implements FileUploadService {
             // **修复CRITICAL-2: 上传成功后更新Redis缓存（用于断点续传）**
             try {
                 uploadCacheService.markChunkUploaded(dto.getFileId(), dto.getChunkNumber());
-                log.debug("更新Redis分片缓存 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
+                if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+                    log.debug("更新Redis分片缓存 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
+                }
             } catch (Exception e) {
                 log.warn("更新Redis分片缓存失败 - 文件ID: {}, 分片: {}, 错误: {}", 
                         dto.getFileId(), dto.getChunkNumber(), e.getMessage());
@@ -357,11 +377,13 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 7. 获取当前拥塞窗口大小（用于前端调整并发数）
             long currentCwnd = algorithm != null ? algorithm.getCwnd() : 5 * 1024 * 1024;
             
-            // 格式化进度百分比
-            String progressStr = String.format("%.2f", progress);
-            log.info("分片上传成功 - 任务ID: {}, 文件ID: {}, 分片: {}, 进度: {}%, RTT: {}ms, 算法: {}, cwnd: {}字节", 
-                     taskId, dto.getFileId(), dto.getChunkNumber(), progressStr, rtt, 
-                     algorithm != null ? algorithm.getAlgorithmName() : "NONE", currentCwnd);
+            // 仅首片、每 N 片、末片时打印进度日志，避免大量分片刷屏
+            if (shouldLogChunk(dto.getChunkNumber(), totalChunks, (int) completedChunks)) {
+                String progressStr = String.format("%.2f", progress);
+                log.info("分片上传成功 - 任务ID: {}, 文件ID: {}, 分片: {}, 进度: {}%, RTT: {}ms, 算法: {}, cwnd: {}字节", 
+                         taskId, dto.getFileId(), dto.getChunkNumber(), progressStr, rtt, 
+                         algorithm != null ? algorithm.getAlgorithmName() : "NONE", currentCwnd);
+            }
             
             return ChunkUploadVO.builder()
                     .fileId(dto.getFileId())
@@ -460,6 +482,27 @@ public class FileUploadServiceImpl implements FileUploadService {
             return fileName.substring(lastDotIndex + 1).toLowerCase();
         }
         return "";
+    }
+    
+    /**
+     * 是否应打印分片相关日志（采样：首片、每 N 片、末片），减少大量分片时的刷屏。
+     *
+     * @param chunkNumber    当前分片号（从 1 开始）
+     * @param totalChunks    总分片数，<= 0 表示未知（仅按 chunkNumber 采样）
+     * @param completedChunks 已完成分片数，< 0 表示未知
+     * @return true 则打印日志
+     */
+    private boolean shouldLogChunk(int chunkNumber, int totalChunks, int completedChunks) {
+        if (chunkNumber <= 0) {
+            return false;
+        }
+        boolean first = (chunkNumber == 1);
+        boolean interval = (chunkNumber % CHUNK_LOG_SAMPLE_INTERVAL == 1);
+        if (totalChunks <= 0 || completedChunks < 0) {
+            return first || interval;
+        }
+        boolean last = (completedChunks == totalChunks);
+        return first || interval || last;
     }
 }
 

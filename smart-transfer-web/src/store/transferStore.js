@@ -59,6 +59,7 @@ export const useTransferStore = defineStore('transfer', () => {
       folderId: task.folderId || 0,
       relativePath: task.relativePath || '',
       fileId: null,
+      taskId: null,  // **修复：添加taskId字段用于监控数据匹配**
       fileHash: null,
       hashProgress: 0,
       status: 'pending',
@@ -133,8 +134,15 @@ export const useTransferStore = defineStore('transfer', () => {
   
   /**
    * 记录上传历史（成功或失败）
+   * **修复：只有成功或失败时才记录，取消时不记录**
    */
   async function recordUploadHistory(task, status, errorMessage = null) {
+    // **修复：取消状态不记录历史**
+    if (status === 'CANCELLED' || status === 'CANCELED') {
+      console.log('任务已取消，不记录历史')
+      return
+    }
+    
     const duration = Math.floor(((task.endTime || Date.now()) - (task.startTime || Date.now())) / 1000)
     try {
       await addHistory({

@@ -7,6 +7,7 @@ import com.server.smarttransferserver.congestion.CongestionControlAlgorithm;
 import com.server.smarttransferserver.congestion.CubicAlgorithm;
 import com.server.smarttransferserver.congestion.RenoAlgorithm;
 import com.server.smarttransferserver.congestion.VegasAlgorithm;
+import com.server.smarttransferserver.congestion.AdaptiveAlgorithmMetrics;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
 import lombok.extern.slf4j.Slf4j;
@@ -201,6 +202,29 @@ public class CongestionController {
         } catch (Exception e) {
             log.error("获取算法状态失败", e);
             return Result.error("获取状态失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取自适应算法详细指标（用于可观测性）
+     * 包括算法评分、切换历史、网络趋势等
+     *
+     * @return 自适应算法指标
+     */
+    @GetMapping("/adaptive-metrics")
+    public Result<AdaptiveAlgorithmMetrics> getAdaptiveMetrics() {
+        log.info("获取自适应算法详细指标");
+        try {
+            if (currentAlgorithm == null || !(currentAlgorithm instanceof AdaptiveAlgorithm)) {
+                return Result.error("当前算法不是自适应算法");
+            }
+            
+            AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) currentAlgorithm;
+            AdaptiveAlgorithmMetrics metrics = adaptiveAlg.getMetrics();
+            return Result.success(metrics);
+        } catch (Exception e) {
+            log.error("获取自适应算法指标失败", e);
+            return Result.error("获取指标失败: " + e.getMessage());
         }
     }
     

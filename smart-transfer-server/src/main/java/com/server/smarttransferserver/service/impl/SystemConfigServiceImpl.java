@@ -85,7 +85,9 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
         log.info("更新拥塞控制配置 - 算法: {}", dto.getAlgorithm());
         
         // 更新各个配置项到数据库
-        updateConfigValue("congestion.algorithm", dto.getAlgorithm(), "拥塞控制算法");
+        if (dto.getAlgorithm() != null) {
+            updateConfigValue("congestion.algorithm", dto.getAlgorithm(), "拥塞控制算法");
+        }
         
         if (dto.getInitialCwnd() != null) {
             updateConfigValue("congestion.initial-cwnd", dto.getInitialCwnd().toString(), "初始拥塞窗口");
@@ -101,6 +103,51 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
         
         if (dto.getMinCwnd() != null) {
             updateConfigValue("congestion.min-cwnd", dto.getMinCwnd().toString(), "最小拥塞窗口");
+        }
+        
+        // ========== 自适应算法配置 ==========
+        if (dto.getLossRateThreshold() != null) {
+            updateConfigValue("congestion.loss-rate-threshold", dto.getLossRateThreshold().toString(), "丢包率阈值");
+        }
+        
+        if (dto.getRttJitterThreshold() != null) {
+            updateConfigValue("congestion.rtt-jitter-threshold", dto.getRttJitterThreshold().toString(), "RTT抖动阈值");
+        }
+        
+        if (dto.getEvaluationInterval() != null) {
+            updateConfigValue("congestion.evaluation-interval", dto.getEvaluationInterval().toString(), "评估间隔");
+        }
+        
+        if (dto.getTrendWindowSize() != null) {
+            updateConfigValue("congestion.trend-window-size", dto.getTrendWindowSize().toString(), "趋势窗口大小");
+        }
+        
+        if (dto.getTrendThreshold() != null) {
+            updateConfigValue("congestion.trend-threshold", dto.getTrendThreshold().toString(), "趋势变化率阈值");
+        }
+        
+        if (dto.getConfidenceThreshold() != null) {
+            updateConfigValue("congestion.confidence-threshold", dto.getConfidenceThreshold().toString(), "置信度阈值");
+        }
+        
+        if (dto.getBaselineAlgorithm() != null) {
+            updateConfigValue("congestion.baseline-algorithm", dto.getBaselineAlgorithm(), "基准算法");
+        }
+        
+        if (dto.getWarmupRttCount() != null) {
+            updateConfigValue("congestion.warmup-rtt-count", dto.getWarmupRttCount().toString(), "预热RTT周期数");
+        }
+        
+        if (dto.getOutlierFilterEnabled() != null) {
+            updateConfigValue("congestion.outlier-filter-enabled", dto.getOutlierFilterEnabled().toString(), "异常值过滤开关");
+        }
+        
+        if (dto.getRollbackThreshold() != null) {
+            updateConfigValue("congestion.rollback-threshold", dto.getRollbackThreshold().toString(), "回滚阈值");
+        }
+        
+        if (dto.getMinSwitchInterval() != null) {
+            updateConfigValue("congestion.min-switch-interval", dto.getMinSwitchInterval().toString(), "最小切换间隔");
         }
         
         // 刷新内存中的配置

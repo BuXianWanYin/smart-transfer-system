@@ -78,5 +78,25 @@ public class CongestionMetricsVO {
      * 在途数据字节数
      */
     private Long inflightBytes;
+    
+    /**
+     * RTT抖动（毫秒）
+     */
+    private Long rttJitter;
+    
+    /**
+     * 带宽时延积BDP（字节）
+     */
+    private Long bdp;
+    
+    /**
+     * 网络趋势（上升/下降/平稳）
+     */
+    private String networkTrend;
+    
+    /**
+     * 算法预热状态（true表示正在预热）
+     */
+    private Boolean isWarmingUp;
 }
 

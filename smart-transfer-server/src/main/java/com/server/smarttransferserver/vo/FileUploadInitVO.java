@@ -46,5 +46,10 @@ public class FileUploadInitVO {
      * 提示信息
      */
     private String message;
+    
+    /**
+     * 任务ID（用于监控数据匹配）
+     */
+    private String taskId;
 }
 

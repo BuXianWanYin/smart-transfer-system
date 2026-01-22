@@ -16,6 +16,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +32,12 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     
     @Autowired(required = false)
     private INetworkMonitorService networkMonitor;
+    
+    /** 记录拥塞指标日志采样间隔：每 N 次记录打印一次，减少大量分片时的刷屏 */
+    private static final int RECORD_LOG_SAMPLE_INTERVAL = 50;
+    
+    /** 按任务ID计数的记录次数，用于采样打印日志 */
+    private final ConcurrentHashMap<String, AtomicLong> recordCountByTask = new ConcurrentHashMap<>();
     
     /**
      * 获取当前拥塞控制指标
@@ -47,6 +55,32 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
         NetworkMonitorServiceImpl.NetworkQuality quality = networkMonitor.evaluateNetworkQuality();
         String qualityDesc = quality != null ? quality.getDescription() : "-";
         
+        // 计算RTT抖动
+        long rttJitter = 0;
+        if (networkMonitor.getStats() != null && networkMonitor.getStats().getRttStats() != null) {
+            rttJitter = networkMonitor.getStats().getRttStats().getRttVar();
+        }
+        
+        // 如果是自适应算法，使用其计算的RTT抖动（更准确，包含异常值过滤）
+        if (algorithm instanceof AdaptiveAlgorithm) {
+            AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) algorithm;
+            rttJitter = adaptiveAlg.getRttJitter();
+        }
+        
+        // 计算BDP（带宽时延积）
+        long bandwidth = networkMonitor.getEstimatedBandwidth();
+        long rtt = algorithm.getRtt();
+        long bdp = bandwidth > 0 && rtt > 0 ? (bandwidth * rtt / 1000) : 0;
+        
+        // 获取网络趋势和预热状态（如果是自适应算法）
+        String networkTrend = null;
+        Boolean isWarmingUp = null;
+        if (algorithm instanceof AdaptiveAlgorithm) {
+            AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) algorithm;
+            networkTrend = adaptiveAlg.getNetworkTrend();
+            isWarmingUp = adaptiveAlg.isWarmingUp();
+        }
+        
         CongestionMetricsVO vo = CongestionMetricsVO.builder()
                 .algorithm(algorithm.getAlgorithmName())
                 .cwnd(algorithm.getCwnd())
@@ -56,10 +90,14 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .rtt(algorithm.getRtt())
                 .minRtt(networkMonitor.getMinRtt())
                 .lossRate(networkMonitor.getLossRate())
-                .bandwidth(networkMonitor.getEstimatedBandwidth())
+                .bandwidth(bandwidth)
                 .networkQuality(qualityDesc)
                 .inflightCount(networkMonitor.getInflightCount())
                 .inflightBytes(networkMonitor.getInflightBytes())
+                .rttJitter(rttJitter)
+                .bdp(bdp)
+                .networkTrend(networkTrend)
+                .isWarmingUp(isWarmingUp)
                 .build();
         
         // 高频调用，使用trace级别避免日志过多
@@ -132,7 +170,10 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
         
         recordMetrics(metrics);
         
-        log.debug("记录拥塞指标 - 任务ID: {}, 算法: {}", taskId, algorithm.getAlgorithmName());
+        long n = recordCountByTask.computeIfAbsent(taskId, k -> new AtomicLong(0)).incrementAndGet();
+        if (n == 1 || n % RECORD_LOG_SAMPLE_INTERVAL == 1) {
+            log.debug("记录拥塞指标 - 任务ID: {}, 算法: {}, 第 {} 次", taskId, algorithm.getAlgorithmName(), n);
+        }
     }
     
     /**
@@ -271,6 +312,10 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .networkQuality("-")
                 .inflightCount(0)
                 .inflightBytes(0L)
+                .rttJitter(0L)
+                .bdp(0L)
+                .networkTrend(null)
+                .isWarmingUp(false)
                 .build();
     }
 }
