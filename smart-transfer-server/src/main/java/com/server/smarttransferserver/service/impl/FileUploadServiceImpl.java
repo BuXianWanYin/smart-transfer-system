@@ -372,7 +372,8 @@ public class FileUploadServiceImpl implements FileUploadService {
             long completedChunks = allChunks.stream()
                     .filter(c -> "COMPLETED".equals(c.getUploadStatus()))
                     .count();
-            double progress = (double) completedChunks / totalChunks * 100;
+            // 修复：防止除零，如果totalChunks为0，进度设为0
+            double progress = totalChunks > 0 ? (double) completedChunks / totalChunks * 100 : 0;
             
             // 7. 获取当前拥塞窗口大小（用于前端调整并发数）
             long currentCwnd = algorithm != null ? algorithm.getCwnd() : 5 * 1024 * 1024;

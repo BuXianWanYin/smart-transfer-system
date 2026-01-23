@@ -629,7 +629,10 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     }
                     
                     // 计算解压文件的MD5
-                    String fileHash = DigestUtils.md5Hex(new FileInputStream(tempFile));
+                    String fileHash;
+                    try (FileInputStream hashFis = new FileInputStream(tempFile)) {
+                        fileHash = DigestUtils.md5Hex(hashFis);
+                    }
                     
                     // 创建文件记录
                     Long userId = UserContextHolder.getUserId();
@@ -658,9 +661,13 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     save(extractedFile);
                     log.info("解压文件 - 文件名: {}, ID: {}", finalEntryName, extractedFile.getId());
                 } finally {
-                    // 清理临时文件
+                    // 修复：清理临时文件，确保删除成功
                     if (tempFile.exists()) {
-                        tempFile.delete();
+                        boolean deleted = tempFile.delete();
+                        if (!deleted) {
+                            log.warn("临时文件删除失败: {}", tempFile.getAbsolutePath());
+                            tempFile.deleteOnExit(); // 尝试在JVM退出时删除
+                        }
                     }
                 }
                 
@@ -752,15 +759,35 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         long fileLength = file.length();
         
         // 编码文件名
-        String encodedFileName = java.net.URLEncoder.encode(fileInfo.getFileName(), java.nio.charset.StandardCharsets.UTF_8.toString())
-                .replaceAll("\\+", "%20");
+        String encodedFileName;
+        try {
+            encodedFileName = java.net.URLEncoder.encode(fileInfo.getFileName(), "UTF-8")
+                    .replaceAll("\\+", "%20");
+        } catch (java.io.UnsupportedEncodingException e) {
+            // UTF-8 是标准编码，理论上不会抛出此异常，但为了编译通过需要处理
+            encodedFileName = fileInfo.getFileName();
+            log.warn("文件名编码失败，使用原始文件名: {}", fileInfo.getFileName());
+        }
         
         // 支持断点续传 - 解析Range头
         if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
             String[] ranges = rangeHeader.substring(6).split("-");
-            long start = Long.parseLong(ranges[0]);
-            long end = ranges.length > 1 && !ranges[1].isEmpty() 
-                    ? Long.parseLong(ranges[1]) : fileLength - 1;
+            // 修复：检查数组长度，防止数组越界
+            if (ranges.length == 0 || ranges[0].isEmpty()) {
+                log.warn("Range头格式错误: {}", rangeHeader);
+                return org.springframework.http.ResponseEntity.status(416).build(); // Range Not Satisfiable
+            }
+            
+            long start;
+            long end;
+            try {
+                start = Long.parseLong(ranges[0]);
+                end = ranges.length > 1 && !ranges[1].isEmpty() 
+                        ? Long.parseLong(ranges[1]) : fileLength - 1;
+            } catch (NumberFormatException e) {
+                log.warn("Range头格式错误（数字解析失败）: {}", rangeHeader);
+                return org.springframework.http.ResponseEntity.status(416).build(); // Range Not Satisfiable
+            }
             
             // 校验范围
             if (start >= fileLength) {
@@ -774,31 +801,62 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             final long startPos = start;
             
             // 使用InputStreamResource返回部分内容
-            org.springframework.core.io.InputStreamResource resource = 
-                    new org.springframework.core.io.InputStreamResource(
-                            new FileInputStream(file) {
-                                {
-                                    skip(startPos);
+            org.springframework.core.io.InputStreamResource resource;
+            FileInputStream fis = null;
+            try {
+                fis = new FileInputStream(file);
+                fis.skip(startPos);
+                
+                final FileInputStream finalFis = fis;
+                fis = null; // 转移所有权给FilterInputStream，避免在finally中关闭
+                resource = new org.springframework.core.io.InputStreamResource(
+                        new java.io.FilterInputStream(finalFis) {
+                            private long remaining = contentLength;
+                            
+                            @Override
+                            public int read() throws java.io.IOException {
+                                if (remaining <= 0) {
+                                    close();
+                                    return -1;
                                 }
-                                
-                                private long remaining = contentLength;
-                                
-                                @Override
-                                public int read() throws java.io.IOException {
-                                    if (remaining <= 0) return -1;
-                                    remaining--;
-                                    return super.read();
+                                remaining--;
+                                return super.read();
+                            }
+                            
+                            @Override
+                            public int read(byte[] b, int off, int len) throws java.io.IOException {
+                                if (remaining <= 0) {
+                                    close();
+                                    return -1;
                                 }
-                                
-                                @Override
-                                public int read(byte[] b, int off, int len) throws java.io.IOException {
-                                    if (remaining <= 0) return -1;
-                                    len = (int) Math.min(len, remaining);
-                                    int read = super.read(b, off, len);
-                                    if (read > 0) remaining -= read;
-                                    return read;
-                                }
-                            });
+                                len = (int) Math.min(len, remaining);
+                                int read = super.read(b, off, len);
+                                if (read > 0) remaining -= read;
+                                return read;
+                            }
+                            
+                            @Override
+                            public void close() throws java.io.IOException {
+                                super.close();
+                            }
+                        });
+            } catch (java.io.FileNotFoundException e) {
+                // 文件路径存在但文件不存在，这是系统状态不一致的问题，返回500
+                log.error("文件未找到（系统错误）: {}", file.getAbsolutePath(), e);
+                return org.springframework.http.ResponseEntity.status(500).build();
+            } catch (java.io.IOException e) {
+                log.error("读取文件失败: {}", file.getAbsolutePath(), e);
+                return org.springframework.http.ResponseEntity.status(500).build();
+            } finally {
+                // 修复：确保在异常情况下关闭FileInputStream
+                if (fis != null) {
+                    try {
+                        fis.close();
+                    } catch (java.io.IOException e) {
+                        log.warn("关闭FileInputStream失败", e);
+                    }
+                }
+            }
             
             return org.springframework.http.ResponseEntity.status(206) // Partial Content
                     .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFileName)

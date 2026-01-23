@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -727,7 +728,14 @@ public class UserServiceImpl implements UserService {
             return org.springframework.http.ResponseEntity.notFound().build();
         }
         
-        String avatarPathFromRequest = requestURI.substring(avatarIndex + "/avatar/".length());
+        // 修复：检查字符串长度，防止substring越界
+        int startIndex = avatarIndex + "/avatar/".length();
+        if (startIndex >= requestURI.length()) {
+            log.warn("请求URI格式错误: {}", requestURI);
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        
+        String avatarPathFromRequest = requestURI.substring(startIndex);
         return getAvatar(avatarPathFromRequest);
     }
     

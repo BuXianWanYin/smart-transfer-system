@@ -125,12 +125,13 @@ public class FolderServiceImpl implements FolderService {
         // 1. 如果是管理员，且指定了filterUserId，则查询指定用户的文件
         // 2. 如果是管理员，且未指定filterUserId，则查询所有用户的文件
         // 3. 如果是普通用户，只能查询自己的文件
-        Long fileQueryUserId = null;
+        Long fileQueryUserIdTemp;
         if ("ADMIN".equals(currentUserRole)) {
-            fileQueryUserId = filterUserId; // 如果指定了filterUserId，查询指定用户；否则为null，查询所有用户
+            fileQueryUserIdTemp = filterUserId; // 如果指定了filterUserId，查询指定用户；否则为null，查询所有用户
         } else {
-            fileQueryUserId = currentUserId; // 普通用户只能查询自己的文件
+            fileQueryUserIdTemp = currentUserId; // 普通用户只能查询自己的文件
         }
+        final Long fileQueryUserId = fileQueryUserIdTemp;
 
         // 获取子文件夹（仅在"全部"类型时显示文件夹）
         // 注意：文件夹查询仍使用当前用户，因为文件夹是按用户隔离的
