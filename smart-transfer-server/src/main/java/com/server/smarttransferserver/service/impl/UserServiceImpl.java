@@ -716,6 +716,21 @@ public class UserServiceImpl implements UserService {
                 .body(resource);
     }
     
+    @Override
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> getAvatarFromRequest(javax.servlet.http.HttpServletRequest request) {
+        // 获取请求路径，例如：/user/avatar/avatars/1/avatar_xxx.jpg
+        String requestURI = request.getRequestURI();
+        
+        // 提取 /avatar/ 之后的部分
+        int avatarIndex = requestURI.indexOf("/avatar/");
+        if (avatarIndex == -1) {
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        
+        String avatarPathFromRequest = requestURI.substring(avatarIndex + "/avatar/".length());
+        return getAvatar(avatarPathFromRequest);
+    }
+    
     /**
      * 加密密码（MD5 + 盐）
      */

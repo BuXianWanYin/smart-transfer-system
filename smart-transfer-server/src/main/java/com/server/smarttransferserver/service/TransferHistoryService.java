@@ -28,6 +28,15 @@ public interface TransferHistoryService extends IService<TransferHistory> {
     List<TransferHistory> selectHistoryList(TransferHistory history);
     
     /**
+     * 查询传输历史记录列表（支持userId筛选）
+     *
+     * @param history 查询条件
+     * @param userId 用户ID（可选，仅管理员可用，用于筛选指定用户的数据）
+     * @return 传输历史记录列表
+     */
+    List<TransferHistory> selectHistoryList(TransferHistory history, Long userId);
+    
+    /**
      * 新增传输历史记录
      *
      * @param history 传输历史记录

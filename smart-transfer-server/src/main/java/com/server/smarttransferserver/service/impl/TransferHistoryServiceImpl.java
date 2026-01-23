@@ -90,6 +90,19 @@ public class TransferHistoryServiceImpl extends ServiceImpl<TransferHistoryMappe
         return list(queryWrapper);
     }
     
+    @Override
+    public List<TransferHistory> selectHistoryList(TransferHistory history, Long userId) {
+        // 如果history为null，创建新对象
+        if (history == null) {
+            history = new TransferHistory();
+        }
+        // 如果传入了userId参数，设置到history对象中
+        if (userId != null) {
+            history.setUserId(userId);
+        }
+        return selectHistoryList(history);
+    }
+    
     /**
      * 新增传输历史记录
      *

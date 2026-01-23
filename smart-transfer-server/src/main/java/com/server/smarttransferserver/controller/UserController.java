@@ -2,12 +2,12 @@ package com.server.smarttransferserver.controller;
 
 import com.server.smarttransferserver.annotation.RequireAdmin;
 import com.server.smarttransferserver.common.Result;
-import com.server.smarttransferserver.dto.LoginDTO;
-import com.server.smarttransferserver.dto.RegisterDTO;
+import com.server.smarttransferserver.dto.*;
 import com.server.smarttransferserver.service.UserService;
 import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.LoginVO;
 import com.server.smarttransferserver.vo.UserInfoVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,6 +21,7 @@ import java.util.Map;
 /**
  * 用户控制器
  */
+@Slf4j
 @RestController
 @RequestMapping("/user")
 public class UserController {
@@ -73,13 +74,10 @@ public class UserController {
      * 修改密码
      */
     @PutMapping("/password")
-    public Result<Void> changePassword(@RequestBody Map<String, String> params) {
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordDTO dto) {
         Long userId = UserContextHolder.getUserId();
-        String oldPassword = params.get("oldPassword");
-        String newPassword = params.get("newPassword");
-        
         try {
-            userService.changePassword(userId, oldPassword, newPassword);
+            userService.changePassword(userId, dto.getOldPassword(), dto.getNewPassword());
             return Result.success(null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
@@ -90,15 +88,10 @@ public class UserController {
      * 更新用户信息
      */
     @PutMapping("/info")
-    public Result<Void> updateUserInfo(@RequestBody Map<String, String> params) {
+    public Result<Void> updateUserInfo(@Valid @RequestBody UpdateUserInfoDTO dto) {
         Long userId = UserContextHolder.getUserId();
         try {
-            userService.updateUserInfo(
-                userId,
-                params.get("nickname"),
-                params.get("email"),
-                params.get("phone")
-            );
+            userService.updateUserInfo(userId, dto.getNickname(), dto.getEmail(), dto.getPhone());
             return Result.success(null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
@@ -147,10 +140,9 @@ public class UserController {
      */
     @RequireAdmin
     @PutMapping("/status/{userId}")
-    public Result<Void> updateUserStatus(@PathVariable Long userId, @RequestBody Map<String, Integer> params) {
+    public Result<Void> updateUserStatus(@PathVariable Long userId, @Valid @RequestBody UpdateUserStatusDTO dto) {
         try {
-            Integer status = params.get("status");
-            userService.updateUserStatus(userId, status);
+            userService.updateUserStatus(userId, dto.getStatus());
             return Result.success(null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
@@ -218,13 +210,9 @@ public class UserController {
      */
     @RequireAdmin
     @PutMapping("/batch-status")
-    public Result<Void> batchUpdateUserStatus(@RequestBody Map<String, Object> params) {
+    public Result<Void> batchUpdateUserStatus(@Valid @RequestBody BatchUpdateUserStatusDTO dto) {
         try {
-            @SuppressWarnings("unchecked")
-            List<Long> userIds = (List<Long>) params.get("userIds");
-            Integer status = (Integer) params.get("status");
-            
-            userService.batchUpdateUserStatus(userIds, status);
+            userService.batchUpdateUserStatus(dto.getUserIds(), dto.getStatus());
             return Result.success(null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
@@ -236,12 +224,9 @@ public class UserController {
      */
     @RequireAdmin
     @DeleteMapping("/batch")
-    public Result<Void> batchDeleteUsers(@RequestBody Map<String, Object> params) {
+    public Result<Void> batchDeleteUsers(@Valid @RequestBody BatchDeleteUsersDTO dto) {
         try {
-            @SuppressWarnings("unchecked")
-            List<Long> userIds = (List<Long>) params.get("userIds");
-            
-            userService.batchDeleteUsers(userIds);
+            userService.batchDeleteUsers(dto.getUserIds());
             return Result.success(null);
         } catch (Exception e) {
             return Result.error(e.getMessage());
@@ -253,19 +238,9 @@ public class UserController {
      * 路径格式：/user/avatar/avatars/userId/filename
      */
     @GetMapping("/avatar/**")
-    public ResponseEntity<Resource> getAvatar(HttpServletRequest request) {
+    public ResponseEntity<org.springframework.core.io.Resource> getAvatar(HttpServletRequest request) {
         try {
-            // 获取请求路径，例如：/user/avatar/avatars/1/avatar_xxx.jpg
-            String requestURI = request.getRequestURI();
-            
-            // 提取 /avatar/ 之后的部分
-            int avatarIndex = requestURI.indexOf("/avatar/");
-            if (avatarIndex == -1) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            String avatarPathFromRequest = requestURI.substring(avatarIndex + "/avatar/".length());
-            return userService.getAvatar(avatarPathFromRequest);
+            return userService.getAvatarFromRequest(request);
         } catch (Exception e) {
             log.error("获取头像失败", e);
             return ResponseEntity.internalServerError().build();

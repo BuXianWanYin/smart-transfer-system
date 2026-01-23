@@ -22,6 +22,13 @@ public interface CongestionMetricsService extends IService<CongestionMetrics> {
     CongestionMetricsVO getCurrentMetrics(CongestionControlAlgorithm algorithm);
     
     /**
+     * 获取当前拥塞控制指标（自动获取当前算法）
+     * 
+     * @return 指标VO
+     */
+    CongestionMetricsVO getCurrentMetrics();
+    
+    /**
      * 记录拥塞指标
      *
      * @param metrics 拥塞指标实体

@@ -141,6 +141,9 @@ const request = {
   /**
    * POST 请求
    * @param {Object} config - 请求配置
+   * @param {string} config.url - 请求URL
+   * @param {Object} config.data - 请求体数据
+   * @param {Object} config.params - URL查询参数（用于@RequestParam）
    * @returns {Promise} 返回 Promise
    */
   post(config) {
@@ -151,7 +154,9 @@ const request = {
       headers: {
         ...service.defaults.headers,
         ...config.headers
-      }
+      },
+      // 支持URL查询参数（用于后端的@RequestParam）
+      params: config.params
     }
     return service.post(config.url, config.data, axiosConfig)
   },

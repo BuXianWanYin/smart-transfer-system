@@ -32,4 +32,11 @@ public interface FileDownloadService {
      * @return ResponseEntity包含二进制数据和元数据响应头
      */
     ResponseEntity<byte[]> downloadChunk(Long fileId, Integer chunkNumber, Long startByte, Long endByte);
+    
+    /**
+     * 处理下载分块错误
+     * @param e 异常
+     * @return 错误响应
+     */
+    ResponseEntity<byte[]> handleDownloadChunkError(Exception e);
 }

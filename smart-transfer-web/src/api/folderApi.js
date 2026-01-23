@@ -59,13 +59,18 @@ export function getBreadcrumb(folderId) {
 
 /**
  * 重命名文件夹
- * @param {Object} data - 包含 id 和 folderName
+ * @param {Object} data - 包含 folderId 和 newName（或兼容 id 和 folderName）
  * @returns {Promise}
  */
 export function renameFolder(data) {
+  // 兼容前端可能传的 id/folderName，转换为 folderId/newName
+  const requestData = {
+    folderId: data.folderId || data.id,
+    newName: data.newName || data.folderName
+  }
   return request.put({
     url: '/folder/rename',
-    data
+    data: requestData
   })
 }
 
@@ -82,13 +87,18 @@ export function deleteFolder(folderId) {
 
 /**
  * 移动文件到文件夹
- * @param {Object} data - 包含 fileId 和 targetFolderId
+ * @param {Object} data - 包含 fileId 和 folderId
  * @returns {Promise}
  */
 export function moveFileToFolder(data) {
+  // 兼容前端可能传的 targetFolderId，转换为 folderId
+  const requestData = {
+    fileId: data.fileId,
+    folderId: data.folderId || data.targetFolderId || 0
+  }
   return request.post({
     url: '/folder/move/file',
-    data
+    data: requestData
   })
 }
 

@@ -13,7 +13,7 @@ export class LoginService {
    */
   static login(data) {
     return request.post({
-      url: '/auth/login',
+      url: '/user/login',
       data
     })
   }
@@ -21,11 +21,11 @@ export class LoginService {
   /**
    * 用户登出
    * @returns {Promise} 返回操作结果
+   * @deprecated 后端暂无此接口，建议使用前端清除token
    */
   static logout() {
-    return request.post({
-      url: '/auth/logout'
-    })
+    // 后端暂无logout接口，前端清除token即可
+    return Promise.resolve()
   }
   
   /**
@@ -34,7 +34,7 @@ export class LoginService {
    */
   static getUserInfo() {
     return request.get({
-      url: '/auth/getUserInfo'
+      url: '/user/info'
     })
   }
 }

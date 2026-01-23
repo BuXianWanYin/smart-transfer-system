@@ -38,15 +38,7 @@ public class TransferHistoryController {
     public Result<List<TransferHistory>> list(TransferHistory history, 
                                                @RequestParam(required = false) Long userId) {
         try {
-            // 如果传入了userId参数，设置到history对象中
-            if (history == null) {
-                history = new TransferHistory();
-            }
-            if (userId != null) {
-                history.setUserId(userId);
-            }
-            
-            List<TransferHistory> list = historyService.selectHistoryList(history);
+            List<TransferHistory> list = historyService.selectHistoryList(history, userId);
             return Result.success(list);
         } catch (Exception e) {
             log.error("查询传输历史记录列表失败", e);
@@ -85,10 +77,11 @@ public class TransferHistoryController {
     /**
      * 删除传输历史记录
      */
-    @DeleteMapping("/{ids}")
-    public Result<Void> remove(@PathVariable Long[] ids) {
+    @DeleteMapping
+    public Result<Void> remove(@RequestBody List<Long> ids) {
         try {
-            historyService.deleteHistoryByIds(ids);
+            Long[] idsArray = ids.toArray(new Long[0]);
+            historyService.deleteHistoryByIds(idsArray);
             return Result.success();
         } catch (Exception e) {
             log.error("删除传输历史记录失败", e);

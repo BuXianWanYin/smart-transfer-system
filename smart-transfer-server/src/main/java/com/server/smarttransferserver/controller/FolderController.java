@@ -2,14 +2,15 @@ package com.server.smarttransferserver.controller;
 
 import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.domain.Folder;
+import com.server.smarttransferserver.dto.*;
 import com.server.smarttransferserver.service.FolderService;
 import com.server.smarttransferserver.vo.FolderContentVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 文件夹Controller
@@ -26,14 +27,10 @@ public class FolderController {
      * 创建文件夹
      */
     @PostMapping("/create")
-    public Result<Folder> createFolder(@RequestBody Map<String, Object> params) {
-        String folderName = (String) params.get("folderName");
-        Long parentId = params.get("parentId") != null ? 
-            Long.valueOf(params.get("parentId").toString()) : 0L;
-        
-        log.info("创建文件夹 - 名称: {}, 父ID: {}", folderName, parentId);
+    public Result<Folder> createFolder(@Valid @RequestBody CreateFolderDTO dto) {
+        log.info("创建文件夹 - 名称: {}, 父ID: {}", dto.getFolderName(), dto.getParentId());
         try {
-            Folder folder = folderService.createFolder(folderName, parentId);
+            Folder folder = folderService.createFolder(dto.getFolderName(), dto.getParentId());
             return Result.success(folder);
         } catch (Exception e) {
             log.error("创建文件夹失败", e);
@@ -104,13 +101,10 @@ public class FolderController {
      * 重命名文件夹
      */
     @PutMapping("/rename")
-    public Result<Void> renameFolder(@RequestBody Map<String, Object> params) {
-        Long folderId = Long.valueOf(params.get("folderId").toString());
-        String newName = (String) params.get("newName");
-        
-        log.info("重命名文件夹 - ID: {}, 新名称: {}", folderId, newName);
+    public Result<Void> renameFolder(@Valid @RequestBody RenameFolderDTO dto) {
+        log.info("重命名文件夹 - ID: {}, 新名称: {}", dto.getFolderId(), dto.getNewName());
         try {
-            folderService.renameFolder(folderId, newName);
+            folderService.renameFolder(dto.getFolderId(), dto.getNewName());
             return Result.success();
         } catch (Exception e) {
             log.error("重命名文件夹失败", e);
@@ -137,14 +131,10 @@ public class FolderController {
      * 移动文件到文件夹
      */
     @PostMapping("/move/file")
-    public Result<Void> moveFileToFolder(@RequestBody Map<String, Object> params) {
-        Long fileId = Long.valueOf(params.get("fileId").toString());
-        Long folderId = params.get("folderId") != null ? 
-            Long.valueOf(params.get("folderId").toString()) : 0L;
-        
-        log.info("移动文件 - 文件ID: {}, 目标文件夹: {}", fileId, folderId);
+    public Result<Void> moveFileToFolder(@Valid @RequestBody MoveFileToFolderDTO dto) {
+        log.info("移动文件 - 文件ID: {}, 目标文件夹: {}", dto.getFileId(), dto.getFolderId());
         try {
-            folderService.moveFileToFolder(fileId, folderId);
+            folderService.moveFileToFolder(dto.getFileId(), dto.getFolderId());
             return Result.success();
         } catch (Exception e) {
             log.error("移动文件失败", e);
@@ -156,14 +146,10 @@ public class FolderController {
      * 移动文件夹
      */
     @PostMapping("/move/folder")
-    public Result<Void> moveFolderTo(@RequestBody Map<String, Object> params) {
-        Long folderId = Long.valueOf(params.get("folderId").toString());
-        Long targetFolderId = params.get("targetFolderId") != null ? 
-            Long.valueOf(params.get("targetFolderId").toString()) : 0L;
-        
-        log.info("移动文件夹 - ID: {}, 目标: {}", folderId, targetFolderId);
+    public Result<Void> moveFolderTo(@Valid @RequestBody MoveFolderDTO dto) {
+        log.info("移动文件夹 - ID: {}, 目标: {}", dto.getFolderId(), dto.getTargetFolderId());
         try {
-            folderService.moveFolderTo(folderId, targetFolderId);
+            folderService.moveFolderTo(dto.getFolderId(), dto.getTargetFolderId());
             return Result.success();
         } catch (Exception e) {
             log.error("移动文件夹失败", e);

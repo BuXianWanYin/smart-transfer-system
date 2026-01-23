@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.congestion.*;
 import com.server.smarttransferserver.entity.CongestionMetrics;
 import com.server.smarttransferserver.mapper.CongestionMetricsMapper;
+import com.server.smarttransferserver.service.CongestionAlgorithmService;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.service.INetworkMonitorService;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
@@ -32,6 +33,9 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     
     @Autowired(required = false)
     private INetworkMonitorService networkMonitor;
+    
+    @Autowired(required = false)
+    private CongestionAlgorithmService algorithmService;
     
     /** 记录拥塞指标日志采样间隔：每 N 次记录打印一次，减少大量分片时的刷屏 */
     private static final int RECORD_LOG_SAMPLE_INTERVAL = 50;
@@ -105,6 +109,15 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                   vo.getAlgorithm(), vo.getCwnd(), vo.getRate());
         
         return vo;
+    }
+    
+    @Override
+    public CongestionMetricsVO getCurrentMetrics() {
+        if (algorithmService == null) {
+            return buildEmptyMetrics();
+        }
+        CongestionControlAlgorithm currentAlgorithm = algorithmService.getCurrentAlgorithm();
+        return getCurrentMetrics(currentAlgorithm);
     }
     
     /**

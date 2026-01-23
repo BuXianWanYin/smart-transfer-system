@@ -98,5 +98,12 @@ public interface UserService {
      * @return ResponseEntity包含头像文件资源
      */
     org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> getAvatar(String avatarPath);
+    
+    /**
+     * 从HttpServletRequest获取头像文件
+     * @param request HTTP请求
+     * @return ResponseEntity包含头像文件资源
+     */
+    org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> getAvatarFromRequest(javax.servlet.http.HttpServletRequest request);
 }
 

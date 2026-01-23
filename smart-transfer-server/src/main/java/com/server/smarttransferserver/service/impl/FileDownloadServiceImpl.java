@@ -467,4 +467,15 @@ public class FileDownloadServiceImpl implements FileDownloadService {
         TransferTask task = transferTaskMapper.selectOne(queryWrapper);
         return task != null ? task.getTaskId() : null;
     }
+    
+    @Override
+    public ResponseEntity<byte[]> handleDownloadChunkError(Exception e) {
+        log.error("下载分块失败", e);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Success", "false");
+        headers.set("X-Error-Message", e.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .headers(headers)
+                .body(("下载分块失败: " + e.getMessage()).getBytes());
+    }
 }

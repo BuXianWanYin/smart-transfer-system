@@ -363,7 +363,7 @@ const confirmRename = async () => {
     try {
       await renameFile({
         id: renameFileData.value.id,
-        newFileName: renameForm.value.fileName
+        fileName: renameForm.value.fileName
       })
       ElMessage.success('重命名成功')
       renameVisible.value = false

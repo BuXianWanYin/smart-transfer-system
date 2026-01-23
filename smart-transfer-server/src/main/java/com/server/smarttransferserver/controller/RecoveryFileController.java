@@ -2,13 +2,15 @@ package com.server.smarttransferserver.controller;
 
 import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.domain.RecoveryFile;
+import com.server.smarttransferserver.dto.BatchDeleteRecoveryFilesDTO;
+import com.server.smarttransferserver.dto.BatchRestoreFilesDTO;
 import com.server.smarttransferserver.service.RecoveryFileService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 回收站控制器
@@ -48,10 +50,9 @@ public class RecoveryFileController {
      * 批量还原文件
      */
     @PostMapping("/restore/batch")
-    public Result<Void> batchRestore(@RequestBody Map<String, List<Long>> params) {
-        List<Long> ids = params.get("ids");
+    public Result<Void> batchRestore(@Valid @RequestBody BatchRestoreFilesDTO dto) {
         try {
-            recoveryFileService.batchRestoreFiles(ids);
+            recoveryFileService.batchRestoreFiles(dto.getIds());
             return Result.success();
         } catch (Exception e) {
             log.error("批量还原文件失败", e);
@@ -77,10 +78,9 @@ public class RecoveryFileController {
      * 批量彻底删除文件
      */
     @DeleteMapping("/batch")
-    public Result<Void> batchDelete(@RequestBody Map<String, List<Long>> params) {
-        List<Long> ids = params.get("ids");
+    public Result<Void> batchDelete(@Valid @RequestBody BatchDeleteRecoveryFilesDTO dto) {
         try {
-            recoveryFileService.batchDeleteFilesPermanently(ids);
+            recoveryFileService.batchDeleteFilesPermanently(dto.getIds());
             return Result.success();
         } catch (Exception e) {
             log.error("批量彻底删除文件失败", e);

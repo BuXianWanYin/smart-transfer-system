@@ -46,7 +46,8 @@ export function addHistory(data) {
  */
 export function deleteHistory(ids) {
   return request.del({
-    url: `/transfer/history/${ids}`
+    url: '/transfer/history',
+    data: ids
   })
 }
 

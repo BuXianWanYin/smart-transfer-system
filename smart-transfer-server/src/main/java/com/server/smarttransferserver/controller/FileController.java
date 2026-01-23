@@ -2,9 +2,7 @@ package com.server.smarttransferserver.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.server.smarttransferserver.common.Result;
-import com.server.smarttransferserver.dto.FileMergeDTO;
-import com.server.smarttransferserver.dto.FileUploadInitDTO;
-import com.server.smarttransferserver.dto.TransferTaskQueryDTO;
+import com.server.smarttransferserver.dto.*;
 import com.server.smarttransferserver.service.DownloadCompleteService;
 import com.server.smarttransferserver.service.FileDownloadService;
 import com.server.smarttransferserver.service.FileInfoService;
@@ -33,8 +31,6 @@ import java.io.FileInputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -318,12 +314,7 @@ public class FileController {
             return downloadService.downloadChunk(id, chunkNumber, startByte, endByte);
         } catch (Exception e) {
             log.error("下载分块失败", e);
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.set("X-Success", "false");
-            headers.set("X-Error-Message", e.getMessage());
-            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
-                    .headers(headers)
-                    .body(("下载分块失败: " + e.getMessage()).getBytes());
+            return downloadService.handleDownloadChunkError(e);
         }
     }
     
@@ -422,16 +413,14 @@ public class FileController {
     /**
      * 重命名文件
      *
-     * @param params 包含id和fileName
+     * @param dto 重命名文件DTO
      * @return 重命名结果
      */
     @PutMapping("/rename")
-    public Result<String> renameFile(@RequestBody Map<String, Object> params) {
-        Long id = Long.valueOf(params.get("id").toString());
-        String fileName = params.get("fileName").toString();
-        log.info("重命名文件 - ID: {}, 新名称: {}", id, fileName);
+    public Result<String> renameFile(@Valid @RequestBody RenameFileDTO dto) {
+        log.info("重命名文件 - ID: {}, 新名称: {}", dto.getId(), dto.getFileName());
         try {
-            fileInfoService.renameFile(id, fileName);
+            fileInfoService.renameFile(dto.getId(), dto.getFileName());
             return Result.success("重命名成功");
         } catch (Exception e) {
             log.error("重命名文件失败", e);
@@ -442,16 +431,14 @@ public class FileController {
     /**
      * 移动文件到指定文件夹
      *
-     * @param params 包含id和targetFolderId
+     * @param dto 移动文件DTO
      * @return 移动结果
      */
     @PutMapping("/move")
-    public Result<String> moveFile(@RequestBody Map<String, Object> params) {
-        Long id = Long.valueOf(params.get("id").toString());
-        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
-        log.info("移动文件 - ID: {}, 目标文件夹: {}", id, targetFolderId);
+    public Result<String> moveFile(@Valid @RequestBody MoveFileDTO dto) {
+        log.info("移动文件 - ID: {}, 目标文件夹: {}", dto.getId(), dto.getTargetFolderId());
         try {
-            fileInfoService.moveFile(id, targetFolderId);
+            fileInfoService.moveFile(dto.getId(), dto.getTargetFolderId());
             return Result.success("移动成功");
         } catch (Exception e) {
             log.error("移动文件失败", e);
@@ -462,18 +449,14 @@ public class FileController {
     /**
      * 批量移动文件
      *
-     * @param params 包含fileIds和targetFolderId
+     * @param dto 批量移动文件DTO
      * @return 移动结果
      */
     @PutMapping("/move/batch")
-    public Result<String> batchMoveFiles(@RequestBody Map<String, Object> params) {
-        @SuppressWarnings("unchecked")
-        List<Long> fileIds = ((List<Integer>) params.get("fileIds"))
-                .stream().map(Long::valueOf).collect(Collectors.toList());
-        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
-        log.info("批量移动文件 - 数量: {}, 目标文件夹: {}", fileIds.size(), targetFolderId);
+    public Result<String> batchMoveFiles(@Valid @RequestBody BatchMoveFilesDTO dto) {
+        log.info("批量移动文件 - 数量: {}, 目标文件夹: {}", dto.getFileIds().size(), dto.getTargetFolderId());
         try {
-            fileInfoService.batchMoveFiles(fileIds, targetFolderId);
+            fileInfoService.batchMoveFiles(dto.getFileIds(), dto.getTargetFolderId());
             return Result.success("批量移动成功");
         } catch (Exception e) {
             log.error("批量移动文件失败", e);
@@ -519,16 +502,14 @@ public class FileController {
     /**
      * 复制文件
      *
-     * @param params 包含fileId和targetFolderId
+     * @param dto 复制文件DTO
      * @return 复制结果
      */
     @PostMapping("/copy")
-    public Result<String> copyFile(@RequestBody Map<String, Object> params) {
-        Long fileId = Long.valueOf(params.get("fileId").toString());
-        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
-        log.info("复制文件 - ID: {}, 目标文件夹: {}", fileId, targetFolderId);
+    public Result<String> copyFile(@Valid @RequestBody CopyFileDTO dto) {
+        log.info("复制文件 - ID: {}, 目标文件夹: {}", dto.getFileId(), dto.getTargetFolderId());
         try {
-            fileInfoService.copyFile(fileId, targetFolderId);
+            fileInfoService.copyFile(dto.getFileId(), dto.getTargetFolderId());
             return Result.success("复制成功");
         } catch (Exception e) {
             log.error("复制文件失败", e);
@@ -539,18 +520,14 @@ public class FileController {
     /**
      * 批量复制文件
      *
-     * @param params 包含fileIds和targetFolderId
+     * @param dto 批量复制文件DTO
      * @return 复制结果
      */
     @PostMapping("/copy/batch")
-    public Result<String> batchCopyFiles(@RequestBody Map<String, Object> params) {
-        @SuppressWarnings("unchecked")
-        List<Long> fileIds = ((List<Integer>) params.get("fileIds"))
-                .stream().map(Long::valueOf).collect(Collectors.toList());
-        Long targetFolderId = Long.valueOf(params.get("targetFolderId").toString());
-        log.info("批量复制文件 - 数量: {}, 目标文件夹: {}", fileIds.size(), targetFolderId);
+    public Result<String> batchCopyFiles(@Valid @RequestBody BatchCopyFilesDTO dto) {
+        log.info("批量复制文件 - 数量: {}, 目标文件夹: {}", dto.getFileIds().size(), dto.getTargetFolderId());
         try {
-            fileInfoService.batchCopyFiles(fileIds, targetFolderId);
+            fileInfoService.batchCopyFiles(dto.getFileIds(), dto.getTargetFolderId());
             return Result.success("批量复制成功");
         } catch (Exception e) {
             log.error("批量复制文件失败", e);
@@ -561,21 +538,15 @@ public class FileController {
     /**
      * 解压文件
      *
-     * @param params 解压参数
+     * @param dto 解压文件DTO
      * @return 解压结果
      */
     @PostMapping("/unzip")
-    public Result<String> unzipFile(@RequestBody Map<String, Object> params) {
-        Long fileId = Long.valueOf(params.get("fileId").toString());
-        Integer unzipMode = Integer.valueOf(params.get("unzipMode").toString());
-        String folderName = params.get("folderName") != null ? params.get("folderName").toString() : null;
-        Long targetFolderId = params.get("targetFolderId") != null ? 
-                Long.valueOf(params.get("targetFolderId").toString()) : null;
-        
+    public Result<String> unzipFile(@Valid @RequestBody UnzipFileDTO dto) {
         log.info("解压文件 - ID: {}, 模式: {}, 文件夹名: {}, 目标: {}", 
-                fileId, unzipMode, folderName, targetFolderId);
+                dto.getFileId(), dto.getUnzipMode(), dto.getFolderName(), dto.getTargetFolderId());
         try {
-            fileInfoService.unzipFile(fileId, unzipMode, folderName, targetFolderId);
+            fileInfoService.unzipFile(dto.getFileId(), dto.getUnzipMode(), dto.getFolderName(), dto.getTargetFolderId());
             return Result.success("解压成功");
         } catch (Exception e) {
             log.error("解压文件失败", e);

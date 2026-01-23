@@ -758,9 +758,7 @@ const startUploadTask = async (task) => {
     // **修复CRITICAL-3: 检查合并是否成功，失败则抛出错误**
     const mergeRes = await mergeFile({
       fileId: initRes.fileId,
-      fileName: task.fileName,
-      fileHash: fileHash,
-      totalChunks
+      fileHash: fileHash
     })
     
     if (!mergeRes.success) {

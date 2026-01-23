@@ -3,7 +3,6 @@ package com.server.smarttransferserver.controller;
 import com.server.smarttransferserver.annotation.RequireAdmin;
 import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.congestion.AdaptiveAlgorithmMetrics;
-import com.server.smarttransferserver.congestion.CongestionControlAlgorithm;
 import com.server.smarttransferserver.service.CongestionAlgorithmService;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
@@ -38,8 +37,7 @@ public class CongestionController {
     public Result<CongestionMetricsVO> getCurrentMetrics() {
         log.info("获取当前拥塞控制指标");
         try {
-            CongestionControlAlgorithm currentAlgorithm = algorithmService.getCurrentAlgorithm();
-            CongestionMetricsVO metrics = metricsService.getCurrentMetrics(currentAlgorithm);
+            CongestionMetricsVO metrics = metricsService.getCurrentMetrics();
             return Result.success(metrics);
         } catch (Exception e) {
             log.error("获取拥塞控制指标失败", e);
