@@ -13,6 +13,7 @@ import com.server.smarttransferserver.util.JwtUtil;
 import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.LoginVO;
 import com.server.smarttransferserver.vo.UserInfoVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 /**
  * 用户服务实现
  */
+@Slf4j
 @Service
 public class UserServiceImpl implements UserService {
 
@@ -62,9 +64,10 @@ public class UserServiceImpl implements UserService {
     private String avatarPath;
 
     /**
-     * 密码加盐
+     * 密码加盐（从配置文件读取）
      */
-    private static final String SALT = "smart-transfer-salt";
+    @Value("${transfer.password-salt:smart-transfer-salt}")
+    private String passwordSalt;
     
     /**
      * 初始化头像存储目录
@@ -728,7 +731,7 @@ public class UserServiceImpl implements UserService {
             return org.springframework.http.ResponseEntity.notFound().build();
         }
         
-        // 修复：检查字符串长度，防止substring越界
+        // 检查字符串长度，防止substring越界
         int startIndex = avatarIndex + "/avatar/".length();
         if (startIndex >= requestURI.length()) {
             log.warn("请求URI格式错误: {}", requestURI);
@@ -743,7 +746,7 @@ public class UserServiceImpl implements UserService {
      * 加密密码（MD5 + 盐）
      */
     private String encryptPassword(String password) {
-        String saltedPassword = SALT + password + SALT;
+        String saltedPassword = passwordSalt + password + passwordSalt;
         return DigestUtils.md5DigestAsHex(saltedPassword.getBytes(StandardCharsets.UTF_8));
     }
 }

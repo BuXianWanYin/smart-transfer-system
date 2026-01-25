@@ -58,19 +58,9 @@ transfer:
   temp-path: ./file-storage/temp
   # 头像存储路径（项目根目录/uploads/avatars）
   avatar-path: ./uploads/avatars
+  # 密码加密盐值（用于密码MD5加密）
+  password-salt: smart-transfer-salt
 
-# TCP拥塞控制配置
-congestion-control:
-  # 算法类型：CUBIC/BBR/ADAPTIVE
-  algorithm: ADAPTIVE
-  # 初始拥塞窗口：10MB
-  initial-cwnd: 10485760
-  # 慢启动阈值：50MB
-  ssthresh: 52428800
-  # 最大拥塞窗口：100MB
-  max-cwnd: 104857600
-  # 最小拥塞窗口：1MB
-  min-cwnd: 1048576
 
 # Actuator监控配置
 management:
