@@ -6,6 +6,7 @@ import com.server.smarttransferserver.entity.CongestionMetrics;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 拥塞指标服务接口
@@ -61,5 +62,14 @@ public interface CongestionMetricsService extends IService<CongestionMetrics> {
      * @return 聚合后的监控指标
      */
     CongestionMetricsVO aggregateMetricsByTaskIds(List<String> taskIds);
+    
+    /**
+     * 获取网络质量统计
+     * 从最近的拥塞指标中统计网络质量分布
+     *
+     * @param algorithm 当前使用的算法（可选，如果为null则使用默认算法）
+     * @return 网络质量统计数据
+     */
+    Map<String, Object> getNetworkQualityStats(CongestionControlAlgorithm algorithm);
 }
 

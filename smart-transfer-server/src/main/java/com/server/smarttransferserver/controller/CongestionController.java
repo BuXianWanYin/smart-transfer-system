@@ -125,7 +125,9 @@ public class CongestionController {
     public Result<Map<String, Object>> getNetworkQualityStats() {
         log.info("获取网络质量统计");
         try {
-            Map<String, Object> stats = algorithmService.getNetworkQualityStats();
+            // 从metricsService获取网络质量统计，传入当前算法
+            CongestionControlAlgorithm currentAlgorithm = algorithmService.getCurrentAlgorithm();
+            Map<String, Object> stats = metricsService.getNetworkQualityStats(currentAlgorithm);
             return Result.success(stats);
         } catch (Exception e) {
             log.error("获取网络质量统计失败", e);

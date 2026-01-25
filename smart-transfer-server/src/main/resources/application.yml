@@ -8,9 +8,9 @@ spring:
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # HikariCP连接池配置（支持多用户并发）
+    # HikariCP连接池配置
     hikari:
-      maximum-pool-size: 30      # 最大连接数：支持10+用户并发
+      maximum-pool-size: 30      # 最大连接数
       minimum-idle: 10            # 最小空闲连接数
       connection-timeout: 30000   # 连接超时时间：30秒
       idle-timeout: 600000        # 空闲连接超时：10分钟

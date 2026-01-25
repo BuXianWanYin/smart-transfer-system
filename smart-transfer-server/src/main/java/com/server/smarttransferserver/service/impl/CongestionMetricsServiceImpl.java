@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -330,6 +332,48 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .networkTrend(null)
                 .isWarmingUp(false)
                 .build();
+    }
+    
+    /**
+     * 获取网络质量统计
+     * 从最近的拥塞指标中统计网络质量分布
+     *
+     * @param algorithm 当前使用的算法（可选，如果为null则使用默认算法）
+     * @return 网络质量统计数据
+     */
+    @Override
+    public Map<String, Object> getNetworkQualityStats(CongestionControlAlgorithm algorithm) {
+        // 如果未提供算法，尝试从algorithmService获取
+        if (algorithm == null && algorithmService != null) {
+            algorithm = algorithmService.getCurrentAlgorithm();
+        }
+        
+        // 从最近的指标中统计网络质量
+        CongestionMetricsVO metrics = getCurrentMetrics(algorithm);
+        
+        Map<String, Object> stats = new HashMap<>();
+        Map<String, Integer> qualityCount = new HashMap<>();
+        
+        // 初始化质量计数
+        qualityCount.put("EXCELLENT", 0);
+        qualityCount.put("GOOD", 0);
+        qualityCount.put("FAIR", 0);
+        qualityCount.put("POOR", 0);
+        qualityCount.put("UNKNOWN", 0);
+        
+        // 根据当前指标评估网络质量
+        if (metrics != null && metrics.getNetworkQuality() != null) {
+            String quality = metrics.getNetworkQuality();
+            qualityCount.put(quality, qualityCount.getOrDefault(quality, 0) + 1);
+        } else {
+            qualityCount.put("UNKNOWN", qualityCount.get("UNKNOWN") + 1);
+        }
+        
+        stats.put("qualityCount", qualityCount);
+        stats.put("currentQuality", metrics != null ? metrics.getNetworkQuality() : "UNKNOWN");
+        stats.put("totalSamples", 1); // 当前只有一个样本，实际应该从历史数据统计
+        
+        return stats;
     }
 }
 

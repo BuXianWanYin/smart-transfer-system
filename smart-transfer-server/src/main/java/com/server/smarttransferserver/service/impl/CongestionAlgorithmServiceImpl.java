@@ -8,15 +8,11 @@ import com.server.smarttransferserver.congestion.CubicAlgorithm;
 import com.server.smarttransferserver.congestion.RenoAlgorithm;
 import com.server.smarttransferserver.congestion.VegasAlgorithm;
 import com.server.smarttransferserver.service.CongestionAlgorithmService;
-import com.server.smarttransferserver.service.CongestionMetricsService;
-import com.server.smarttransferserver.vo.CongestionMetricsVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 拥塞控制算法服务实现
@@ -39,9 +35,6 @@ public class CongestionAlgorithmServiceImpl implements CongestionAlgorithmServic
     
     @Autowired(required = false)
     private AdaptiveAlgorithm adaptiveAlgorithm;
-    
-    @Autowired
-    private CongestionMetricsService metricsService;
     
     /**
      * 当前使用的算法
@@ -165,35 +158,5 @@ public class CongestionAlgorithmServiceImpl implements CongestionAlgorithmServic
         
         AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) currentAlgorithm;
         return adaptiveAlg.getMetrics();
-    }
-    
-    @Override
-    public Map<String, Object> getNetworkQualityStats() {
-        // 从最近的指标中统计网络质量
-        CongestionMetricsVO metrics = metricsService.getCurrentMetrics(currentAlgorithm);
-        
-        Map<String, Object> stats = new HashMap<>();
-        Map<String, Integer> qualityCount = new HashMap<>();
-        
-        // 初始化质量计数
-        qualityCount.put("EXCELLENT", 0);
-        qualityCount.put("GOOD", 0);
-        qualityCount.put("FAIR", 0);
-        qualityCount.put("POOR", 0);
-        qualityCount.put("UNKNOWN", 0);
-        
-        // 根据当前指标评估网络质量
-        if (metrics != null && metrics.getNetworkQuality() != null) {
-            String quality = metrics.getNetworkQuality();
-            qualityCount.put(quality, qualityCount.getOrDefault(quality, 0) + 1);
-        } else {
-            qualityCount.put("UNKNOWN", qualityCount.get("UNKNOWN") + 1);
-        }
-        
-        stats.put("qualityCount", qualityCount);
-        stats.put("currentQuality", metrics != null ? metrics.getNetworkQuality() : "UNKNOWN");
-        stats.put("totalSamples", 1); // 当前只有一个样本，实际应该从历史数据统计
-        
-        return stats;
     }
 }

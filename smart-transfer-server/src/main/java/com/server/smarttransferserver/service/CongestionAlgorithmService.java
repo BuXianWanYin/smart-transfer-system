@@ -42,10 +42,4 @@ public interface CongestionAlgorithmService {
      * @return 自适应算法指标
      */
     AdaptiveAlgorithmMetrics getAdaptiveMetrics();
-    
-    /**
-     * 获取网络质量统计
-     * @return 网络质量统计数据
-     */
-    Map<String, Object> getNetworkQualityStats();
 }
