@@ -252,6 +252,60 @@ public class UserServiceImpl implements UserService {
         userMapper.updateById(user);
     }
     
+    @Override
+    public void updateUserInfoByAdmin(Long targetUserId, String nickname, String email, String phone) {
+        // 权限检查：只有管理员可以调用此方法
+        String currentUserRole = UserContextHolder.getRole();
+        if (!"ADMIN".equals(currentUserRole)) {
+            throw new RuntimeException("需要管理员权限");
+        }
+        
+        if (targetUserId == null) {
+            throw new RuntimeException("用户ID不能为空");
+        }
+        
+        User user = userMapper.selectById(targetUserId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        
+        if (nickname != null) {
+            user.setNickname(nickname);
+        }
+        if (email != null && !email.isEmpty()) {
+            // 验证邮箱格式
+            if (!isValidEmail(email)) {
+                throw new RuntimeException("邮箱格式不正确");
+            }
+            user.setEmail(email);
+        }
+        if (phone != null && !phone.isEmpty()) {
+            // 验证手机号格式（中国手机号：11位数字，以1开头）
+            if (!isValidPhone(phone)) {
+                throw new RuntimeException("手机号格式不正确，请输入11位数字且以1开头");
+            }
+            user.setPhone(phone);
+        }
+        user.setUpdateTime(new Date());
+        userMapper.updateById(user);
+    }
+    
+    @Override
+    public String uploadAvatarByAdmin(Long targetUserId, MultipartFile file) {
+        // 权限检查：只有管理员可以调用此方法
+        String currentUserRole = UserContextHolder.getRole();
+        if (!"ADMIN".equals(currentUserRole)) {
+            throw new RuntimeException("需要管理员权限");
+        }
+        
+        if (targetUserId == null) {
+            throw new RuntimeException("用户ID不能为空");
+        }
+        
+        // 调用通用的上传头像方法
+        return uploadAvatar(targetUserId, file);
+    }
+    
     /**
      * 验证邮箱格式
      */
@@ -499,6 +553,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public String uploadAvatar(Long userId, MultipartFile file) {
+        if (userId == null) {
+            throw new RuntimeException("用户ID不能为空");
+        }
+        
         if (file == null || file.isEmpty()) {
             throw new RuntimeException("头像文件不能为空");
         }
@@ -526,28 +584,56 @@ public class UserServiceImpl implements UserService {
         }
         
         try {
+            // 检查头像路径是否已初始化
+            if (avatarPath == null || avatarPath.isEmpty()) {
+                log.error("头像存储路径未初始化");
+                throw new RuntimeException("头像存储路径未配置");
+            }
+            
+            // 先查询用户，确保用户存在
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                log.error("用户不存在 - 用户ID: {}", userId);
+                throw new RuntimeException("用户不存在");
+            }
+            
             // 创建用户头像目录
             Path userAvatarDir = Paths.get(avatarPath, userId.toString());
-            Files.createDirectories(userAvatarDir);
+            try {
+                Files.createDirectories(userAvatarDir);
+                log.debug("创建头像目录: {}", userAvatarDir.toAbsolutePath());
+            } catch (IOException e) {
+                log.error("创建头像目录失败 - 路径: {}, 错误: {}", userAvatarDir.toAbsolutePath(), e.getMessage(), e);
+                throw new RuntimeException("创建头像目录失败: " + e.getMessage(), e);
+            }
             
             // 生成唯一文件名
             String fileName = "avatar_" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
             Path targetPath = userAvatarDir.resolve(fileName);
             
             // 保存文件
-            file.transferTo(targetPath.toFile());
+            try {
+                file.transferTo(targetPath.toFile());
+                log.debug("头像文件已保存: {}", targetPath.toAbsolutePath());
+            } catch (IOException e) {
+                log.error("保存头像文件失败 - 路径: {}, 错误: {}", targetPath.toAbsolutePath(), e.getMessage(), e);
+                throw new RuntimeException("保存头像文件失败: " + e.getMessage(), e);
+            }
             
             // 删除旧头像（如果存在）
-            User user = userMapper.selectById(userId);
-            if (user != null && user.getAvatar() != null && !user.getAvatar().isEmpty()) {
+            if (user.getAvatar() != null && !user.getAvatar().isEmpty()) {
                 // 旧头像路径格式：avatars/userId/filename
                 String oldAvatar = user.getAvatar();
                 if (oldAvatar.startsWith("avatars/")) {
                     Path oldPath = Paths.get(avatarPath, oldAvatar.substring("avatars/".length()));
                     try {
-                        Files.deleteIfExists(oldPath);
+                        boolean deleted = Files.deleteIfExists(oldPath);
+                        if (deleted) {
+                            log.debug("已删除旧头像: {}", oldPath.toAbsolutePath());
+                        }
                     } catch (IOException e) {
-                        // 忽略删除旧头像失败的错误
+                        log.warn("删除旧头像失败: {}", oldPath.toAbsolutePath(), e);
+                        // 忽略删除旧头像失败的错误，继续执行
                     }
                 }
             }
@@ -556,15 +642,21 @@ public class UserServiceImpl implements UserService {
             String relativePath = "avatars/" + userId + "/" + fileName;
             
             // 更新数据库
-            if (user != null) {
-                user.setAvatar(relativePath);
-                user.setUpdateTime(new Date());
-                userMapper.updateById(user);
-            }
+            user.setAvatar(relativePath);
+            user.setUpdateTime(new Date());
+            userMapper.updateById(user);
+            log.info("头像上传成功 - 用户ID: {}, 头像路径: {}", userId, relativePath);
             
             return relativePath;
-        } catch (IOException e) {
-            throw new RuntimeException("头像上传失败: " + e.getMessage());
+        } catch (Exception e) {
+            // 所有异常（包括已转换为RuntimeException的IOException）都在这里处理
+            log.error("头像上传异常 - 用户ID: {}, 错误: {}", userId, e.getMessage(), e);
+            // 如果已经是RuntimeException，直接抛出；否则包装为RuntimeException
+            if (e instanceof RuntimeException) {
+                throw e;
+            } else {
+                throw new RuntimeException("头像上传失败: " + e.getMessage(), e);
+            }
         }
     }
     

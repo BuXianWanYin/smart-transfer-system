@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { getUserInfo } from '@/api/userApi'
 import { useUserStore } from '@/store/userStore'
 import { ElMessage } from 'element-plus'
+import { userStorage } from '@/utils/storage'
 
 const routes = [
   {
@@ -77,10 +78,9 @@ let isVerifyingToken = false
 // 标记 token 是否已验证为有效
 let tokenValidated = false
 
-// 清除登录信息
+// 清除登录信息（使用sessionStorage，实现标签页隔离）
 const clearAuth = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('userInfo')
+  userStorage.clear()
   tokenValidated = false
 }
 
@@ -98,7 +98,7 @@ const validateToken = async () => {
     })
   }
   
-  const token = localStorage.getItem('token')
+  const token = userStorage.getToken()
   if (!token || token.trim() === '') {
     tokenValidated = false
     return false
@@ -117,7 +117,8 @@ const validateToken = async () => {
     const userInfo = await getUserInfo()
     // 更新userStore中的用户信息（包括role）
     userStore.userInfo = userInfo
-    localStorage.setItem('userInfo', JSON.stringify(userInfo))
+    // 更新sessionStorage中的用户信息（标签页级别）
+    userStorage.setUserInfo(userInfo)
     tokenValidated = true
     return true
   } catch (error) {
@@ -142,16 +143,16 @@ router.beforeEach(async (to, from, next) => {
   // 如果是登录页，清除验证标记（允许重新登录）
   if (to.path === '/login') {
     tokenValidated = false
-    const token = localStorage.getItem('token')
+    const token = userStorage.getToken()
     if (token && token.trim() !== '') {
       // 如果已有 token，验证其有效性
       const isValid = await validateToken()
       if (isValid) {
         // Token 有效，根据角色跳转
         const userStore = useUserStore()
-        // 确保userStore已更新
+        // 确保userStore已更新（从sessionStorage读取）
         if (!userStore.userInfo || !userStore.userInfo.role) {
-          const storedUserInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
+          const storedUserInfo = userStorage.getUserInfo()
           if (storedUserInfo) {
             userStore.userInfo = storedUserInfo
           }
@@ -168,7 +169,7 @@ router.beforeEach(async (to, from, next) => {
   
   // 如果不是公开页面，需要验证 token
   if (!isPublic) {
-    const token = localStorage.getItem('token')
+    const token = userStorage.getToken()
     const hasToken = token && token.trim() !== ''
     
     if (!hasToken) {
@@ -188,10 +189,10 @@ router.beforeEach(async (to, from, next) => {
     // 检查是否需要管理员权限
     if (to.meta.requiresAdmin) {
       const userStore = useUserStore()
-      // 确保userStore已更新（从localStorage读取或从getUserInfo获取）
+      // 确保userStore已更新（从sessionStorage读取）
       if (!userStore.userInfo || !userStore.userInfo.role) {
-        // 如果userInfo中没有role，尝试从localStorage读取
-        const storedUserInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
+        // 如果userInfo中没有role，尝试从sessionStorage读取
+        const storedUserInfo = userStorage.getUserInfo()
         if (storedUserInfo && storedUserInfo.role) {
           userStore.userInfo = storedUserInfo
         }

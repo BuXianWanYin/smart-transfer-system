@@ -253,7 +253,6 @@ import { useTransferStore } from '@/store/transferStore'
 import { useUserStore } from '@/store/userStore'
 import { getUserList } from '@/api/userApi'
 import { useRouter } from 'vue-router'
-import { onMounted } from 'vue'
 
 const props = defineProps({
   fileType: { type: Number, required: true },

@@ -39,6 +39,15 @@ public interface UserService {
     void updateUserInfo(Long userId, String nickname, String email, String phone);
     
     /**
+     * 管理员更新用户信息
+     * @param targetUserId 目标用户ID
+     * @param nickname 昵称
+     * @param email 邮箱
+     * @param phone 手机号
+     */
+    void updateUserInfoByAdmin(Long targetUserId, String nickname, String email, String phone);
+    
+    /**
      * 获取用户列表（管理员）
      */
     List<UserInfoVO> getUserList();
@@ -71,6 +80,14 @@ public interface UserService {
      * @return 头像相对路径（如：avatars/1/avatar.jpg）
      */
     String uploadAvatar(Long userId, org.springframework.web.multipart.MultipartFile file);
+    
+    /**
+     * 管理员上传用户头像
+     * @param targetUserId 目标用户ID
+     * @param file 头像文件
+     * @return 头像相对路径（如：avatars/1/avatar.jpg）
+     */
+    String uploadAvatarByAdmin(Long targetUserId, org.springframework.web.multipart.MultipartFile file);
     
     /**
      * 获取用户详情（存储使用、传输统计）

@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -16,6 +17,18 @@ import java.io.IOException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /**
+     * 处理文件大小超限异常
+     *
+     * @param e 异常对象
+     * @return 错误响应
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Result<String> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
+        log.warn("文件大小超过限制: {}", e.getMessage());
+        return Result.error("文件大小超过限制，头像最大支持5MB");
+    }
+    
     /**
      * 处理文件上传时的连接中断异常
      * 当客户端取消上传时，连接会被关闭，导致EOFException或MultipartException
@@ -37,8 +50,12 @@ public class GlobalExceptionHandler {
         }
         
         // 其他multipart异常，记录警告日志
-        log.warn("文件上传异常: {}", e.getMessage());
-        return Result.error("文件上传失败: " + e.getMessage());
+        String errorMessage = e.getMessage();
+        if (errorMessage == null || errorMessage.isEmpty()) {
+            errorMessage = "文件上传失败";
+        }
+        log.warn("文件上传异常: {}", errorMessage);
+        return Result.error("文件上传失败: " + errorMessage);
     }
 
     /**
@@ -69,6 +86,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result<String> handleException(Exception e) {
         log.error("系统异常: {}", e.getMessage(), e);
-        return Result.error("系统异常: " + e.getMessage());
+        String errorMessage = e.getMessage();
+        if (errorMessage == null || errorMessage.isEmpty()) {
+            errorMessage = e.getClass().getSimpleName() + "异常";
+        }
+        return Result.error("系统异常: " + errorMessage);
     }
 }

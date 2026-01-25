@@ -23,11 +23,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/user/login",
                         "/user/register",
-                        "/user/avatar/**",      // 头像访问（静态资源）
-                        "/file/download/**",    // 文件下载（通过 window.open 打开）
-                        "/file/preview/**",     // 文件预览
+                        "/user/avatar/avatars/**",  // 头像访问（GET请求，静态资源路径：/user/avatar/avatars/userId/filename）
+                        "/file/download/**",        // 文件下载（通过 window.open 打开）
+                        "/file/preview/**",         // 文件预览
                         "/error"
                 );
+        // 注意：
+        // - POST /user/avatar (上传头像) 需要认证，不被排除
+        // - GET /user/avatar/avatars/** (访问头像静态资源) 被排除，不需要认证
     }
     
     @Override

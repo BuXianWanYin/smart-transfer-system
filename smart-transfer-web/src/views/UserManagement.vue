@@ -19,13 +19,13 @@
           />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
+          <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 150px">
             <el-option label="启用" :value="1" />
             <el-option label="禁用" :value="0" />
           </el-select>
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="queryParams.role" placeholder="请选择角色" clearable>
+          <el-select v-model="queryParams.role" placeholder="请选择角色" clearable style="width: 150px">
             <el-option label="管理员" value="ADMIN" />
             <el-option label="普通用户" value="USER" />
           </el-select>
@@ -57,147 +57,132 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="username" label="用户名" width="150" />
-        <el-table-column prop="nickname" label="昵称" width="150" />
-        <el-table-column prop="email" label="邮箱" width="200" show-overflow-tooltip />
-        <el-table-column prop="phone" label="手机号" width="150" />
-        <el-table-column prop="role" label="角色" width="100">
+        <el-table-column prop="id" label="ID" min-width="80" />
+        <el-table-column label="用户" min-width="200">
+          <template #default="{ row }">
+            <div class="user-cell">
+              <el-avatar :size="32" :src="getAvatarUrl(row.avatar)" class="user-avatar">
+                <el-icon><UserFilled /></el-icon>
+              </el-avatar>
+              <span class="user-name">{{ row.username }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="nickname" label="昵称" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="phone" label="手机号" min-width="150" />
+        <el-table-column prop="role" label="角色" min-width="100">
           <template #default="{ row }">
             <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'primary'">
               {{ row.role === 'ADMIN' ? '管理员' : '普通用户' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" min-width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">
               {{ row.status === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="lastLoginTime" label="最后登录" width="180">
+        <el-table-column prop="lastLoginTime" label="最后登录" min-width="180">
           <template #default="{ row }">
             {{ formatDate(row.lastLoginTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="注册时间" width="180">
+        <el-table-column prop="createTime" label="注册时间" min-width="180">
           <template #default="{ row }">
             {{ formatDate(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button
-              link
-              type="info"
-              @click="handleViewDetail(row)"
-            >
-              详情
-            </el-button>
-            <el-button
-              link
-              type="primary"
-              @click="handleToggleStatus(row)"
-            >
-              {{ row.status === 1 ? '禁用' : '启用' }}
-            </el-button>
-            <el-button
-              link
-              type="danger"
-              @click="handleDelete(row)"
-              :disabled="row.role === 'ADMIN'"
-            >
-              删除
-            </el-button>
+            <div class="action-buttons">
+              <el-button
+                link
+                type="primary"
+                size="small"
+                @click="handleEdit(row)"
+              >
+                编辑
+              </el-button>
+              <el-button
+                link
+                type="warning"
+                size="small"
+                @click="handleToggleStatus(row)"
+              >
+                {{ row.status === 1 ? '禁用' : '启用' }}
+              </el-button>
+              <el-button
+                link
+                type="danger"
+                size="small"
+                @click="handleDelete(row)"
+                :disabled="row.role === 'ADMIN'"
+              >
+                删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
     
-    <!-- 用户详情对话框 -->
+    <!-- 编辑用户对话框 -->
     <el-dialog
-      v-model="detailVisible"
-      title="用户详情"
-      width="800px"
+      v-model="editVisible"
+      title="编辑用户"
+      width="500px"
+      @close="handleEditDialogClose"
     >
-      <div v-loading="detailLoading" class="user-detail">
-        <el-descriptions :column="2" border v-if="userDetail">
-          <el-descriptions-item label="用户名">{{ userDetail.userInfo?.username }}</el-descriptions-item>
-          <el-descriptions-item label="昵称">{{ userDetail.userInfo?.nickname }}</el-descriptions-item>
-          <el-descriptions-item label="邮箱">{{ userDetail.userInfo?.email || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="手机号">{{ userDetail.userInfo?.phone || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="角色">
-            <el-tag :type="userDetail.userInfo?.role === 'ADMIN' ? 'danger' : 'primary'">
-              {{ userDetail.userInfo?.role === 'ADMIN' ? '管理员' : '普通用户' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="userDetail.userInfo?.status === 1 ? 'success' : 'danger'">
-              {{ userDetail.userInfo?.status === 1 ? '启用' : '禁用' }}
-            </el-tag>
-          </el-descriptions-item>
-        </el-descriptions>
-        
-        <el-divider>存储统计</el-divider>
-        <div class="detail-stats" v-if="userDetail.storageStats">
-          <div class="stat-row">
-            <span>总存储：</span>
-            <strong>{{ formatSize(userDetail.storageStats.totalSize) }}</strong>
+      <el-form
+        ref="editFormRef"
+        :model="editForm"
+        :rules="editRules"
+        label-width="80px"
+      >
+        <el-form-item label="头像">
+          <div class="edit-avatar-section">
+            <el-avatar :size="64" :src="getAvatarUrl(editForm.avatar)" class="edit-avatar">
+              <el-icon :size="32"><UserFilled /></el-icon>
+            </el-avatar>
+            <el-upload
+              class="avatar-uploader"
+              :http-request="handleEditAvatarUpload"
+              :show-file-list="false"
+              :before-upload="beforeAvatarUpload"
+            >
+              <el-button size="small" type="primary">上传头像</el-button>
+            </el-upload>
           </div>
-          <div class="stat-row">
-            <span>文件数：</span>
-            <strong>{{ userDetail.storageStats.fileCount || 0 }}</strong>
-          </div>
-          <div class="stat-row">
-            <span>图片：</span>
-            <strong>{{ formatSize(userDetail.storageStats.imageSize) }} ({{ userDetail.storageStats.imageCount || 0 }} 个)</strong>
-          </div>
-          <div class="stat-row">
-            <span>视频：</span>
-            <strong>{{ formatSize(userDetail.storageStats.videoSize) }} ({{ userDetail.storageStats.videoCount || 0 }} 个)</strong>
-          </div>
-          <div class="stat-row">
-            <span>文档：</span>
-            <strong>{{ formatSize(userDetail.storageStats.docSize) }} ({{ userDetail.storageStats.docCount || 0 }} 个)</strong>
-          </div>
-        </div>
-        
-        <el-divider>传输统计</el-divider>
-        <div class="detail-stats" v-if="userDetail.transferStats">
-          <div class="stat-row">
-            <span>上传总量：</span>
-            <strong>{{ formatSize(userDetail.transferStats.uploadValues?.reduce((a, b) => a + b, 0) || 0) }}</strong>
-          </div>
-          <div class="stat-row">
-            <span>下载总量：</span>
-            <strong>{{ formatSize(userDetail.transferStats.downloadValues?.reduce((a, b) => a + b, 0) || 0) }}</strong>
-          </div>
-        </div>
-        
-        <el-divider>算法使用统计</el-divider>
-        <div class="detail-stats" v-if="userDetail.algorithmStats && userDetail.algorithmStats.algorithmLabels">
-          <div 
-            v-for="(label, index) in userDetail.algorithmStats.algorithmLabels" 
-            :key="label"
-            class="stat-row"
-          >
-            <span>{{ label }}：</span>
-            <strong>
-              {{ userDetail.algorithmStats.countValues && userDetail.algorithmStats.countValues[index] !== undefined ? userDetail.algorithmStats.countValues[index] : 0 }} 次，
-              {{ formatSize(userDetail.algorithmStats.sizeValues && userDetail.algorithmStats.sizeValues[index] !== undefined ? userDetail.algorithmStats.sizeValues[index] : 0) }}
-            </strong>
-          </div>
-        </div>
-      </div>
+        </el-form-item>
+        <el-form-item label="用户名">
+          <el-input v-model="editForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="昵称" prop="nickname">
+          <el-input v-model="editForm.nickname" placeholder="请输入昵称" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="editForm.email" placeholder="请输入邮箱" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="editForm.phone" placeholder="请输入手机号" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveEdit" :loading="editLoading">保存</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getUserList, updateUserStatus, deleteUser, getUserDetail, batchUpdateUserStatus, batchDeleteUsers } from '@/api/userApi'
+import { UserFilled } from '@element-plus/icons-vue'
+import { getUserList, updateUserStatus, deleteUser, batchUpdateUserStatus, batchDeleteUsers, updateUserInfoByAdmin, uploadAvatarByAdmin } from '@/api/userApi'
 
 // 加载状态
 const loading = ref(false)
@@ -208,10 +193,53 @@ const userList = ref([])
 // 选中的用户
 const selectedUsers = ref([])
 
-// 用户详情
-const detailVisible = ref(false)
-const detailLoading = ref(false)
-const userDetail = ref(null)
+// 编辑用户
+const editVisible = ref(false)
+const editLoading = ref(false)
+const editFormRef = ref(null)
+const editForm = reactive({
+  userId: null,
+  username: '',
+  nickname: '',
+  email: '',
+  phone: '',
+  avatar: ''
+})
+
+// 编辑表单验证规则
+const editRules = {
+  nickname: [
+    { required: true, message: '请输入昵称', trigger: 'blur' }
+  ],
+  email: [
+    { 
+      validator: (rule, value, callback) => {
+        if (!value || value.trim() === '') {
+          callback() // 邮箱可以为空
+        } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
+          callback(new Error('请输入正确的邮箱地址'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'blur' 
+    }
+  ],
+  phone: [
+    { 
+      validator: (rule, value, callback) => {
+        if (!value || value.trim() === '') {
+          callback() // 手机号可以为空
+        } else if (!/^1[3-9]\d{9}$/.test(value)) {
+          callback(new Error('请输入正确的手机号（11位数字，以1开头）'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'blur' 
+    }
+  ]
+}
 
 // 查询参数
 const queryParams = reactive({
@@ -334,19 +362,117 @@ const handleSelectionChange = (selection) => {
 }
 
 /**
- * 查看用户详情
+ * 编辑用户
  */
-const handleViewDetail = async (row) => {
-  detailVisible.value = true
-  detailLoading.value = true
+const handleEdit = (row) => {
+  // 先清除之前的验证状态
+  if (editFormRef.value) {
+    editFormRef.value.clearValidate()
+  }
+  
+  // 填充表单数据
+  editForm.userId = row.id
+  editForm.username = row.username
+  editForm.nickname = row.nickname || ''
+  editForm.email = row.email || ''
+  editForm.phone = row.phone || ''
+  editForm.avatar = row.avatar || ''
+  
+  // 打开弹窗
+  editVisible.value = true
+  
+  // 使用 nextTick 确保弹窗打开后再清除验证状态（防止之前的状态残留）
+  nextTick(() => {
+    if (editFormRef.value) {
+      editFormRef.value.clearValidate()
+    }
+  })
+}
+
+/**
+ * 头像上传前验证
+ */
+const beforeAvatarUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt5M = file.size / 1024 / 1024 < 5
+
+  if (!isImage) {
+    ElMessage.error('头像只能是图片格式!')
+    return false
+  }
+  if (!isLt5M) {
+    ElMessage.error('头像大小不能超过 5MB!')
+    return false
+  }
+  return true
+}
+
+/**
+ * 编辑弹窗中上传头像（管理员为其他用户上传）
+ */
+const handleEditAvatarUpload = async (options) => {
+  if (!editForm.userId) {
+    ElMessage.error('用户ID不存在')
+    return
+  }
+  
   try {
-    const data = await getUserDetail(row.id)
-    userDetail.value = data
+    const avatarPath = await uploadAvatarByAdmin(editForm.userId, options.file)
+    if (avatarPath) {
+      editForm.avatar = avatarPath
+      ElMessage.success('头像上传成功')
+    }
   } catch (error) {
-    ElMessage.error('加载用户详情失败：' + (error.message || '未知错误'))
-    detailVisible.value = false
+    ElMessage.error('头像上传失败: ' + (error.message || '未知错误'))
+  }
+}
+
+/**
+ * 编辑弹窗关闭时的处理
+ */
+const handleEditDialogClose = () => {
+  // 清除表单验证状态
+  if (editFormRef.value) {
+    editFormRef.value.clearValidate()
+  }
+  // 重置表单数据（可选，因为下次打开时会重新填充）
+  editForm.userId = null
+  editForm.username = ''
+  editForm.nickname = ''
+  editForm.email = ''
+  editForm.phone = ''
+  editForm.avatar = ''
+}
+
+/**
+ * 保存编辑
+ */
+const handleSaveEdit = async () => {
+  if (!editFormRef.value) return
+  
+  try {
+    await editFormRef.value.validate()
+    editLoading.value = true
+    
+    // 调用管理员更新用户信息接口
+    await updateUserInfoByAdmin(editForm.userId, {
+      nickname: editForm.nickname,
+      email: editForm.email,
+      phone: editForm.phone
+    })
+    
+    // 如果头像已更新，需要单独更新头像
+    // 注意：头像在handleEditAvatarUpload中已经上传并更新到数据库，这里不需要再次更新
+    
+    ElMessage.success('更新成功')
+    editVisible.value = false
+    loadUserList()
+  } catch (error) {
+    if (error !== false) { // 表单验证失败会返回false
+      ElMessage.error('更新失败：' + (error.message || '未知错误'))
+    }
   } finally {
-    detailLoading.value = false
+    editLoading.value = false
   }
 }
 
@@ -468,6 +594,20 @@ const formatDate = (date) => {
   })
 }
 
+/**
+ * 获取头像URL
+ */
+const getAvatarUrl = (avatar) => {
+  if (!avatar) return undefined
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  // 如果avatar已经是完整URL，直接返回；否则拼接
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar
+  }
+  // 相对路径格式：avatars/userId/filename
+  return `${baseURL}/user/avatar/${avatar}`
+}
+
 onMounted(() => {
   loadUserList()
 })
@@ -496,6 +636,37 @@ onMounted(() => {
     gap: 12px;
   }
   
+  .user-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    
+    .user-avatar {
+      flex-shrink: 0;
+    }
+    
+    .user-name {
+      font-size: 14px;
+      color: #303133;
+    }
+  }
+  
+  .edit-avatar-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    
+    .edit-avatar {
+      flex-shrink: 0;
+    }
+    
+    .avatar-uploader {
+      :deep(.el-upload) {
+        margin: 0;
+      }
+    }
+  }
+  
   .user-detail {
     .detail-stats {
       .stat-row {
@@ -516,6 +687,18 @@ onMounted(() => {
           color: var(--el-color-primary);
         }
       }
+    }
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    align-items: center;
+    
+    .el-button {
+      white-space: nowrap;
+      padding: 0 8px;
     }
   }
 }

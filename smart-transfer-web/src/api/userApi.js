@@ -1,5 +1,6 @@
 import request from '@/utils/http'
 import axios from 'axios'
+import { userStorage } from '@/utils/storage'
 
 /**
  * 用户登录
@@ -102,6 +103,51 @@ export const batchDeleteUsers = (userIds) => {
 }
 
 /**
+ * 管理员更新用户信息
+ */
+export const updateUserInfoByAdmin = (userId, data) => {
+  return request.put({ url: `/user/${userId}/info`, data })
+}
+
+/**
+ * 管理员上传用户头像
+ */
+export const uploadAvatarByAdmin = (userId, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const token = userStorage.getToken()
+  
+  return axios.post(`${baseURL}/user/${userId}/avatar`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      'Authorization': `Bearer ${token}`
+    }
+  }).then(res => {
+    if (res.data.code === 200) {
+      return res.data.data
+    } else {
+      const errorMessage = res.data.message || res.data.msg || '上传失败'
+      console.error('头像上传失败:', res.data)
+      throw new Error(errorMessage)
+    }
+  }).catch(error => {
+    if (error.response) {
+      const errorData = error.response.data
+      const errorMessage = errorData?.message || errorData?.msg || error.message || '上传失败'
+      console.error('头像上传失败 - 响应:', error.response.status, errorData)
+      throw new Error(errorMessage)
+    } else if (error.request) {
+      console.error('头像上传失败 - 网络错误:', error.message)
+      throw new Error('网络错误，请检查网络连接')
+    } else {
+      console.error('头像上传失败:', error.message)
+      throw error
+    }
+  })
+}
+
+/**
  * 上传头像
  */
 export const uploadAvatar = (file) => {
@@ -109,7 +155,7 @@ export const uploadAvatar = (file) => {
   formData.append('file', file)
   // 使用axios直接上传，因为需要multipart/form-data
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
-  const token = localStorage.getItem('token')
+  const token = userStorage.getToken()
   
   return axios.post(`${baseURL}/user/avatar`, formData, {
     headers: {
@@ -121,7 +167,26 @@ export const uploadAvatar = (file) => {
     if (res.data.code === 200) {
       return res.data.data
     } else {
-      throw new Error(res.data.message || '上传失败')
+      const errorMessage = res.data.message || res.data.msg || '上传失败'
+      console.error('头像上传失败:', res.data)
+      throw new Error(errorMessage)
+    }
+  }).catch(error => {
+    // 增强错误处理
+    if (error.response) {
+      // 服务器返回了错误响应
+      const errorData = error.response.data
+      const errorMessage = errorData?.message || errorData?.msg || error.message || '上传失败'
+      console.error('头像上传失败 - 响应:', error.response.status, errorData)
+      throw new Error(errorMessage)
+    } else if (error.request) {
+      // 请求已发出但没有收到响应
+      console.error('头像上传失败 - 网络错误:', error.message)
+      throw new Error('网络错误，请检查网络连接')
+    } else {
+      // 其他错误
+      console.error('头像上传失败:', error.message)
+      throw error
     }
   })
 }

@@ -1,3 +1,5 @@
+import { userStorage } from '@/utils/storage'
+
 /**
  * WebSocket 监控服务
  */
@@ -23,8 +25,8 @@ class MonitorWebSocket {
 
     this.isConnecting = true
     
-    // 获取token
-    const token = localStorage.getItem('token')
+    // 获取token（从sessionStorage，实现标签页隔离）
+    const token = userStorage.getToken()
     if (!token) {
       console.warn('WebSocket连接失败：未找到token')
       this.isConnecting = false

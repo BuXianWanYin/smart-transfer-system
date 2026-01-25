@@ -33,19 +33,20 @@
           <el-form
             ref="infoFormRef"
             :model="infoForm"
+            :rules="infoRules"
             label-width="80px"
             class="info-form"
           >
             <el-form-item label="用户名">
               <el-input v-model="userInfo.username" disabled />
             </el-form-item>
-            <el-form-item label="昵称">
+            <el-form-item label="昵称" prop="nickname">
               <el-input v-model="infoForm.nickname" placeholder="请输入昵称" />
             </el-form-item>
-            <el-form-item label="邮箱">
+            <el-form-item label="邮箱" prop="email">
               <el-input v-model="infoForm.email" placeholder="请输入邮箱" />
             </el-form-item>
-            <el-form-item label="手机号">
+            <el-form-item label="手机号" prop="phone">
               <el-input v-model="infoForm.phone" placeholder="请输入手机号" />
             </el-form-item>
             <el-form-item>
@@ -234,7 +235,9 @@ const avatarUrl = computed(() => {
     return userInfo.value.avatar
   }
   // 相对路径格式：avatars/userId/filename
-  return `${baseURL}/user/avatar/${userInfo.value.avatar}`
+  // 添加时间戳防止缓存
+  const timestamp = new Date().getTime()
+  return `${baseURL}/user/avatar/${userInfo.value.avatar}?t=${timestamp}`
 })
 
 const beforeAvatarUpload = (file) => {
@@ -259,6 +262,9 @@ const handleAvatarUpload = async (options) => {
       ElMessage.success('头像上传成功')
       // 更新用户信息
       await userStore.refreshUserInfo()
+      // 强制刷新头像（通过更新key来触发重新渲染）
+      // 由于使用了computed，userInfo更新后avatarUrl会自动更新
+      // 但为了确保浏览器刷新缓存，我们在URL中添加了时间戳
     }
   } catch (error) {
     ElMessage.error('头像上传失败: ' + (error.message || '未知错误'))
@@ -273,6 +279,41 @@ const infoForm = reactive({
   phone: ''
 })
 const infoLoading = ref(false)
+
+// 信息表单验证规则
+const infoRules = {
+  nickname: [
+    { required: true, message: '请输入昵称', trigger: 'blur' }
+  ],
+  email: [
+    { 
+      validator: (rule, value, callback) => {
+        if (!value || value.trim() === '') {
+          callback() // 邮箱可以为空
+        } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)) {
+          callback(new Error('请输入正确的邮箱地址'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'blur' 
+    }
+  ],
+  phone: [
+    { 
+      validator: (rule, value, callback) => {
+        if (!value || value.trim() === '') {
+          callback() // 手机号可以为空
+        } else if (!/^1[3-9]\d{9}$/.test(value)) {
+          callback(new Error('请输入正确的手机号（11位数字，以1开头）'))
+        } else {
+          callback()
+        }
+      }, 
+      trigger: 'blur' 
+    }
+  ]
+}
 
 // 存储统计
 const storageLoading = ref(false)
@@ -389,8 +430,13 @@ const getBarHeight = (value, values) => {
 
 // 更新用户信息
 const handleUpdateInfo = async () => {
-  infoLoading.value = true
+  if (!infoFormRef.value) return
+  
   try {
+    // 表单验证
+    await infoFormRef.value.validate()
+    infoLoading.value = true
+    
     await updateUserInfo({
       nickname: infoForm.nickname,
       email: infoForm.email,
@@ -399,7 +445,9 @@ const handleUpdateInfo = async () => {
     ElMessage.success('信息更新成功')
     await userStore.refreshUserInfo()
   } catch (error) {
-    ElMessage.error(error.message || '更新失败')
+    if (error !== false) { // 表单验证失败会返回false
+      ElMessage.error(error.message || '更新失败')
+    }
   } finally {
     infoLoading.value = false
   }

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 
 /**
@@ -81,7 +82,7 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
      * 算法性能统计（吞吐量、延迟等）
      * 键：算法名称，值：性能评分（0-100，越高越好）
      */
-    private final java.util.Map<String, Double> algorithmScores;
+    private final Map<String, Double> algorithmScores;
     
     /**
      * 当前算法的连续使用时间（毫秒）

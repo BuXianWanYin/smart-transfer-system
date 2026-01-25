@@ -111,3 +111,19 @@ export function getRelativeTime(dateStr) {
   
   return formatDate(dateStr)
 }
+
+/**
+ * 格式化百分比
+ * @param {number} value 数值（0-1之间的小数或百分比数值）
+ * @param {number} decimals 小数位数，默认2位
+ * @returns {string} 格式化后的百分比字符串
+ */
+export function formatPercent(value, decimals = 2) {
+  if (value === null || value === undefined || isNaN(value)) return '-'
+  
+  // 如果值大于1，假设已经是百分比形式（如50表示50%），需要除以100
+  // 如果值小于等于1，假设是小数形式（如0.05表示5%）
+  const percentValue = value > 1 ? value : value * 100
+  
+  return percentValue.toFixed(decimals) + '%'
+}

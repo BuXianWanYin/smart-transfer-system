@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
+import { userStorage } from '@/utils/storage'
 
 // 是否正在跳转登录页（防止重复跳转）
 let isRedirectingToLogin = false
@@ -12,8 +13,8 @@ const redirectToLogin = () => {
   if (isRedirectingToLogin) return
   
   isRedirectingToLogin = true
-  localStorage.removeItem('token')
-  localStorage.removeItem('userInfo')
+  // 清除sessionStorage中的用户数据（标签页级别）
+  userStorage.clear()
   
   const currentPath = router.currentRoute.value.fullPath
   if (currentPath !== '/login') {
@@ -42,8 +43,8 @@ const service = axios.create({
  */
 service.interceptors.request.use(
   config => {
-    // 从 localStorage 获取 token
-    const token = localStorage.getItem('token')
+    // 从 sessionStorage 获取 token（标签页级别隔离）
+    const token = userStorage.getToken()
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
     }

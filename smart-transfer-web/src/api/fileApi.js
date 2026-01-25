@@ -1,5 +1,6 @@
 import request from '@/utils/http'
 import axios from 'axios'
+import { userStorage } from '@/utils/storage'
 
 /**
  * 文件传输 API
@@ -186,7 +187,7 @@ export function downloadChunk(fileId, chunkNumber, startByte, endByte, signal) {
   // 使用axios直接调用，接收二进制数据
   // 注意：需要绕过request封装，直接使用axios实例（因为需要responseType: 'arraybuffer'）
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
-  const token = localStorage.getItem('token')
+  const token = userStorage.getToken()
   
   // 创建独立的axios实例用于二进制下载（不受响应拦截器影响）
   const axiosInstance = axios.create({

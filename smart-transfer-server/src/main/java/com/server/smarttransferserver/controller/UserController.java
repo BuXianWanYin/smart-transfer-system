@@ -164,6 +164,42 @@ public class UserController {
     }
     
     /**
+     * 管理员更新用户信息
+     */
+    @RequireAdmin
+    @PutMapping("/{userId}/info")
+    public Result<Void> updateUserInfoByAdmin(@PathVariable Long userId, @Valid @RequestBody UpdateUserInfoDTO dto) {
+        try {
+            userService.updateUserInfoByAdmin(userId, dto.getNickname(), dto.getEmail(), dto.getPhone());
+            return Result.success(null);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+    
+    /**
+     * 管理员上传用户头像
+     */
+    @RequireAdmin
+    @PostMapping("/{userId}/avatar")
+    public Result<String> uploadAvatarByAdmin(@PathVariable Long userId, @RequestParam("file") MultipartFile file) {
+        try {
+            log.info("管理员上传用户头像 - 目标用户ID: {}, 文件名: {}, 文件大小: {}字节", 
+                    userId, file.getOriginalFilename(), file.getSize());
+            String avatarPath = userService.uploadAvatarByAdmin(userId, file);
+            log.info("管理员上传头像成功 - 目标用户ID: {}, 头像路径: {}", userId, avatarPath);
+            return Result.success(avatarPath);
+        } catch (Exception e) {
+            log.error("管理员上传头像失败 - 目标用户ID: {}, 错误: {}", userId, e.getMessage(), e);
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "头像上传失败，请稍后重试";
+            }
+            return Result.error(errorMessage);
+        }
+    }
+    
+    /**
      * 获取系统级存储统计（管理员）
      */
     @RequireAdmin
@@ -183,11 +219,24 @@ public class UserController {
     @PostMapping("/avatar")
     public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
         Long userId = UserContextHolder.getUserId();
+        if (userId == null) {
+            log.error("上传头像失败：用户未登录");
+            return Result.error("请先登录");
+        }
+        
         try {
+            log.info("开始上传头像 - 用户ID: {}, 文件名: {}, 文件大小: {}字节", 
+                    userId, file.getOriginalFilename(), file.getSize());
             String avatarPath = userService.uploadAvatar(userId, file);
+            log.info("头像上传成功 - 用户ID: {}, 头像路径: {}", userId, avatarPath);
             return Result.success(avatarPath);
         } catch (Exception e) {
-            return Result.error(e.getMessage());
+            log.error("上传头像失败 - 用户ID: {}, 错误: {}", userId, e.getMessage(), e);
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.isEmpty()) {
+                errorMessage = "头像上传失败，请稍后重试";
+            }
+            return Result.error(errorMessage);
         }
     }
     

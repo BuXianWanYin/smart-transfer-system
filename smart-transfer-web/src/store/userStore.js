@@ -2,13 +2,14 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { login as loginApi, getUserInfo, checkToken } from '@/api/userApi'
 import router from '@/router'
+import { userStorage } from '@/utils/storage'
 
 export const useUserStore = defineStore('user', () => {
-  // Token
-  const token = ref(localStorage.getItem('token') || '')
+  // Token（从sessionStorage读取，实现标签页隔离）
+  const token = ref(userStorage.getToken())
   
-  // 用户信息
-  const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || 'null'))
+  // 用户信息（从sessionStorage读取，实现标签页隔离）
+  const userInfo = ref(userStorage.getUserInfo())
   
   // 是否已登录
   const isLoggedIn = computed(() => !!token.value && !!userInfo.value)
@@ -19,8 +20,19 @@ export const useUserStore = defineStore('user', () => {
   // 昵称
   const nickname = computed(() => userInfo.value?.nickname || userInfo.value?.username || '')
   
-  // 头像
-  const avatar = computed(() => userInfo.value?.avatar || '')
+  // 头像URL（完整URL）
+  const avatar = computed(() => {
+    if (!userInfo.value?.avatar) return ''
+    const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+    // 如果avatar已经是完整URL，直接返回；否则拼接
+    if (userInfo.value.avatar.startsWith('http://') || userInfo.value.avatar.startsWith('https://')) {
+      return userInfo.value.avatar
+    }
+    // 相对路径格式：avatars/userId/filename
+    // 添加时间戳防止缓存
+    const timestamp = new Date().getTime()
+    return `${baseURL}/user/avatar/${userInfo.value.avatar}?t=${timestamp}`
+  })
   
   // 用户角色
   const role = computed(() => userInfo.value?.role || 'USER')
@@ -35,11 +47,11 @@ export const useUserStore = defineStore('user', () => {
   const login = async (username, password) => {
     const data = await loginApi({ username, password })
     
-    // 保存 Token
+    // 保存 Token（使用sessionStorage，实现标签页隔离）
     token.value = data.token
-    localStorage.setItem('token', data.token)
+    userStorage.setToken(data.token)
     
-    // 保存用户信息
+    // 保存用户信息（使用sessionStorage，实现标签页隔离）
     userInfo.value = {
       id: data.userId,
       username: data.username,
@@ -47,7 +59,7 @@ export const useUserStore = defineStore('user', () => {
       avatar: data.avatar,
       role: data.role || 'USER'
     }
-    localStorage.setItem('userInfo', JSON.stringify(userInfo.value))
+    userStorage.setUserInfo(userInfo.value)
     
     return data
   }
@@ -58,8 +70,8 @@ export const useUserStore = defineStore('user', () => {
   const logout = () => {
     token.value = ''
     userInfo.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
+    // 清除sessionStorage中的用户数据（标签页级别）
+    userStorage.clear()
     router.push('/login')
   }
   
@@ -72,7 +84,8 @@ export const useUserStore = defineStore('user', () => {
     try {
       const data = await getUserInfo()
       userInfo.value = data
-      localStorage.setItem('userInfo', JSON.stringify(data))
+      // 更新sessionStorage中的用户信息
+      userStorage.setUserInfo(data)
     } catch {
       // Token 无效，清除登录状态
       logout()
