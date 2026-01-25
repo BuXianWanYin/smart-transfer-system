@@ -21,7 +21,7 @@
         :class="sidebarClass"
         :style="{ width: appStore.sidebarWidth }"
       >
-        <AsideMenu :collapsed="appStore.sidebarCollapsed && !appStore.isMobile" />
+        <AsideMenu :collapsed="false" />
       </aside>
       
       <!-- 主内容区 -->
@@ -51,13 +51,11 @@ const isPublicPage = computed(() => {
 const appClass = computed(() => ({
   'is-mobile': appStore.isMobile,
   'is-tablet': appStore.isTablet,
-  'is-desktop': appStore.isDesktop,
-  'sidebar-collapsed': appStore.sidebarCollapsed
+  'is-desktop': appStore.isDesktop
 }))
 
 // 侧边栏类名
 const sidebarClass = computed(() => ({
-  'is-collapsed': appStore.sidebarCollapsed && !appStore.isMobile,
   'is-hidden': appStore.isMobile && !appStore.sidebarVisible,
   'is-visible': appStore.isMobile && appStore.sidebarVisible
 }))
@@ -122,10 +120,6 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   z-index: 100;
   overflow: hidden;
-}
-
-.sidebar.is-collapsed {
-  width: 64px !important;
 }
 
 /* 移动端侧边栏 */

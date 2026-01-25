@@ -2,14 +2,14 @@
   <div class="operation-menu-wrapper">
     <!-- 左侧操作按钮 -->
     <div class="left-operations">
-      <!-- 上传按钮 -->
-      <el-button type="primary" @click="$emit('show-upload')" v-if="fileType !== 6">
+      <!-- 上传按钮（仅普通用户可见） -->
+      <el-button type="primary" @click="$emit('show-upload')" v-if="fileType !== 6 && !userStore.isAdmin">
         <el-icon><Upload /></el-icon>
         上传
       </el-button>
       
-      <!-- 新建文件夹 -->
-      <el-button @click="$emit('new-folder')" v-if="fileType !== 6">
+      <!-- 新建文件夹（仅普通用户可见） -->
+      <el-button @click="$emit('new-folder')" v-if="fileType !== 6 && !userStore.isAdmin">
         <el-icon><FolderAdd /></el-icon>
         新建文件夹
       </el-button>

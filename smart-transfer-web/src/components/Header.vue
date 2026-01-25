@@ -2,7 +2,7 @@
   <div class="header-wrapper">
     <!-- 左侧区域 -->
     <div class="header-left">
-      <!-- 移动端菜单按钮 -->
+      <!-- 移动端菜单按钮（仅移动端显示） -->
       <el-icon 
         v-if="appStore.isMobile" 
         class="menu-toggle"
@@ -12,18 +12,8 @@
         <Expand v-else />
       </el-icon>
       
-      <!-- 桌面端折叠按钮 -->
-      <el-icon 
-        v-if="!appStore.isMobile" 
-        class="collapse-toggle"
-        @click="appStore.toggleSidebarCollapse"
-      >
-        <Fold v-if="!appStore.sidebarCollapsed" />
-        <Expand v-else />
-      </el-icon>
-      
       <!-- Logo -->
-      <div class="logo-area" @click="$router.push({ name: 'TransferCenter' })">
+      <div class="logo-area" @click="handleLogoClick">
         <el-icon class="logo-icon"><Promotion /></el-icon>
         <span class="logo-text" v-if="!appStore.isMobile">基于Java+Vue的TCP拥塞控制优化大文件传输工具</span>
       </div>
@@ -81,6 +71,15 @@ const handleCommand = async (command) => {
     }
   }
 }
+
+const handleLogoClick = () => {
+  // 管理员跳转到文件管理，普通用户跳转到传输中心
+  if (userStore.isAdmin) {
+    router.push({ name: 'File' })
+  } else {
+    router.push({ name: 'TransferCenter' })
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -104,8 +103,7 @@ const handleCommand = async (command) => {
     align-items: center;
     gap: 16px;
     
-    .menu-toggle,
-    .collapse-toggle {
+    .menu-toggle {
       font-size: 26px;
       color: #606266;
       cursor: pointer;
@@ -151,7 +149,7 @@ const handleCommand = async (command) => {
   .header-right {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     
     .user-info {
       display: flex;

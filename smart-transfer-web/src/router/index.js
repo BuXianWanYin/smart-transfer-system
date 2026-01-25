@@ -13,7 +13,7 @@ const routes = [
   },
   {
     path: '/',
-    redirect: '/transfer'
+    redirect: '/transfer' // 默认跳转，实际跳转逻辑在路由守卫中处理
   },
   {
     path: '/transfer',
@@ -140,6 +140,33 @@ router.beforeEach(async (to, from, next) => {
   
   const isPublic = to.meta.public === true
   
+  // 处理根路径重定向：根据用户角色跳转
+  if (to.path === '/') {
+    const token = userStorage.getToken()
+    if (token && token.trim() !== '') {
+      const isValid = await validateToken()
+      if (isValid) {
+        const userStore = useUserStore()
+        if (!userStore.userInfo || !userStore.userInfo.role) {
+          const storedUserInfo = userStorage.getUserInfo()
+          if (storedUserInfo) {
+            userStore.userInfo = storedUserInfo
+          }
+        }
+        // 管理员跳转到文件管理，普通用户跳转到传输中心
+        if (userStore.isAdmin) {
+          next('/files')
+        } else {
+          next('/transfer')
+        }
+        return
+      }
+    }
+    // 未登录或token无效，跳转到登录页
+    next('/login')
+    return
+  }
+  
   // 如果是登录页，清除验证标记（允许重新登录）
   if (to.path === '/login') {
     tokenValidated = false
@@ -157,8 +184,12 @@ router.beforeEach(async (to, from, next) => {
             userStore.userInfo = storedUserInfo
           }
         }
-        // 跳转到传输中心（所有用户都可以访问）
-        next('/transfer')
+        // 根据角色跳转：管理员跳转到文件管理，普通用户跳转到传输中心
+        if (userStore.isAdmin) {
+          next('/files')
+        } else {
+          next('/transfer')
+        }
         return
       }
     }
@@ -201,6 +232,22 @@ router.beforeEach(async (to, from, next) => {
       if (!userStore.isAdmin) {
         ElMessage.error('需要管理员权限')
         next('/transfer')
+        return
+      }
+    }
+    
+    // 管理员不能访问传输中心，重定向到文件管理
+    if (to.path === '/transfer' || to.name === 'TransferCenter') {
+      const userStore = useUserStore()
+      if (!userStore.userInfo || !userStore.userInfo.role) {
+        const storedUserInfo = userStorage.getUserInfo()
+        if (storedUserInfo && storedUserInfo.role) {
+          userStore.userInfo = storedUserInfo
+        }
+      }
+      if (userStore.isAdmin) {
+        ElMessage.warning('管理员请使用文件管理功能')
+        next('/files')
         return
       }
     }

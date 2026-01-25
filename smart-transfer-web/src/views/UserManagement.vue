@@ -56,9 +56,9 @@
         style="width: 100%"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" min-width="80" />
-        <el-table-column label="用户" min-width="200">
+        <el-table-column type="selection" width="55" align="center" />
+        <el-table-column prop="id" label="ID" min-width="80" align="center" />
+        <el-table-column label="用户" min-width="200" align="center">
           <template #default="{ row }">
             <div class="user-cell">
               <el-avatar :size="32" :src="getAvatarUrl(row.avatar)" class="user-avatar">
@@ -68,34 +68,34 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="nickname" label="昵称" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="phone" label="手机号" min-width="150" />
-        <el-table-column prop="role" label="角色" min-width="100">
+        <el-table-column prop="nickname" label="昵称" min-width="150" show-overflow-tooltip align="center" />
+        <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip align="center" />
+        <el-table-column prop="phone" label="手机号" min-width="150" align="center" />
+        <el-table-column prop="role" label="角色" min-width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'primary'">
               {{ row.role === 'ADMIN' ? '管理员' : '普通用户' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" min-width="100">
+        <el-table-column prop="status" label="状态" min-width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">
               {{ row.status === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="lastLoginTime" label="最后登录" min-width="180">
+        <el-table-column prop="lastLoginTime" label="最后登录" min-width="180" align="center">
           <template #default="{ row }">
             {{ formatDate(row.lastLoginTime) }}
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="注册时间" min-width="180">
+        <el-table-column prop="createTime" label="注册时间" min-width="180" align="center">
           <template #default="{ row }">
             {{ formatDate(row.createTime) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <el-button
@@ -111,6 +111,7 @@
                 type="warning"
                 size="small"
                 @click="handleToggleStatus(row)"
+                :disabled="isDisableButtonDisabled(row)"
               >
                 {{ row.status === 1 ? '禁用' : '启用' }}
               </el-button>
@@ -359,6 +360,30 @@ const handleDelete = async (row) => {
  */
 const handleSelectionChange = (selection) => {
   selectedUsers.value = selection
+}
+
+/**
+ * 判断禁用按钮是否应该被禁用
+ * 如果是管理员且是最后一个启用的管理员，则禁用按钮
+ */
+const isDisableButtonDisabled = (row) => {
+  // 如果要启用用户，按钮不应该被禁用
+  if (row.status !== 1) {
+    return false
+  }
+  
+  // 如果不是管理员，可以禁用
+  if (row.role !== 'ADMIN') {
+    return false
+  }
+  
+  // 如果是管理员，检查是否还有其他启用的管理员
+  const enabledAdmins = userList.value.filter(user => 
+    user.role === 'ADMIN' && user.status === 1 && user.id !== row.id
+  )
+  
+  // 如果没有其他启用的管理员，禁用按钮
+  return enabledAdmins.length === 0
 }
 
 /**
@@ -639,6 +664,7 @@ onMounted(() => {
   .user-cell {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 12px;
     
     .user-avatar {
@@ -695,6 +721,7 @@ onMounted(() => {
     gap: 8px;
     flex-wrap: nowrap;
     align-items: center;
+    justify-content: center;
     
     .el-button {
       white-space: nowrap;

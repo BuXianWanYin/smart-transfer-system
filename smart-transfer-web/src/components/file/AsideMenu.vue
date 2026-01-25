@@ -8,8 +8,8 @@
       class="file-menu"
       @select="handleMenuSelect"
     >
-      <!-- 传输中心 -->
-      <el-menu-item index="transfer">
+      <!-- 传输中心（仅普通用户可见） -->
+      <el-menu-item v-if="!userStore.isAdmin" index="transfer">
         <el-icon><Upload /></el-icon>
         <template #title>
           <span>传输中心</span>
@@ -218,7 +218,8 @@ const activeIndex = computed(() => {
     return fileType !== undefined ? `file-${fileType}` : 'file-0'
   }
   
-  return 'transfer'
+  // 默认值：管理员返回文件管理，普通用户返回传输中心
+  return userStore.isAdmin ? 'files' : 'transfer'
 })
 
 // 存储空间

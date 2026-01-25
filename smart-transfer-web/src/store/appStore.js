@@ -31,10 +31,10 @@ export const useAppStore = defineStore('app', () => {
   // 是否是桌面端
   const isDesktop = computed(() => deviceType.value === 'desktop')
   
-  // 侧边栏宽度
+  // 侧边栏宽度（桌面端始终展开，移动端根据显示状态）
   const sidebarWidth = computed(() => {
     if (isMobile.value) return sidebarVisible.value ? '200px' : '0'
-    if (sidebarCollapsed.value) return '64px'
+    // 桌面端始终展开，不折叠
     return '200px'
   })
   
@@ -49,15 +49,10 @@ export const useAppStore = defineStore('app', () => {
       sidebarVisible.value = true
     }
     
-    // 平板默认折叠侧边栏
-    if (isTablet.value && !sidebarCollapsed.value) {
-      sidebarCollapsed.value = true
+    // 确保桌面端侧边栏始终展开（不折叠）
+    if (!isMobile.value) {
+      sidebarCollapsed.value = false
     }
-  }
-  
-  // 切换侧边栏折叠状态
-  const toggleSidebarCollapse = () => {
-    sidebarCollapsed.value = !sidebarCollapsed.value
   }
   
   // 切换侧边栏显示（移动端）
