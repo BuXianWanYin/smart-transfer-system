@@ -289,20 +289,11 @@ public class FileMergeServiceImpl implements FileMergeService {
             chunkWrapper.eq("file_id", fileId);
             fileChunkMapper.delete(chunkWrapper);
             
-            // 4. 更新传输任务状态为CANCELLED（而不是直接删除）
-            // 查询该文件的所有传输任务
+            // 4. 该文件的所有传输任务：先删拥塞指标，再删任务（满足外键：file_info 被 transfer_task 引用）
             List<TransferTask> tasks = transferTaskMapper.selectByFileId(fileId);
             if (tasks != null && !tasks.isEmpty()) {
                 for (TransferTask task : tasks) {
-                    // 如果任务是活跃状态，更新为CANCELLED
-                    if ("PENDING".equals(task.getTransferStatus()) || "PROCESSING".equals(task.getTransferStatus())) {
-                        task.setTransferStatus("CANCELLED");
-                        task.setEndTime(LocalDateTime.now());
-                        transferTaskMapper.updateById(task);
-                        log.info("更新任务状态为CANCELLED - 任务ID: {}, 文件ID: {}", task.getTaskId(), fileId);
-                    }
-                    
-                    // 清理拥塞指标数据（外键约束要求）
+                    // 先清理拥塞指标（若 congestion_metrics 引用 transfer_task）
                     if (task.getTaskId() != null) {
                         int deletedMetricsCount = congestionMetricsMapper.deleteByTaskId(task.getTaskId());
                         if (deletedMetricsCount > 0) {
@@ -310,9 +301,12 @@ public class FileMergeServiceImpl implements FileMergeService {
                         }
                     }
                 }
+                // 再删除传输任务记录，否则无法删除 file_info（transfer_task.file_id 外键引用 file_info.id）
+                transferTaskMapper.deleteByFileId(fileId);
+                log.debug("已删除文件关联的传输任务 - 文件ID: {}", fileId);
             }
             
-            // 6. 物理删除文件记录（因为文件从未成功上传）
+            // 5. 物理删除文件记录（因为文件从未成功上传）
             fileInfoMapper.deletePhysically(fileId);
             
             log.info("清理上传失败的文件数据完成 - 文件ID: {}", fileId);

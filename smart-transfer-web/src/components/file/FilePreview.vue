@@ -200,7 +200,7 @@ watch(() => props.file, (newFile) => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #fafbfc;
+  background: var(--art-fill-lighter);
   
   .preview-image {
     max-width: 100%;
@@ -240,7 +240,7 @@ watch(() => props.file, (newFile) => {
     height: 70vh;
     overflow: auto;
     padding: 16px;
-    background: #fff;
+    background: var(--art-surface);
     
     pre {
       margin: 0;

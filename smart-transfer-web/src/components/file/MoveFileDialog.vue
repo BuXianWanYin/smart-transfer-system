@@ -226,7 +226,7 @@ const handleConfirm = () => {
   .tree-wrapper {
     height: 300px;
     overflow: auto;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--art-border-color);
     border-radius: 4px;
     padding: 8px;
     
@@ -246,7 +246,7 @@ const handleConfirm = () => {
         height: 36px;
         
         &:hover {
-          background-color: #f5f7fa;
+          background-color: rgb(var(--art-hoverColor));
           
           .add-folder-btn {
             display: inline-flex;
@@ -255,7 +255,7 @@ const handleConfirm = () => {
       }
       
       .el-tree-node.is-current > .el-tree-node__content {
-        background-color: #ecf5ff;
+        background-color: rgb(var(--art-bg-primary));
         color: var(--el-color-primary);
         
         .folder-icon {

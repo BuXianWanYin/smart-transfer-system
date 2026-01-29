@@ -188,9 +188,9 @@ watch(visible, (val) => {
     align-items: center;
     gap: 12px;
     padding: 16px;
-    background: #fafbfc;
+    background: var(--art-fill-lighter);
     border-radius: 8px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--art-border-color);
     margin-bottom: 20px;
     
     .file-icon {

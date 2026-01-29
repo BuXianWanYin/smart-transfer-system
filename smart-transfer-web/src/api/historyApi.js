@@ -62,6 +62,20 @@ export function clearAllHistory() {
 }
 
 /**
+ * 删除指定文件在最近若干秒内完成的传输历史（取消上传后移除误记的「已完成」）
+ * @param {Number} fileId - 文件ID
+ * @param {String} transferType - UPLOAD | DOWNLOAD
+ * @param {Number} withinSeconds - 完成时间在多少秒以内，默认 120
+ * @returns {Promise<number>} 删除条数
+ */
+export function deleteRecentHistoryByFile(fileId, transferType, withinSeconds = 120) {
+  return request.del({
+    url: '/transfer/history/recent-by-file',
+    params: { fileId, transferType, withinSeconds }
+  })
+}
+
+/**
  * 获取传输统计（按日/周/月）
  * @param {String} period - 统计周期：day-日, week-周, month-月
  * @param {Number} userId - 用户ID（可选，仅管理员可用）

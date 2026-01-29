@@ -499,7 +499,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .profile-page {
   min-height: calc(100vh - 60px);
-  background: #f5f7fa;
+  background: #ffffff;
   padding: 20px;
 }
 
@@ -531,7 +531,7 @@ onMounted(() => {
       gap: 20px;
       margin-bottom: 30px;
       padding-bottom: 20px;
-      border-bottom: 1px solid #ebeef5;
+      border-bottom: 1px solid var(--art-border-color);
       
       .avatar-uploader {
         position: relative;
@@ -562,7 +562,7 @@ onMounted(() => {
           color: #fff;
           font-size: 12px;
           opacity: 0;
-          transition: opacity 0.3s;
+          transition: opacity var(--art-duration-normal) var(--art-ease-out);
           
           .el-icon {
             font-size: 20px;
@@ -574,8 +574,9 @@ onMounted(() => {
       .user-basic {
         h3 {
           margin: 0 0 8px 0;
+          font-family: var(--art-font-display);
           font-size: 20px;
-          color: #303133;
+          color: var(--art-text-gray-800);
         }
       }
     }
@@ -594,26 +595,27 @@ onMounted(() => {
       gap: 40px;
       margin-bottom: 30px;
       padding-bottom: 20px;
-      border-bottom: 1px solid #ebeef5;
+      border-bottom: 1px solid var(--art-border-color);
       
       .stat-item {
         text-align: center;
         
         .stat-value {
+          font-family: var(--art-font-display);
           font-size: 24px;
           font-weight: 600;
-          color: #303133;
+          color: var(--art-text-gray-800);
         }
         
         .stat-label {
           margin-top: 4px;
           font-size: 14px;
-          color: #909399;
+          color: var(--art-text-gray-500);
         }
         
         &.main {
           .stat-value {
-            color: var(--el-color-primary);
+            color: rgb(var(--art-primary));
           }
         }
       }
@@ -629,8 +631,8 @@ onMounted(() => {
         align-items: center;
         gap: 12px;
         padding: 12px;
-        background: #f5f7fa;
-        border-radius: 8px;
+        background: var(--art-fill-light);
+        border-radius: 10px;
         
         .category-icon {
           width: 40px;
@@ -652,13 +654,13 @@ onMounted(() => {
           .category-name {
             font-size: 14px;
             font-weight: 500;
-            color: #303133;
+            color: var(--art-text-gray-800);
           }
           
           .category-detail {
             margin-top: 2px;
             font-size: 12px;
-            color: #909399;
+            color: var(--art-text-gray-500);
           }
         }
       }
@@ -674,8 +676,8 @@ onMounted(() => {
       gap: 40px;
       margin: 20px 0;
       padding: 20px;
-      background: #f5f7fa;
-      border-radius: 8px;
+      background: var(--art-fill-light);
+      border-radius: 10px;
       
       .summary-item {
         flex: 1;
@@ -683,14 +685,15 @@ onMounted(() => {
         
         .summary-label {
           font-size: 14px;
-          color: #909399;
+          color: var(--art-text-gray-500);
           margin-bottom: 8px;
         }
         
         .summary-value {
+          font-family: var(--art-font-display);
           font-size: 24px;
-          font-weight: bold;
-          color: var(--el-color-primary);
+          font-weight: 600;
+          color: rgb(var(--art-primary));
         }
       }
     }
@@ -725,11 +728,11 @@ onMounted(() => {
             transition: all 0.3s;
             
             &.upload {
-              background: var(--el-color-primary);
+              background: rgb(var(--art-primary));
             }
             
             &.download {
-              background: var(--el-color-success);
+              background: rgb(var(--art-success));
             }
             
             .bar-value {

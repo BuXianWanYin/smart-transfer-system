@@ -94,8 +94,8 @@ const handleLogoClick = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  background: var(--art-surface);
+  border-bottom: 1px solid var(--art-border-color);
   z-index: 200;
   
   .header-left {
@@ -105,11 +105,12 @@ const handleLogoClick = () => {
     
     .menu-toggle {
       font-size: 26px;
-      color: #606266;
+      color: var(--art-text-gray-600);
       cursor: pointer;
       padding: 10px 12px;
       border-radius: 8px;
-      transition: all 0.2s;
+      transition: background var(--art-duration-fast) var(--art-ease-out),
+        color var(--art-duration-fast) var(--art-ease-out);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -118,8 +119,8 @@ const handleLogoClick = () => {
       flex-shrink: 0;
       
       &:hover {
-        background: #f5f7fa;
-        color: var(--el-color-primary);
+        background: rgb(var(--art-hoverColor));
+        color: rgb(var(--art-primary));
       }
       
       &:active {
@@ -136,13 +137,15 @@ const handleLogoClick = () => {
     
     .logo-icon {
       font-size: 28px;
-      color: var(--el-color-primary);
+      color: rgb(var(--art-primary));
     }
     
     .logo-text {
-      font-size: 18px;
+      font-family: var(--art-font-display);
+      font-size: 17px;
       font-weight: 600;
-      color: #303133;
+      color: var(--art-text-gray-800);
+      letter-spacing: -0.02em;
     }
   }
   
@@ -158,15 +161,15 @@ const handleLogoClick = () => {
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 20px;
-      transition: background 0.2s;
+      transition: background var(--art-duration-fast) var(--art-ease-out);
       
       &:hover {
-        background: #f5f7fa;
+        background: rgb(var(--art-hoverColor));
       }
       
       .user-name {
         font-size: 14px;
-        color: #606266;
+        color: var(--art-text-gray-600);
         max-width: 100px;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -175,7 +178,7 @@ const handleLogoClick = () => {
       
       .arrow-icon {
         font-size: 12px;
-        color: #909399;
+        color: var(--art-text-gray-500);
       }
     }
   }

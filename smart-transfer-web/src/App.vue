@@ -93,13 +93,13 @@ onUnmounted(() => {
 
 /* 主应用布局 */
 #app {
-  font-family: 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--art-font-body);
   height: 100vh;
   overflow: hidden;
   -webkit-text-size-adjust: none;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: #ffffff;
 }
 
 .main-container {
@@ -115,9 +115,10 @@ onUnmounted(() => {
   top: 60px;
   left: 0;
   height: calc(100vh - 60px);
-  background: transparent;
-  border-right: 1px solid #e6e6e6;
-  transition: all 0.3s ease;
+  background: var(--art-surface);
+  border-right: 1px solid var(--art-border-color);
+  transition: transform var(--art-duration-normal) var(--art-ease-out),
+    box-shadow var(--art-duration-normal) var(--art-ease-out);
   z-index: 100;
   overflow: hidden;
 }
@@ -129,7 +130,7 @@ onUnmounted(() => {
 
 .sidebar.is-visible {
   transform: translateX(0);
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--art-box-shadow);
 }
 
 /* 移动端遮罩层 */
@@ -139,9 +140,9 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(7, 20, 55, 0.25);
   z-index: 99;
-  animation: fadeIn 0.3s ease;
+  animation: fadeIn var(--art-duration-normal) var(--art-ease-out);
 }
 
 @keyframes fadeIn {
@@ -154,7 +155,7 @@ onUnmounted(() => {
   flex: 1;
   overflow: auto;
   padding: 16px;
-  transition: margin-left 0.3s ease;
+  transition: margin-left var(--art-duration-normal) var(--art-ease-out);
   margin-top: 60px;
   height: calc(100vh - 60px);
 }

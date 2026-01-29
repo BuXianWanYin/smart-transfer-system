@@ -2,6 +2,10 @@ server:
   port: 8081
 
 spring:
+  # 控制台输出启用 ANSI 颜色（ERROR 红、WARN 黄等）
+  output:
+    ansi:
+      enabled: ALWAYS
   # 数据源配置
   datasource:
     url: jdbc:mysql://localhost:3306/smart_transfer?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
@@ -72,7 +76,7 @@ management:
     health:
       show-details: always
 
-# 日志配置
+# 日志配置（控制台按级别着色：ERROR 红、WARN 黄、INFO 绿等）
 logging:
   level:
     root: INFO
@@ -83,6 +87,7 @@ logging:
   file:
     name: logs/smart-transfer-server.log
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+    # 控制台：%clr(%-5level) 按级别自动着色，异常栈保留默认格式
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %clr(%-5level) %clr(%logger{50}){cyan} - %msg%n%wEx"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
 

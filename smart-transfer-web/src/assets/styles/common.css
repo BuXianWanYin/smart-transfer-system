@@ -1,12 +1,13 @@
-/* 通用样式 - 参考 greenhouse-management-web */
+/* 通用样式 - 智慧转运系统，避免通用 AI 风格 */
 
 /* 卡片样式 */
 .art-card {
-  background: var(--art-main-bg-color);
+  background: var(--art-surface);
   border: 1px solid var(--art-card-border);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: var(--art-card-shadow);
-  transition: all 0.3s;
+  transition: box-shadow var(--art-duration-normal) var(--art-ease-out),
+    transform var(--art-duration-normal) var(--art-ease-out);
 }
 
 .art-card:hover {
@@ -27,8 +28,14 @@
 
 /* 按钮样式增强 */
 .el-button {
-  border-radius: 6px;
-  transition: all 0.3s;
+  border-radius: 8px;
+  transition: background var(--art-duration-fast) var(--art-ease-out),
+    border-color var(--art-duration-fast) var(--art-ease-out),
+    transform var(--art-duration-fast) var(--art-ease-out);
+}
+
+.el-button:active {
+  transform: scale(0.98);
 }
 
 .el-button--primary {
@@ -58,7 +65,7 @@
 
 /* 表格样式增强 */
 .el-table {
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -74,8 +81,9 @@
 
 /* 输入框样式增强 */
 .el-input__wrapper {
-  border-radius: 6px;
-  transition: all 0.3s;
+  border-radius: 8px;
+  transition: border-color var(--art-duration-fast) var(--art-ease-out),
+    box-shadow var(--art-duration-fast) var(--art-ease-out);
 }
 
 .el-input__wrapper:hover {
@@ -89,9 +97,10 @@
 
 /* 卡片样式 */
 .el-card {
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--art-border-color);
   box-shadow: var(--art-card-shadow);
+  transition: box-shadow var(--art-duration-normal) var(--art-ease-out);
 }
 
 .el-card__header {
@@ -172,25 +181,26 @@
 /* 对话框样式 - 全局覆盖 */
 .el-overlay-dialog .el-dialog,
 .el-dialog {
-  border-radius: 8px !important;
+  border-radius: 10px !important;
   overflow: hidden !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12) !important;
-  background: #fff !important;
+  box-shadow: var(--art-box-shadow-lg) !important;
+  background: var(--art-surface) !important;
 }
 
 .el-overlay-dialog .el-dialog__header,
 .el-dialog__header {
-  background-color: #fff !important;
+  background-color: var(--art-surface) !important;
   padding: 16px 20px !important;
-  border-bottom: 1px solid #ebeef5 !important;
+  border-bottom: 1px solid var(--art-border-color) !important;
   margin-right: 0 !important;
 }
 
 .el-overlay-dialog .el-dialog__title,
 .el-dialog__title {
+  font-family: var(--art-font-display);
   font-size: 16px !important;
   font-weight: 600 !important;
-  color: #303133 !important;
+  color: var(--art-text-gray-800) !important;
   line-height: 24px !important;
 }
 
@@ -205,26 +215,26 @@
 .el-overlay-dialog .el-dialog__headerbtn .el-dialog__close,
 .el-dialog__headerbtn .el-dialog__close {
   font-size: 16px !important;
-  color: #909399 !important;
+  color: var(--art-text-gray-500) !important;
 }
 
 .el-overlay-dialog .el-dialog__headerbtn:hover .el-dialog__close,
 .el-dialog__headerbtn:hover .el-dialog__close {
-  color: var(--el-color-primary) !important;
+  color: rgb(var(--art-primary)) !important;
 }
 
 .el-overlay-dialog .el-dialog__body,
 .el-dialog__body {
   padding: 20px !important;
-  color: #606266 !important;
-  background: #fff !important;
+  color: var(--art-text-gray-600) !important;
+  background: var(--art-surface) !important;
 }
 
 .el-overlay-dialog .el-dialog__footer,
 .el-dialog__footer {
   padding: 12px 20px !important;
-  border-top: 1px solid #ebeef5 !important;
-  background-color: #fafbfc !important;
+  border-top: 1px solid var(--art-border-color) !important;
+  background-color: var(--art-fill-lighter) !important;
 }
 
 /* 对话框遮罩层 */
@@ -249,16 +259,19 @@
 .page-header {
   margin-bottom: 20px;
   padding: 20px;
-  background: var(--art-main-bg-color);
-  border-radius: 8px;
+  background: var(--art-surface);
+  border-radius: 10px;
   box-shadow: var(--art-card-shadow);
+  border: 1px solid var(--art-card-border);
 }
 
 .page-title {
+  font-family: var(--art-font-display);
   font-size: 20px;
   font-weight: 600;
   color: var(--art-text-gray-900);
   margin-bottom: 8px;
+  letter-spacing: -0.02em;
 }
 
 .page-description {
@@ -273,9 +286,10 @@
   align-items: center;
   margin-bottom: 16px;
   padding: 16px;
-  background: var(--art-main-bg-color);
-  border-radius: 8px;
+  background: var(--art-surface);
+  border-radius: 10px;
   box-shadow: var(--art-card-shadow);
+  border: 1px solid var(--art-card-border);
 }
 
 .toolbar-left {
@@ -293,11 +307,12 @@
 /* 统计卡片样式 */
 .stat-card {
   padding: 24px;
-  background: var(--art-main-bg-color);
-  border-radius: 8px;
+  background: var(--art-surface);
+  border-radius: 10px;
   box-shadow: var(--art-card-shadow);
   border-left: 4px solid rgb(var(--art-primary));
-  transition: all 0.3s;
+  transition: box-shadow var(--art-duration-normal) var(--art-ease-out),
+    transform var(--art-duration-normal) var(--art-ease-out);
 }
 
 .stat-card:hover {
@@ -312,10 +327,12 @@
 }
 
 .stat-card-value {
+  font-family: var(--art-font-display);
   font-size: 28px;
   font-weight: 600;
   color: var(--art-text-gray-900);
   margin-bottom: 4px;
+  letter-spacing: -0.02em;
 }
 
 .stat-card-trend {
@@ -381,6 +398,29 @@
 .badge-info {
   background-color: rgb(var(--art-bg-info));
   color: rgb(var(--art-info));
+}
+
+/* 错落出现动画 - 列表/卡片可用 */
+.art-stagger > * {
+  animation: artFadeUp var(--art-duration-slow) var(--art-ease-out) both;
+}
+.art-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.art-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.art-stagger > *:nth-child(3) { animation-delay: 0.1s; }
+.art-stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.art-stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.art-stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.art-stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.art-stagger > *:nth-child(8) { animation-delay: 0.3s; }
+@keyframes artFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 响应式设计 */

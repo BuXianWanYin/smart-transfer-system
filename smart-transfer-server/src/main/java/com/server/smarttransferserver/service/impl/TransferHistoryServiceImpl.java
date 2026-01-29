@@ -3,7 +3,6 @@ package com.server.smarttransferserver.service.impl;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -165,6 +164,33 @@ public class TransferHistoryServiceImpl extends ServiceImpl<TransferHistoryMappe
         
         long count = count(queryWrapper);
         return remove(queryWrapper) ? (int) count : 0;
+    }
+    
+    /**
+     * 删除指定文件在最近若干秒内完成的传输历史（用于取消上传后移除误记的「已完成」）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteRecentByFileId(Long fileId, String transferType, int withinSeconds) {
+        if (fileId == null || transferType == null || withinSeconds <= 0) {
+            return 0;
+        }
+        LocalDateTime since = LocalDateTime.now().minusSeconds(withinSeconds);
+        LambdaQueryWrapper<TransferHistory> q = new LambdaQueryWrapper<>();
+        q.eq(TransferHistory::getFileId, fileId)
+         .eq(TransferHistory::getTransferType, transferType)
+         .eq(TransferHistory::getTransferStatus, "COMPLETED")
+         .ge(TransferHistory::getCompletedTime, since);
+        Long userId = UserContextHolder.getUserId();
+        if (userId != null) {
+            q.eq(TransferHistory::getUserId, userId);
+        }
+        int count = (int) count(q);
+        remove(q);
+        if (count > 0) {
+            log.info("删除近期已完成历史 - fileId: {}, transferType: {}, 删除条数: {}", fileId, transferType, count);
+        }
+        return count;
     }
     
     /**

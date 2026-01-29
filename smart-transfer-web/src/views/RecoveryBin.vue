@@ -48,7 +48,7 @@
       <el-table
         :data="fileList"
         @selection-change="handleSelectionChange"
-        :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+        :header-cell-style="{ background: 'var(--art-fill-light)', color: 'var(--art-text-gray-600)' }"
       >
         <el-table-column type="selection" width="55" />
         
@@ -333,8 +333,9 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 8px;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid var(--art-border-color);
 }
 
 .operation-bar {
@@ -342,7 +343,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--art-border-color);
   flex-wrap: wrap;
   gap: 12px;
 }

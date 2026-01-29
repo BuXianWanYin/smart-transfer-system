@@ -112,7 +112,7 @@ function handleLogin() {
   height: 100%;
   min-height: 100vh;
   padding: 20px;
-  background: linear-gradient(135deg, #395fff 0%, #61cfff 50%, #f9ffe3 100%);
+  background: #ffffff;
   box-sizing: border-box;
 }
 
@@ -120,9 +120,23 @@ function handleLogin() {
   width: 100%;
   max-width: 400px;
   padding: 40px;
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  background: var(--art-surface);
+  border-radius: 12px;
+  box-shadow: var(--art-box-shadow);
+  border: 1px solid var(--art-border-color);
+  border-top: 3px solid var(--art-primary-color-1);
+  animation: loginReveal 0.5s var(--art-ease-out) both;
+}
+
+@keyframes loginReveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .login-header {
@@ -132,14 +146,16 @@ function handleLogin() {
 
 .login-header h2 {
   margin-bottom: 10px;
-  font-size: 28px;
-  font-weight: bold;
-  color: #333;
+  font-family: var(--art-font-display);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--art-text-gray-800);
+  letter-spacing: -0.02em;
 }
 
 .login-header p {
   font-size: 14px;
-  color: #666;
+  color: var(--art-text-gray-500);
 }
 
 .login-form .login-btn {

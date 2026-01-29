@@ -232,7 +232,7 @@ const handleDownload = () => {
     text-align: center;
     padding: 20px;
     margin-bottom: 16px;
-    background: #fafbfc;
+    background: var(--art-fill-lighter);
     border-radius: 8px;
     
     .file-thumbnail {
@@ -254,7 +254,7 @@ const handleDownload = () => {
       justify-content: center;
       width: 100px;
       height: 100px;
-      background: #fff;
+      background: var(--art-surface);
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     }

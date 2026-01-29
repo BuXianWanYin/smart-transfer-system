@@ -430,35 +430,33 @@ public class FileUploadServiceImpl implements FileUploadService {
     }
     
     /**
-     * 获取或创建任务ID
-     * 如果文件已经有活跃的传输任务，返回现有任务ID；否则创建新任务
+     * 获取或创建任务ID（同一 fileId 只复用一条未完成任务，避免重试时出现两条记录）
+     * 若该文件已有未完成任务（PENDING/PROCESSING/PAUSED/FAILED），复用并置为 PROCESSING；否则创建新任务。
      *
      * @param fileId 文件ID
      * @return 任务ID
      */
     private String getOrCreateTaskId(Long fileId) {
-        // 查询是否已有活跃的传输任务（状态为PENDING或PROCESSING）
         List<TransferTask> existingTasks = transferTaskMapper.selectByFileId(fileId);
         if (existingTasks != null && !existingTasks.isEmpty()) {
-            // 查找活跃的任务
-            TransferTask activeTask = existingTasks.stream()
-                    .filter(t -> "PENDING".equals(t.getTransferStatus()) || "PROCESSING".equals(t.getTransferStatus()))
+            // 复用任意未完成任务（优先 FAILED/PAUSED 便于重试场景），同一文件只保留一条任务
+            TransferTask reuse = existingTasks.stream()
+                    .filter(t -> {
+                        String s = t.getTransferStatus();
+                        return "PENDING".equals(s) || "PROCESSING".equals(s) || "PAUSED".equals(s) || "FAILED".equals(s);
+                    })
                     .findFirst()
                     .orElse(null);
-            
-            if (activeTask != null) {
-                // 如果任务状态是PENDING，更新为PROCESSING
-                if ("PENDING".equals(activeTask.getTransferStatus())) {
-                    activeTask.setTransferStatus("PROCESSING");
-                    transferTaskMapper.updateById(activeTask);
-                }
-                return activeTask.getTaskId();
+            if (reuse != null) {
+                String originalStatus = reuse.getTransferStatus();
+                reuse.setTransferStatus("PROCESSING");
+                transferTaskMapper.updateById(reuse);
+                log.debug("复用未完成任务 - fileId: {}, taskId: {}, 原状态: {}", fileId, reuse.getTaskId(), originalStatus);
+                return reuse.getTaskId();
             }
         }
-        
-        // 如果没有活跃任务，创建新任务
+        // 无未完成任务时才创建新任务
         String taskId = transferTaskService.createTask(fileId, "UPLOAD");
-        // 立即更新为PROCESSING状态
         TransferTask newTask = transferTaskMapper.selectByTaskId(taskId);
         if (newTask != null) {
             newTask.setTransferStatus("PROCESSING");

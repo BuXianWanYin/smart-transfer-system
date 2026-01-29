@@ -364,6 +364,7 @@ onMounted(() => {
       line-height: 52px;
       font-size: 15px;
       background: transparent;
+      transition: background var(--art-duration-fast) var(--art-ease-out);
       
       .el-icon {
         margin-right: 12px;
@@ -373,12 +374,14 @@ onMounted(() => {
       }
       
       &:hover {
-        background-color: #f5f7fa;
+        background-color: rgb(var(--art-hoverColor));
       }
     }
     
     :deep(.el-menu-item.is-active) {
-      background-color: #ecf5ff;
+      background-color: rgb(var(--art-bg-primary));
+      color: rgb(var(--art-primary));
+      font-weight: 500;
     }
     
     // 传输徽章样式
@@ -396,7 +399,7 @@ onMounted(() => {
   
   .storage-info {
     padding: 16px;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--art-border-color);
     background: transparent;
     
     .storage-header {
@@ -405,7 +408,7 @@ onMounted(() => {
       gap: 8px;
       margin-bottom: 8px;
       font-size: 14px;
-      color: #606266;
+      color: var(--art-text-gray-600);
     }
     
     :deep(.el-progress) {
@@ -414,7 +417,7 @@ onMounted(() => {
     
     .storage-text {
       font-size: 12px;
-      color: #909399;
+      color: var(--art-text-gray-500);
       text-align: center;
     }
   }
@@ -422,16 +425,17 @@ onMounted(() => {
   .storage-icon {
     padding: 16px;
     text-align: center;
-    border-top: 1px solid #e6e6e6;
+    border-top: 1px solid var(--art-border-color);
     background: transparent;
     
     .el-icon {
       font-size: 20px;
-      color: #909399;
+      color: var(--art-text-gray-500);
       cursor: pointer;
+      transition: color var(--art-duration-fast) var(--art-ease-out);
       
       &:hover {
-        color: var(--el-color-primary);
+        color: rgb(var(--art-primary));
       }
     }
   }
@@ -472,7 +476,7 @@ onMounted(() => {
 /* 移动端适配 */
 @media (max-width: 768px) {
   .aside-menu-wrapper {
-    background: #fff;
+    background: var(--art-surface);
     
     .file-menu {
       :deep(.el-sub-menu__title),
@@ -504,7 +508,7 @@ onMounted(() => {
     
     .storage-info {
       padding: 16px;
-      border-top: 1px solid #ebeef5;
+      border-top: 1px solid var(--art-border-color);
       
       .storage-header {
         font-size: 14px;

@@ -520,19 +520,20 @@ onMounted(() => {
   .stat-card {
     text-align: center;
     padding: 20px;
-    background: #f5f7fa;
-    border-radius: 8px;
+    background: var(--art-fill-light);
+    border-radius: 10px;
     
     .stat-value {
+      font-family: var(--art-font-display);
       font-size: 32px;
-      font-weight: bold;
-      color: var(--el-color-primary);
+      font-weight: 600;
+      color: rgb(var(--art-primary));
       margin-bottom: 8px;
     }
     
     .stat-label {
       font-size: 14px;
-      color: #909399;
+      color: var(--art-text-gray-500);
     }
   }
   
@@ -570,14 +571,14 @@ onMounted(() => {
           
           .chart-bar {
             flex: 1;
-            background: var(--el-color-primary);
+            background: rgb(var(--art-primary));
             border-radius: 4px 4px 0 0;
             position: relative;
             min-height: 20px;
-            transition: all 0.3s;
+            transition: opacity var(--art-duration-fast) var(--art-ease-out);
             
             &.download {
-              background: var(--el-color-success);
+              background: rgb(var(--art-success));
             }
             
             .bar-value {
@@ -602,7 +603,7 @@ onMounted(() => {
           
           .chart-label {
             font-size: 12px;
-            color: #909399;
+            color: var(--art-text-gray-500);
             flex: 1;
             text-align: center;
           }
@@ -614,18 +615,18 @@ onMounted(() => {
       display: flex;
       justify-content: space-between;
       padding: 12px 0;
-      border-bottom: 1px solid #ebeef5;
+      border-bottom: 1px solid var(--art-border-color);
       
       &:last-child {
         border-bottom: none;
       }
       
       span {
-        color: #606266;
+        color: var(--art-text-gray-600);
       }
       
       strong {
-        color: var(--el-color-primary);
+        color: rgb(var(--art-primary));
       }
     }
     
@@ -644,19 +645,19 @@ onMounted(() => {
           gap: 20px;
           margin-bottom: 8px;
           font-size: 14px;
-          color: #606266;
+          color: var(--art-text-gray-600);
         }
         
         .algorithm-bar {
           height: 20px;
-          background: #f5f7fa;
+          background: var(--art-fill-light);
           border-radius: 10px;
           overflow: hidden;
           
           .algorithm-progress {
             height: 100%;
-            background: linear-gradient(90deg, var(--el-color-primary), var(--el-color-success));
-            transition: width 0.3s;
+            background: linear-gradient(90deg, rgb(var(--art-primary)), rgb(var(--art-success)));
+            transition: width var(--art-duration-normal) var(--art-ease-out);
           }
         }
       }

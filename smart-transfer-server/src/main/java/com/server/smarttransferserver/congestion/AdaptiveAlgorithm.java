@@ -366,7 +366,7 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             metrics.addSwitchRecord(record);
             metrics.setCurrentAlgorithm(selectedAlgorithm.getAlgorithmName());
             
-            log.info("🔄 自适应算法切换 - {} → {} (丢包率: {}%, RTT抖动: {}ms, 平均RTT: {}ms, 得分提升: {}%)", 
+            log.info("自适应算法切换 - {} -> {} (丢包率: {}%, RTT抖动: {}ms, 平均RTT: {}ms, 得分提升: {}%)", 
                      previousAlgorithmName, selectedAlgorithm.getAlgorithmName(), 
                      String.format("%.2f", lossRate * 100), rttJitter, 
                      String.format("%.2f", avgRtt), String.format("%.2f", scoreDiff * 100));

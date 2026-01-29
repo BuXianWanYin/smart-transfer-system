@@ -156,18 +156,18 @@
                     :stroke-width="4"
                     :show-text="false"
                   />
-                  <span class="progress-text" v-if="item.status === 'hashing'">
-                    正在计算文件MD5...
-                  </span>
-                  <span class="progress-text" v-else>
-                    {{ formatFileSize(activeMenu === 'upload' ? (item.uploadedSize || 0) : (item.downloadedSize || 0)) }} / {{ formatFileSize(item.fileSize) }}
-                  </span>
+                  <div class="progress-row">
+                    <span class="progress-text" v-if="item.status === 'hashing'">正在计算文件MD5...</span>
+                    <span class="progress-text" v-else>
+                      {{ formatFileSize(activeMenu === 'upload' ? (item.uploadedSize || 0) : (item.downloadedSize || 0)) }} / {{ formatFileSize(item.fileSize) }}
+                    </span>
+                    <span class="progress-speed" :class="{ 'text-muted': item.status === 'hashing' }">
+                      {{ item.status === 'hashing' ? '-' : formatSpeed(item.speed || 0) }}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div class="item-speed">
-                <span v-if="item.status === 'hashing'">-</span>
-                <span v-else>{{ formatSpeed(item.speed || 0) }}</span>
-              </div>
+              <div class="item-speed item-speed-placeholder"></div>
               <div class="item-status">
                 <el-tag :type="getStatusType(item.status)" size="small">
                   {{ getStatusText(item.status) }}
@@ -186,7 +186,7 @@
                   v-if="item.status === 'paused'"
                   text 
                   type="primary"
-                  title="继续"
+                  :title="(item._fromServer && !item.file) ? '继续（选择同一文件以断点续传）' : '继续'"
                   @click="handleResume(item)"
                 >
                   <el-icon><VideoPlay /></el-icon>
@@ -195,7 +195,7 @@
                   v-if="item.status === 'error'"
                   text 
                   type="warning"
-                  title="重试"
+                  :title="(item._fromServer && !item.file) ? '重试（选择同一文件以断点续传）' : '重试'"
                   @click="handleRetry(item)"
                 >
                   <el-icon><RefreshRight /></el-icon>
@@ -278,11 +278,18 @@
         </div>
       </div>
     </div>
+    <!-- 断点续传：从服务端恢复的上传任务重试时，需重新选择同一文件 -->
+    <input
+      ref="resumeUploadInputRef"
+      type="file"
+      style="display: none"
+      @change="onResumeUploadFileChange"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Upload, Download, VideoPause, VideoPlay, Delete, Monitor,
@@ -294,7 +301,7 @@ import { useTransferStore } from '@/store/transferStore'
 import { monitorWs } from '@/utils/websocket'
 import { formatFileSize, formatSpeed } from '@/utils/format'
 import { formatDateTime } from '@/utils/format'
-import { getHistoryList, deleteHistory, clearAllHistory } from '@/api/historyApi'
+import { getHistoryList, deleteHistory, clearAllHistory, deleteRecentHistoryByFile } from '@/api/historyApi'
 import { getFileIconByType } from '@/utils/fileType'
 import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload, updateTaskStatus, getIncompleteTasks } from '@/api/fileApi'
 import SparkMD5 from 'spark-md5'
@@ -308,6 +315,9 @@ const activeSubTab = ref('transferring')
 const showMonitor = ref(true) // 监控面板默认显示
 const isMonitoring = ref(true)
 const wsConnected = ref(false)
+// 断点续传：从服务端恢复的上传任务点「重试」时，暂存任务项，等用户选择文件后继续
+const retryResumeItem = ref(null)
+const resumeUploadInputRef = ref(null)
 
 // 监控数据 - 与后端 CongestionMetricsVO 字段对应，保证所有监控项可绑定
 const currentMetrics = ref({
@@ -513,6 +523,10 @@ const startUploadTask = async (task) => {
     // 获取当前任务的最新状态
     let currentTask = transferStore.uploadQueue.find(t => t.id === task.id)
     if (!currentTask) return
+    if (!currentTask.file) {
+      console.warn('上传任务缺少文件引用，请通过「重试」选择文件以断点续传')
+      return
+    }
     
     // 如果是暂停或错误状态恢复，检查是否已有fileHash和fileId
     const hasExistingProgress = currentTask.fileHash && currentTask.fileId
@@ -842,12 +856,12 @@ const calculateFileHash = (file, onProgress) => {
   })
 }
 
-// 加载已完成列表
+// 加载已完成列表（只查 COMPLETED，取消/失败的不出现在「已完成」）
 const loadCompletedList = async () => {
   try {
     const transferType = activeMenu.value === 'upload' ? 'UPLOAD' : 'DOWNLOAD'
     console.log('加载历史记录, transferType:', transferType)
-    const res = await getHistoryList({ transferType })
+    const res = await getHistoryList({ transferType, transferStatus: 'COMPLETED' })
     console.log('历史记录API返回:', res)
     
     const list = (res || []).map(record => ({
@@ -901,14 +915,15 @@ const handleWsEvent = (event) => {
       const matchedTask = activeUploadTask || activeDownloadTask
       if (matchedTask && taskMetricsMap[matchedTask.taskId]) {
         const taskMetrics = taskMetricsMap[matchedTask.taskId]
-        currentMetrics.value = taskMetrics
+        // 全量替换，确保当前算法、网络质量等与后端实时一致
+        currentMetrics.value = { ...taskMetrics }
         congestionStore.updateMetrics(taskMetrics)
       } else if (Object.keys(taskMetricsMap).length > 0) {
         // 无匹配的活跃任务时，使用第一个任务的指标（确保有数据时显示）
         const firstTaskId = Object.keys(taskMetricsMap)[0]
         const taskMetrics = taskMetricsMap[firstTaskId]
         if (taskMetrics && taskMetrics.algorithm && taskMetrics.algorithm !== 'NONE') {
-          currentMetrics.value = taskMetrics
+          currentMetrics.value = { ...taskMetrics }
           congestionStore.updateMetrics(taskMetrics)
         }
       }
@@ -1093,7 +1108,11 @@ const handlePause = (item) => {
 const handleResume = (item) => {
   if (activeMenu.value === 'upload') {
     if (item._fromServer && !item.file) {
-      ElMessage.warning('该上传任务已中断，请从文件管理重新选择文件上传，或取消任务')
+      retryResumeItem.value = item
+      nextTick(() => {
+        resumeUploadInputRef.value?.click()
+      })
+      ElMessage.warning('请选择同一文件以继续上传（断点续传）')
       return
     }
     startUploadTask(item)
@@ -1103,11 +1122,15 @@ const handleResume = (item) => {
   ElMessage.info(`继续: ${item.fileName}`)
 }
 
-// 重试失败的任务
+// 重试失败的任务（从服务端恢复的上传任务无 file 时，弹出文件选择框，选同一文件后断点续传）
 const handleRetry = (item) => {
   if (activeMenu.value === 'upload') {
     if (item._fromServer && !item.file) {
-      ElMessage.warning('该上传任务已中断，请从文件管理重新选择文件上传，或取消任务')
+      retryResumeItem.value = item
+      nextTick(() => {
+        resumeUploadInputRef.value?.click()
+      })
+      ElMessage.warning('请选择同一文件以继续上传（断点续传）')
       return
     }
     if (transferStore.retryUploadTask(item.id)) {
@@ -1120,6 +1143,24 @@ const handleRetry = (item) => {
       ElMessage.info(`重试下载: ${item.fileName}`)
     }
   }
+}
+
+// 用户选择文件后：绑定到「断点续传」任务并开始上传
+const onResumeUploadFileChange = (e) => {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  const item = retryResumeItem.value
+  retryResumeItem.value = null
+  if (!file || !item) return
+  if (item.fileSize != null && file.size !== item.fileSize) {
+    ElMessage.warning('所选文件大小与任务不一致，将按所选文件继续上传')
+  }
+  item.file = file
+  item.fileName = file.name
+  item.fileSize = file.size
+  transferStore.retryUploadTask(item.id)
+  startUploadTask(item)
+  ElMessage.info(`继续上传: ${item.fileName}`)
 }
 
 const handleCancel = async (item) => {
@@ -1146,6 +1187,11 @@ const handleCancel = async (item) => {
         try {
           await cancelUpload(item.fileId)
           console.log('已清理后端上传数据')
+          // 若合并刚完成就点了取消，会误记一条「已完成」；删除该文件近期已完成历史
+          try {
+            await deleteRecentHistoryByFile(item.fileId, 'UPLOAD', 120)
+            loadCompletedList()
+          } catch (_) { /* 忽略 */ }
         } catch (cleanupError) {
           // **修复：取消上传失败时只记录错误，不阻止前端删除任务**
           console.error('清理上传数据失败:', cleanupError)
@@ -1305,7 +1351,7 @@ const startDownloadTask = async (task) => {
       // 如果已存在，更新引用（但保留chunkDataMap）
       task._downloadCleanup.abortController = abortController
       task._downloadCleanup.activeDownloads = activeDownloads
-      // ❌ 不要覆盖 chunkDataMap，保留已下载的数据
+      // 不要覆盖 chunkDataMap，保留已下载的数据
       // task._downloadCleanup.chunkDataMap = chunkDataMap  // 删除这行
       task._downloadCleanup.downloadQueue = downloadQueue
     }
@@ -1659,14 +1705,14 @@ const handleDeleteRecord = async (item) => {
 .transfer-center {
   display: flex;
   height: 100%;
-  background: #fff;
+  background: #ffffff;
 }
 
 /* 左侧菜单 */
 .transfer-sidebar {
   width: 160px;
-  background: #f7f9fc;
-  border-right: 1px solid #e6e6e6;
+  background: var(--art-fill-light);
+  border-right: 1px solid var(--art-border-color);
   padding: 20px 0;
   flex-shrink: 0;
 }
@@ -1677,21 +1723,21 @@ const handleDeleteRecord = async (item) => {
   gap: 10px;
   padding: 14px 24px;
   cursor: pointer;
-  color: #606266;
+  color: var(--art-text-gray-600);
   font-size: 14px;
-  transition: all 0.2s;
+  transition: background var(--art-duration-fast) var(--art-ease-out), color var(--art-duration-fast) var(--art-ease-out);
 }
 
 .sidebar-item:hover {
-  background: #ecf5ff;
-  color: var(--el-color-primary);
+  background: rgb(var(--art-bg-primary));
+  color: rgb(var(--art-primary));
 }
 
 .sidebar-item.active {
-  background: #ecf5ff;
-  color: var(--el-color-primary);
+  background: rgb(var(--art-bg-primary));
+  color: rgb(var(--art-primary));
   font-weight: 500;
-  border-right: 3px solid var(--el-color-primary);
+  border-right: 3px solid rgb(var(--art-primary));
 }
 
 .sidebar-item .el-icon {
@@ -1713,7 +1759,8 @@ const handleDeleteRecord = async (item) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--art-border-color);
+  background: #ffffff;
 }
 
 .toolbar-actions {
@@ -1722,18 +1769,18 @@ const handleDeleteRecord = async (item) => {
 }
 
 .toolbar-actions .el-button {
-  color: #606266;
+  color: var(--art-text-gray-600);
 }
 
 .toolbar-actions .el-button:hover {
-  color: var(--el-color-primary);
+  color: rgb(var(--art-primary));
 }
 
 /* 监控面板 */
 .monitor-panel {
   padding: 16px 20px;
-  background: #fff;
-  border-bottom: 1px solid #e6e6e6;
+  background: #ffffff;
+  border-bottom: 1px solid var(--art-border-color);
 }
 
 .monitor-grid {
@@ -1745,60 +1792,62 @@ const handleDeleteRecord = async (item) => {
 .monitor-item {
   text-align: center;
   padding: 12px;
-  background: #f7f9fc;
-  border-radius: 8px;
-  border: 1px solid #e6e6e6;
-  transition: transform 0.2s, box-shadow 0.2s;
+  background: var(--art-fill-light);
+  border-radius: 10px;
+  border: 1px solid var(--art-border-color);
+  transition: transform var(--art-duration-fast) var(--art-ease-out), box-shadow var(--art-duration-fast) var(--art-ease-out);
 }
 
 .monitor-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--art-box-shadow-sm);
 }
 
 .monitor-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--art-text-gray-500);
   margin-bottom: 6px;
 }
 
 .monitor-value {
+  font-family: var(--art-font-display);
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--art-text-gray-800);
 }
 
-.monitor-value.primary { color: var(--el-color-primary); }
-.monitor-value.info { color: var(--el-color-info); }
-.monitor-value.success { color: var(--el-color-success); }
-.monitor-value.danger { color: var(--el-color-danger); }
+.monitor-value.primary { color: rgb(var(--art-primary)); }
+.monitor-value.info { color: rgb(var(--art-info)); }
+.monitor-value.success { color: rgb(var(--art-success)); }
+.monitor-value.danger { color: rgb(var(--art-danger)); }
 
 /* 子标签 */
 .sub-tabs {
   display: flex;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e6e6e6;
+  border-bottom: 1px solid var(--art-border-color);
+  background: #ffffff;
 }
 
 .sub-tab {
   padding: 14px 0;
   margin-right: 32px;
   cursor: pointer;
-  color: #606266;
+  color: var(--art-text-gray-600);
   font-size: 14px;
   border-bottom: 2px solid transparent;
-  transition: all 0.2s;
+  transition: color var(--art-duration-fast) var(--art-ease-out), border-color var(--art-duration-fast) var(--art-ease-out);
 }
 
 .sub-tab:hover {
-  color: var(--el-color-primary);
+  color: rgb(var(--art-primary));
 }
 
 .sub-tab.active {
-  color: #303133;
+  color: var(--art-text-gray-800);
   font-weight: 500;
-  border-bottom-color: var(--el-color-primary);
+  border-bottom-color: rgb(var(--art-primary));
 }
 
 .sub-tab-actions {
@@ -1811,10 +1860,10 @@ const handleDeleteRecord = async (item) => {
   grid-template-columns: 120px 1fr 100px 150px 100px;
   gap: 16px;
   padding: 12px 20px;
-  background: #fafafa;
+  background: var(--art-fill-lighter);
   font-size: 13px;
-  color: #909399;
-  border-bottom: 1px solid #e6e6e6;
+  color: var(--art-text-gray-500);
+  border-bottom: 1px solid var(--art-border-color);
 }
 
 /* 文件列表区域 */
@@ -1830,7 +1879,7 @@ const handleDeleteRecord = async (item) => {
   align-items: center;
   gap: 16px;
   padding: 16px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--art-border-color);
 }
 
 .transfer-item .item-icon {
@@ -1852,7 +1901,7 @@ const handleDeleteRecord = async (item) => {
 
 .transfer-item .item-name {
   font-size: 14px;
-  color: #303133;
+  color: var(--art-text-gray-800);
   margin-bottom: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1861,25 +1910,50 @@ const handleDeleteRecord = async (item) => {
 
 .transfer-item .item-progress {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
 }
 
 .transfer-item .item-progress .el-progress {
-  flex: 1;
+  width: 100%;
+}
+
+.transfer-item .progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 20px;
 }
 
 .progress-text {
   font-size: 12px;
-  color: #909399;
+  color: var(--art-text-gray-500);
   white-space: nowrap;
+}
+
+.transfer-item .progress-speed {
+  font-size: 13px;
+  color: rgb(var(--art-success));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.transfer-item .progress-speed.text-muted {
+  color: var(--art-text-gray-500);
+}
+
+.transfer-item .item-speed-placeholder {
+  width: 100px;
+  flex-shrink: 0;
 }
 
 .transfer-item .item-speed {
   width: 100px;
   text-align: center;
   font-size: 13px;
-  color: var(--el-color-success);
+  color: rgb(var(--art-success));
   font-weight: 500;
 }
 
@@ -1900,11 +1974,11 @@ const handleDeleteRecord = async (item) => {
   gap: 16px;
   align-items: center;
   padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--art-border-color);
 }
 
 .completed-item:hover {
-  background: #fafafa;
+  background: var(--art-fill-lighter);
 }
 
 .completed-item .item-icon {
@@ -1924,7 +1998,7 @@ const handleDeleteRecord = async (item) => {
 
 .completed-item .item-name {
   font-size: 14px;
-  color: #303133;
+  color: var(--art-text-gray-800);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1933,7 +2007,7 @@ const handleDeleteRecord = async (item) => {
 .completed-item .item-size,
 .completed-item .item-time {
   font-size: 13px;
-  color: #909399;
+  color: var(--art-text-gray-500);
   text-align: center;
 }
 

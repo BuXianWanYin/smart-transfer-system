@@ -295,20 +295,20 @@ onMounted(async () => {
     try {
       const res = await getUserList()
       userList.value = res || []
-      console.log('✅ 用户列表加载成功:', userList.value)
+      console.log('[用户列表] 加载成功:', userList.value)
     } catch (error) {
-      console.error('❌ 加载用户列表失败:', error)
+      console.error('[用户列表] 加载失败:', error)
     }
   }
 })
 
 // 获取用户名（根据用户ID）
 const getUserName = (userId) => {
-  console.log('🔍 查找用户:', userId, '用户列表:', userList.value)
+  console.log('[查找用户]', userId, '用户列表:', userList.value)
   if (!userId) return '-'
   const user = userList.value.find(u => u.id === userId)
   const name = user ? (user.nickname || user.username) : `用户${userId}`
-  console.log('👤 用户名:', name, '用户对象:', user)
+  console.log('[用户名]', name, '用户对象:', user)
   return name
 }
 
@@ -717,8 +717,8 @@ defineExpose({
     
     :deep(.el-table__header-wrapper th) {
       padding: 8px 0;
-      color: #606266;
-      background: #f5f7fa;
+      color: var(--art-text-gray-600);
+      background: var(--art-fill-light);
       font-weight: 500;
     }
     
@@ -729,7 +729,7 @@ defineExpose({
         width: 6px;
       }
       &::-webkit-scrollbar-thumb {
-        background: #c0c4cc;
+        background: var(--art-gray-400);
         border-radius: 3px;
       }
       
@@ -743,14 +743,14 @@ defineExpose({
       
       &:hover {
         td {
-          background-color: #f5f7fa !important;
+          background-color: rgb(var(--art-hoverColor)) !important;
         }
       }
     }
     
     :deep(.current-row) {
       td {
-        background-color: #ecf5ff !important;
+        background-color: rgb(var(--art-bg-primary)) !important;
       }
     }
   }
@@ -785,10 +785,10 @@ defineExpose({
   
   .file-name {
     cursor: pointer;
-    color: #303133;
+    color: var(--art-text-gray-800);
     
     &:hover {
-      color: var(--el-color-primary);
+      color: rgb(var(--art-primary));
     }
   }
   
@@ -804,7 +804,7 @@ defineExpose({
     
     .user-name {
       font-size: 13px;
-      color: #606266;
+      color: var(--art-text-gray-600);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -815,13 +815,13 @@ defineExpose({
   .file-operate {
     font-size: 18px;
     cursor: pointer;
-    color: #909399;
+    color: var(--art-text-gray-500);
     padding: 4px;
     border-radius: 4px;
     
     &:hover {
-      color: var(--el-color-primary);
-      background: #ecf5ff;
+      color: rgb(var(--art-primary));
+      background: rgb(var(--art-bg-primary));
     }
   }
   
@@ -846,10 +846,10 @@ defineExpose({
   position: fixed;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid #e4e7ed;
+  background: var(--art-surface);
+  border: 1px solid var(--art-border-color);
   border-radius: 8px;
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: var(--art-box-shadow);
   z-index: 9999;
   padding: 8px 0;
   min-width: 140px;
@@ -862,32 +862,32 @@ defineExpose({
     display: flex;
     align-items: center;
     gap: 10px;
-    color: #606266;
+    color: var(--art-text-gray-600);
     font-size: 14px;
-    transition: all 0.15s;
+    transition: background var(--art-duration-fast) var(--art-ease-out), color var(--art-duration-fast) var(--art-ease-out);
     
     .el-icon {
       font-size: 18px;
     }
     
     &:hover {
-      background: #ecf5ff;
-      color: var(--el-color-primary);
+      background: rgb(var(--art-bg-primary));
+      color: rgb(var(--art-primary));
     }
     
     &:active {
-      background: #d9ecff;
+      background: rgb(var(--art-bg-primary));
     }
     
     &.danger {
-      color: var(--el-color-danger);
+      color: rgb(var(--art-danger));
       
       &:hover {
-        background: #fef0f0;
+        background: rgb(var(--art-bg-danger));
       }
       
       &:active {
-        background: #fde2e2;
+        background: rgb(var(--art-bg-danger));
       }
     }
   }

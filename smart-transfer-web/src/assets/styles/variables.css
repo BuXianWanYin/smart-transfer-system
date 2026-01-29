@@ -1,6 +1,10 @@
-/* Theme Variables - 参考 greenhouse-management-web */
+/* Theme Variables - 智慧转运系统，避免通用 AI 风格 */
 
 :root {
+  /* 字体 - Typography（标题 + 正文区分） */
+  --art-font-display: 'Plus Jakarta Sans', 'PingFang SC', sans-serif;
+  --art-font-body: 'DM Sans', 'PingFang SC', sans-serif;
+
   /* 项目主色调 - Project Primary Colors */
   /* 主色调1：深蓝色 - Primary Color 1: Deep Blue */
   --art-primary-color-1: #395fff;
@@ -88,16 +92,35 @@
   --art-card-border: rgba(219, 223, 233, 0.6);
   --art-card-shadow: 0px 0px 4px 0px rgba(0, 0, 0, 0.04);
 
-  /* 主题背景色 - Theme background color */
-  --art-bg-color: #fafbfc;
+  /* 主题背景色 - 主背景为白色 */
+  --art-bg-color: #ffffff;
   --art-main-bg-color: #ffffff;
-  
+  --art-surface: #ffffff;
+  --art-surface-raised: #ffffff;
+  --art-surface-overlay: rgba(255, 255, 255, 0.98);
+  /* 浅色区域（工具栏、表头等） */
+  --art-fill-light: #f6f7fa;
+  --art-fill-lighter: #fafbfc;
+
+  /* 动效 - Motion */
+  --art-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --art-duration-fast: 0.2s;
+  --art-duration-normal: 0.28s;
+  --art-duration-slow: 0.4s;
+
   /* 侧边栏颜色 */
   --art-sidebar-bg: #304156;
   --art-sidebar-logo-bg: #2b3a4a;
   --art-sidebar-menu-hover: #263445;
   --art-sidebar-text: #bfcbd9;
   --art-sidebar-text-active: #ffffff;
+
+  /* Element Plus 与主题一致 */
+  --el-color-primary: #395fff;
+  --el-color-primary-light-3: #6b82ff;
+  --el-color-primary-light-5: #8fa3ff;
+  --el-color-primary-light-7: #b3c2ff;
+  --el-color-primary-light-9: #ecf0ff;
 }
 
 /* 工具类 - Utility classes */

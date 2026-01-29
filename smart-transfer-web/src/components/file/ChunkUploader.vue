@@ -41,9 +41,10 @@
         @change="handleFolderSelect"
       />
       
-      <!-- 上传区域 -->
+      <!-- 上传区域：点击也可触发选择文件 -->
       <div
         class="upload-area"
+        @click="selectFiles"
         @dragover.prevent="handleDragOver"
         @dragleave.prevent="handleDragLeave"
         @drop.prevent="handleDrop"
@@ -52,7 +53,7 @@
         <div class="upload-content">
           <el-icon class="upload-icon"><UploadFilled /></el-icon>
           <div class="upload-text">
-            <p class="main-text">点击上方按钮或拖拽文件到此处上传</p>
+            <p class="main-text">点击此处或上方按钮或拖拽文件到此处上传</p>
             <p class="sub-text">支持大文件分片上传、断点续传、秒传</p>
           </div>
         </div>
@@ -274,7 +275,7 @@ defineExpose({
     &:hover,
     &.drag-over {
       border-color: var(--el-color-primary);
-      background: #f5f7fa;
+      background: var(--art-fill-light);
     }
     
     .upload-content {
@@ -301,7 +302,7 @@ defineExpose({
   
   .pending-files {
     margin-top: 20px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--art-border-color);
     border-radius: 8px;
     overflow: hidden;
     
@@ -310,8 +311,8 @@ defineExpose({
       justify-content: space-between;
       align-items: center;
       padding: 10px 16px;
-      background: #fafbfc;
-      border-bottom: 1px solid #ebeef5;
+      background: var(--art-fill-lighter);
+      border-bottom: 1px solid var(--art-border-color);
       font-size: 14px;
       color: #606266;
     }

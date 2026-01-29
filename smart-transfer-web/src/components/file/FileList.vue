@@ -280,9 +280,9 @@ const loadFileList = async () => {
     total.value = res.total || fileList.value.length
     
     // 调试：输出文件列表数据
-    console.log('📂 文件列表数据:', fileList.value)
-    console.log('👥 文件夹userId:', folders.map(f => ({ name: f.folderName, userId: f.userId })))
-    console.log('📄 文件userId:', files.map(f => ({ name: f.fileName, userId: f.userId })))
+    console.log('[文件列表] 数据:', fileList.value)
+    console.log('[文件夹] userId:', folders.map(f => ({ name: f.folderName, userId: f.userId })))
+    console.log('[文件] userId:', files.map(f => ({ name: f.fileName, userId: f.userId })))
     
   } catch (error) {
     ElMessage.error('加载文件列表失败')
@@ -473,7 +473,7 @@ const handleUserChange = (userId) => {
     padding: 16px;
     display: flex;
     justify-content: flex-end;
-    border-top: 1px solid #ebeef5;
+    border-top: 1px solid var(--art-border-color);
   }
 }
 

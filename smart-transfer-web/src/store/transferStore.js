@@ -146,6 +146,7 @@ export const useTransferStore = defineStore('transfer', () => {
     const duration = Math.floor(((task.endTime || Date.now()) - (task.startTime || Date.now())) / 1000)
     try {
       await addHistory({
+        taskId: task.taskId || null,
         fileId: task.fileId,
         fileName: task.fileName,
         fileSize: task.fileSize,
@@ -247,6 +248,7 @@ export const useTransferStore = defineStore('transfer', () => {
     const duration = Math.floor(((task.endTime || Date.now()) - (task.startTime || Date.now())) / 1000)
     try {
       await addHistory({
+        taskId: task.taskId || null,
         fileId: task.fileId,
         fileName: task.fileName,
         fileSize: task.fileSize,
@@ -345,15 +347,43 @@ export const useTransferStore = defineStore('transfer', () => {
   }
 
   /**
-   * 从服务端恢复的未完成任务合并到上传队列（避免重复，按 taskId 去重）
+   * 从服务端恢复的未完成任务合并到上传队列
+   * 按 fileId 去重：同一文件只保留一条任务，优先保留 FAILED（可重试），避免出现「一个失败 + 一个暂停」两条
    * @param {Array} list - 后端返回的 TransferTaskVO 列表
    */
   function mergeIncompleteUploadTasksFromServer(list) {
     if (!list || !Array.isArray(list)) return
     const existingTaskIds = new Set(uploadQueue.value.map(t => t.taskId).filter(Boolean))
+    const existingFileIds = new Set(uploadQueue.value.map(t => t.fileId).filter(Boolean))
+    // 同一 fileId 只保留一条：优先 FAILED > PAUSED > PROCESSING > PENDING
+    const byFileId = new Map()
     for (const vo of list) {
-      if (!vo.taskId || existingTaskIds.has(vo.taskId)) continue
+      if (!vo.taskId || !vo.fileId) continue
+      if (existingFileIds.has(vo.fileId)) continue
+      const existing = byFileId.get(vo.fileId)
+      const statusOrder = { FAILED: 0, PAUSED: 1, PROCESSING: 2, PENDING: 3 }
+      const s = (vo.transferStatus || '').toUpperCase()
+      const e = (existing?.transferStatus || '').toUpperCase()
+      const preferThis = !existing ||
+        (statusOrder[s] !== undefined && statusOrder[e] !== undefined && statusOrder[s] <= statusOrder[e])
+      if (preferThis) byFileId.set(vo.fileId, vo)
+    }
+    // 同一逻辑文件（fileName + fileSize）只保留一条，避免后端存在多条 fileId 时出现「一个失败 + 一个暂停」
+    const byFileKey = new Map()
+    for (const vo of byFileId.values()) {
+      const key = `${vo.fileName || ''}\0${vo.fileSize || 0}`
+      const existing = byFileKey.get(key)
+      const statusOrder = { FAILED: 0, PAUSED: 1, PROCESSING: 2, PENDING: 3 }
+      const s = (vo.transferStatus || '').toUpperCase()
+      const e = (existing?.transferStatus || '').toUpperCase()
+      const preferThis = !existing ||
+        (statusOrder[s] !== undefined && statusOrder[e] !== undefined && statusOrder[s] <= statusOrder[e])
+      if (preferThis) byFileKey.set(key, vo)
+    }
+    for (const vo of byFileKey.values()) {
+      if (existingTaskIds.has(vo.taskId)) continue
       existingTaskIds.add(vo.taskId)
+      existingFileIds.add(vo.fileId)
       const status = mapBackendStatusToFrontend(vo.transferStatus)
       const progress = vo.progress != null ? Number(vo.progress) : 0
       const fileSize = vo.fileSize || 0

@@ -481,9 +481,9 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 16px;
     padding: 12px 16px;
-    background: #fff;
+    background: var(--art-surface);
     border-radius: 8px 8px 0 0;
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--art-border-color);
     
     :deep(.el-checkbox) {
       margin-right: 0;
@@ -493,7 +493,7 @@ onBeforeUnmount(() => {
   .codemirror-container {
     flex: 1;
     overflow: hidden;
-    background: #fff;
+    background: var(--art-surface);
     border-radius: 0 0 8px 8px;
     
     .editor-area {

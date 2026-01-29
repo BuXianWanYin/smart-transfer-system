@@ -392,7 +392,7 @@ watch(currentMode, (mode) => {
   justify-content: space-between;
   align-items: center;
   padding: 14px 0;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--art-border-color);
   flex-wrap: wrap;
   gap: 12px;
   
@@ -432,7 +432,7 @@ watch(currentMode, (mode) => {
       
       &:hover {
         color: var(--el-color-primary);
-        background: #ecf5ff;
+        background: rgb(var(--art-bg-primary));
         transform: scale(1.05);
       }
       

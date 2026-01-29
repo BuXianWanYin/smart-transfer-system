@@ -411,6 +411,7 @@ const formatTime = (seconds) => {
 const recordHistory = async (item, duration) => {
   try {
     await addHistory({
+      taskId: item.taskId || null,
       fileId: item.fileId,
       fileName: item.fileName,
       fileSize: item.fileSize,

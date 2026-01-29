@@ -655,8 +655,8 @@ onMounted(() => {
   .batch-actions {
     margin-bottom: 16px;
     padding: 12px;
-    background: #f5f7fa;
-    border-radius: 4px;
+    background: var(--art-fill-light);
+    border-radius: 8px;
     display: flex;
     gap: 12px;
   }
@@ -673,7 +673,7 @@ onMounted(() => {
     
     .user-name {
       font-size: 14px;
-      color: #303133;
+      color: var(--art-text-gray-800);
     }
   }
   

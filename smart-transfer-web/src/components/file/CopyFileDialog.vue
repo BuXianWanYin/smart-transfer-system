@@ -183,7 +183,7 @@ const handleCopy = async () => {
     padding: 12px 16px;
     background: #fafbfc;
     border-radius: 8px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--art-border-color);
     margin-bottom: 16px;
     
     .file-icon {
@@ -216,7 +216,7 @@ const handleCopy = async () => {
   .tree-wrapper {
     height: 300px;
     overflow: auto;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--art-border-color);
     border-radius: 4px;
     padding: 8px;
     
@@ -236,12 +236,12 @@ const handleCopy = async () => {
         height: 36px;
         
         &:hover {
-          background-color: #f5f7fa;
+          background-color: rgb(var(--art-hoverColor));
         }
       }
       
       .el-tree-node.is-current > .el-tree-node__content {
-        background-color: #ecf5ff;
+        background-color: rgb(var(--art-bg-primary));
         color: var(--el-color-primary);
         
         .folder-icon {

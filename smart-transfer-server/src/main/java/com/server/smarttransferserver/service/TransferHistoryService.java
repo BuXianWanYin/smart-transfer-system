@@ -68,6 +68,16 @@ public interface TransferHistoryService extends IService<TransferHistory> {
     int clearAllHistory();
     
     /**
+     * 删除指定文件在最近若干秒内完成的传输历史（用于取消上传后移除误记的「已完成」）
+     *
+     * @param fileId 文件ID
+     * @param transferType 传输类型 UPLOAD/DOWNLOAD
+     * @param withinSeconds 完成时间在多少秒以内
+     * @return 删除条数
+     */
+    int deleteRecentByFileId(Long fileId, String transferType, int withinSeconds);
+    
+    /**
      * 获取传输统计（按日/周/月）
      * @param period 统计周期：day-日, week-周, month-月
      * @param userId 用户ID（可选，管理员可查询指定用户，普通用户只能查询自己）

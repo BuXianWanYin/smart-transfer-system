@@ -90,6 +90,23 @@ public class TransferHistoryController {
     }
     
     /**
+     * 删除指定文件在最近若干秒内完成的传输历史（取消上传后移除误记的「已完成」）
+     */
+    @DeleteMapping("/recent-by-file")
+    public Result<Integer> deleteRecentByFile(
+            @RequestParam Long fileId,
+            @RequestParam String transferType,
+            @RequestParam(defaultValue = "120") int withinSeconds) {
+        try {
+            int count = historyService.deleteRecentByFileId(fileId, transferType, withinSeconds);
+            return Result.success(count);
+        } catch (Exception e) {
+            log.error("删除近期历史失败", e);
+            return Result.error("删除失败: " + e.getMessage());
+        }
+    }
+    
+    /**
      * 清空所有传输历史记录
      */
     @DeleteMapping("/clear")

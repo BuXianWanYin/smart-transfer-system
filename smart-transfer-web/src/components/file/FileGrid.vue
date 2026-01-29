@@ -570,7 +570,7 @@ defineExpose({
     align-items: center;
     gap: 16px;
     padding: 12px 8px;
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--art-border-color);
     margin-bottom: 8px;
     
     .file-count {
@@ -594,12 +594,12 @@ defineExpose({
       transition: all 0.2s;
       
       &:hover {
-        background: #f5f7fa;
+        background: rgb(var(--art-hoverColor));
       }
       
       &.selected {
-        background: #ecf5ff;
-        border: 1px solid var(--el-color-primary);
+        background: rgb(var(--art-bg-primary));
+        border: 1px solid rgb(var(--art-primary));
       }
       
       .checkbox-wrapper {
@@ -635,7 +635,7 @@ defineExpose({
       .file-name {
         margin-top: 8px;
         font-size: 12px;
-        color: #303133;
+        color: var(--art-text-gray-800);
         text-align: center;
         width: 100%;
         overflow: hidden;
@@ -651,10 +651,10 @@ defineExpose({
   position: fixed;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  background: var(--art-surface);
+  border: 1px solid var(--art-border-color);
+  border-radius: 8px;
+  box-shadow: var(--art-box-shadow);
   z-index: 9999;
   padding: 4px 0;
   
@@ -666,18 +666,18 @@ defineExpose({
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #606266;
+    color: var(--art-text-gray-600);
     
     &:hover {
-      background: #ecf5ff;
-      color: var(--el-color-primary);
+      background: rgb(var(--art-bg-primary));
+      color: rgb(var(--art-primary));
     }
     
     &.danger {
-      color: var(--el-color-danger);
+      color: rgb(var(--art-danger));
       
       &:hover {
-        background: #fef0f0;
+        background: rgb(var(--art-bg-danger));
       }
     }
   }

@@ -57,9 +57,15 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
             return buildEmptyMetrics();
         }
         
-        // 评估网络质量，如果没有数据则返回null（前端显示"-"）
+        // 评估网络质量：优先用 NetworkMonitor；若为 null 且为自适应算法，则用算法侧的网络质量描述（优秀/良好/一般/差）
         NetworkMonitorServiceImpl.NetworkQuality quality = networkMonitor.evaluateNetworkQuality();
         String qualityDesc = quality != null ? quality.getDescription() : "-";
+        if ("-".equals(qualityDesc) && algorithm instanceof AdaptiveAlgorithm) {
+            String adaptiveQuality = ((AdaptiveAlgorithm) algorithm).getMetrics().getNetworkQuality();
+            if (adaptiveQuality != null && !adaptiveQuality.isEmpty()) {
+                qualityDesc = adaptiveQuality;
+            }
+        }
         
         // 计算RTT抖动
         long rttJitter = 0;

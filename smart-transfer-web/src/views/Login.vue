@@ -284,73 +284,23 @@ const handleRegister = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #395fff 0%, #61cfff 50%, #f9ffe3 100%);
+  background: #ffffff;
   position: relative;
   overflow: hidden;
 }
 
-// 背景动画
 .login-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-  
-  .bg-shape {
-    position: absolute;
-    border-radius: 50%;
-    opacity: 0.1;
-    animation: float 20s infinite ease-in-out;
-    
-    &.shape-1 {
-      width: 500px;
-      height: 500px;
-      background: #fff;
-      top: -200px;
-      left: -100px;
-      animation-delay: 0s;
-    }
-    
-    &.shape-2 {
-      width: 400px;
-      height: 400px;
-      background: #fff;
-      bottom: -150px;
-      right: -100px;
-      animation-delay: -5s;
-    }
-    
-    &.shape-3 {
-      width: 300px;
-      height: 300px;
-      background: #fff;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      animation-delay: -10s;
-    }
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-30px) rotate(10deg);
-  }
+  display: none;
 }
 
 // 登录卡片
 .login-card {
   width: 420px;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
+  background: var(--art-surface);
+  border-radius: 12px;
+  box-shadow: var(--art-box-shadow-lg);
+  border: 1px solid var(--art-border-color);
   position: relative;
   z-index: 10;
 }
@@ -361,20 +311,22 @@ const handleRegister = async () => {
   
   .logo-icon {
     font-size: 48px;
-    color: #395fff;
+    color: var(--art-primary-color-1);
     margin-bottom: 16px;
   }
   
   .title {
-    font-size: 28px;
-    font-weight: 700;
-    color: #303133;
+    font-family: var(--art-font-display);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--art-text-gray-800);
     margin: 0 0 8px 0;
+    letter-spacing: -0.02em;
   }
   
   .subtitle {
     font-size: 14px;
-    color: #909399;
+    color: var(--art-text-gray-500);
     margin: 0;
   }
 }
@@ -382,14 +334,14 @@ const handleRegister = async () => {
 .login-form {
   :deep(.el-input__wrapper) {
     border-radius: 8px;
-    box-shadow: 0 0 0 1px #dcdfe6 inset;
+    box-shadow: 0 0 0 1px var(--art-border-color) inset;
     
     &:hover {
-      box-shadow: 0 0 0 1px #c0c4cc inset;
+      box-shadow: 0 0 0 1px var(--art-gray-400) inset;
     }
     
     &.is-focus {
-      box-shadow: 0 0 0 1px #395fff inset;
+      box-shadow: 0 0 0 2px rgba(var(--art-primary), 0.2) inset;
     }
   }
   
@@ -407,12 +359,13 @@ const handleRegister = async () => {
   height: 48px;
   font-size: 16px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #395fff 0%, #61cfff 100%);
+  background: var(--art-primary-color-1);
   border: none;
+  transition: opacity var(--art-duration-fast) var(--art-ease-out);
   
   &:hover {
     opacity: 0.9;
-    background: linear-gradient(135deg, #395fff 0%, #61cfff 100%);
+    background: var(--art-primary-color-1);
   }
 }
 

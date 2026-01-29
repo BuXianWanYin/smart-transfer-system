@@ -449,7 +449,7 @@ onUnmounted(() => {
         align-items: center;
         margin-bottom: 12px;
         padding-bottom: 8px;
-        border-bottom: 1px solid #ebeef5;
+        border-bottom: 1px solid var(--art-border-color);
         
         .date-text {
           margin-left: 8px;
@@ -523,10 +523,10 @@ onUnmounted(() => {
   position: fixed;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  background: var(--art-surface);
+  border: 1px solid var(--art-border-color);
+  border-radius: 8px;
+  box-shadow: var(--art-box-shadow);
   z-index: 9999;
   padding: 4px 0;
   
@@ -538,18 +538,18 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #606266;
+    color: var(--art-text-gray-600);
     
     &:hover {
-      background: #ecf5ff;
-      color: var(--el-color-primary);
+      background: rgb(var(--art-bg-primary));
+      color: rgb(var(--art-primary));
     }
     
     &.danger {
-      color: var(--el-color-danger);
+      color: rgb(var(--art-danger));
       
       &:hover {
-        background: #fef0f0;
+        background: rgb(var(--art-bg-danger));
       }
     }
   }
