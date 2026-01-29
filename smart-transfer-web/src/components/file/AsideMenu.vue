@@ -99,35 +99,38 @@
         </el-menu-item>
       </template>
       
-      <!-- 管理员：文件管理 -->
-      <el-menu-item v-if="userStore.isAdmin" index="files" :title="collapsed ? '文件管理' : undefined">
-        <el-icon><Files /></el-icon>
-        <template #title><span>文件管理</span></template>
-      </el-menu-item>
-      
-      <!-- 管理员：系统配置 -->
-      <el-menu-item v-if="userStore.isAdmin" index="config" :title="collapsed ? '系统配置' : undefined">
-        <el-icon><Setting /></el-icon>
-        <template #title><span>系统配置</span></template>
-      </el-menu-item>
-      
-      <!-- 管理员：拥塞控制监控 -->
-      <el-menu-item v-if="userStore.isAdmin" index="monitor" :title="collapsed ? '拥塞控制监控' : undefined">
-        <el-icon><VideoPlay /></el-icon>
-        <template #title><span>拥塞控制监控</span></template>
-      </el-menu-item>
-      
-      <!-- 管理员：用户管理 -->
-      <el-menu-item v-if="userStore.isAdmin" index="admin-users" :title="collapsed ? '用户管理' : undefined">
-        <el-icon><User /></el-icon>
-        <template #title><span>用户管理</span></template>
-      </el-menu-item>
-      
-      <!-- 管理员：系统统计 -->
-      <el-menu-item v-if="userStore.isAdmin" index="admin-stats" :title="collapsed ? '系统统计' : undefined">
-        <el-icon><DataAnalysis /></el-icon>
-        <template #title><span>系统统计</span></template>
-      </el-menu-item>
+      <!-- 管理员菜单（按指定顺序） -->
+      <template v-if="userStore.isAdmin">
+        <!-- 1. 系统统计 -->
+        <el-menu-item index="admin-stats" :title="collapsed ? '系统统计' : undefined">
+          <el-icon><DataAnalysis /></el-icon>
+          <template #title><span>系统统计</span></template>
+        </el-menu-item>
+        
+        <!-- 2. 用户管理 -->
+        <el-menu-item index="admin-users" :title="collapsed ? '用户管理' : undefined">
+          <el-icon><User /></el-icon>
+          <template #title><span>用户管理</span></template>
+        </el-menu-item>
+        
+        <!-- 3. 文件管理 -->
+        <el-menu-item index="files" :title="collapsed ? '文件管理' : undefined">
+          <el-icon><Folder /></el-icon>
+          <template #title><span>文件管理</span></template>
+        </el-menu-item>
+        
+        <!-- 4. 回收站 -->
+        <el-menu-item index="recovery" :title="collapsed ? '回收站' : undefined">
+          <el-icon><Delete /></el-icon>
+          <template #title><span>回收站</span></template>
+        </el-menu-item>
+        
+        <!-- 5. 系统配置 -->
+        <el-menu-item index="config" :title="collapsed ? '系统配置' : undefined">
+          <el-icon><Setting /></el-icon>
+          <template #title><span>系统配置</span></template>
+        </el-menu-item>
+      </template>
     </el-menu>
     
     <!-- 存储空间（非折叠模式显示） -->
@@ -194,11 +197,6 @@ const activeIndex = computed(() => {
     return 'config'
   }
   
-  // 拥塞控制监控
-  if (routeName === 'CongestionMonitor') {
-    return 'monitor'
-  }
-  
   // 用户管理
   if (routeName === 'UserManagement') {
     return 'admin-users'
@@ -211,15 +209,21 @@ const activeIndex = computed(() => {
   
   // 文件管理
   if (routeName === 'File') {
-    if (userStore.isAdmin) {
+    const fileType = route.query.fileType
+    // 回收站
+    if (fileType === '6' || fileType === 6) {
+      return 'recovery'
+    }
+    // 管理员：文件管理（无fileType参数或fileType不是6）
+    if (userStore.isAdmin && (fileType === undefined || fileType === '')) {
       return 'files'
     }
-    const fileType = route.query.fileType
+    // 普通用户：根据文件类型返回
     return fileType !== undefined ? `file-${fileType}` : 'file-0'
   }
   
-  // 默认值：管理员返回文件管理，普通用户返回传输中心
-  return userStore.isAdmin ? 'files' : 'transfer'
+  // 默认值：管理员返回系统统计，普通用户返回传输中心
+  return userStore.isAdmin ? 'admin-stats' : 'transfer'
 })
 
 // 存储空间
@@ -258,12 +262,6 @@ const handleMenuSelect = (index) => {
     return
   }
   
-  // 拥塞控制监控
-  if (index === 'monitor') {
-    router.push({ name: 'CongestionMonitor' })
-    return
-  }
-  
   // 文件管理（管理员）
   if (index === 'files' && userStore.isAdmin) {
     router.push({ name: 'File' })
@@ -279,6 +277,19 @@ const handleMenuSelect = (index) => {
   // 系统统计
   if (index === 'admin-stats') {
     router.push({ name: 'SystemStats' })
+    return
+  }
+  
+  // 回收站
+  if (index === 'recovery') {
+    router.push({
+      name: 'File',
+      query: {
+        fileType: 6,
+        filePath: '/',
+        folderId: 0
+      }
+    })
     return
   }
   

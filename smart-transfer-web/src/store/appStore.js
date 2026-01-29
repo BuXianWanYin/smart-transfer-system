@@ -91,7 +91,6 @@ export const useAppStore = defineStore('app', () => {
     isDesktop,
     sidebarWidth,
     updateScreenWidth,
-    toggleSidebarCollapse,
     toggleSidebarVisible,
     showSidebar,
     hideSidebar,

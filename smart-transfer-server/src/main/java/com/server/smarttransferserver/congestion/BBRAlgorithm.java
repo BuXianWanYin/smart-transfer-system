@@ -225,13 +225,19 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
      * @param rtt RTT值
      */
     private void updateRttSample(long rtt) {
-        rttSamples.offer(rtt);
-        if (rttSamples.size() > 10) {
-            rttSamples.poll();
+        // **修复：过滤无效RTT值**
+        if (rtt > 0 && rtt < 10000) {
+            rttSamples.offer(rtt);
+            if (rttSamples.size() > 10) {
+                rttSamples.poll();
+            }
+            
+            // 更新最小RTT（过滤null值）
+            minRtt = rttSamples.stream()
+                    .filter(r -> r != null && r > 0)
+                    .min(Long::compare)
+                    .orElse(rtt);
         }
-        
-        // 更新最小RTT
-        minRtt = rttSamples.stream().min(Long::compare).orElse(rtt);
     }
     
     /**

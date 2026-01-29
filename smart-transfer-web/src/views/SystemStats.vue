@@ -42,11 +42,31 @@
           <template #header>
             <div class="card-header">
               <span>传输统计</span>
-              <el-radio-group v-model="transferPeriod" @change="loadTransferStats">
-                <el-radio-button label="day">日</el-radio-button>
-                <el-radio-button label="week">周</el-radio-button>
-                <el-radio-button label="month">月</el-radio-button>
-              </el-radio-group>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <!-- 用户筛选（仅管理员） -->
+                <el-select
+                  v-if="userStore.isAdmin"
+                  v-model="selectedUserId"
+                  placeholder="全部用户"
+                  clearable
+                  filterable
+                  style="width: 150px"
+                  @change="handleUserChange"
+                >
+                  <el-option label="全部用户" value="" />
+                  <el-option
+                    v-for="user in userList"
+                    :key="user.id"
+                    :label="user.nickname || user.username"
+                    :value="user.id"
+                  />
+                </el-select>
+                <el-radio-group v-model="transferPeriod" @change="loadTransferStats">
+                  <el-radio-button value="day">日</el-radio-button>
+                  <el-radio-button value="week">周</el-radio-button>
+                  <el-radio-button value="month">月</el-radio-button>
+                </el-radio-group>
+              </div>
             </div>
           </template>
           <div class="chart-container" v-loading="transferStatsLoading">
@@ -222,7 +242,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getUserList, getSystemStorageStats } from '@/api/userApi'
 import { getTransferStats, getAlgorithmStats } from '@/api/historyApi'
-import { getNetworkQualityStats } from '@/api/congestionApi'
+import { useUserStore } from '@/store/userStore'
+
+const userStore = useUserStore()
 
 // 统计数据
 const stats = reactive({
@@ -243,6 +265,16 @@ const stats = reactive({
   otherSize: 0,
   otherCount: 0
 })
+
+// 用户筛选（仅管理员）
+const selectedUserId = ref('')
+const userList = ref([])
+
+// 用户筛选变化
+const handleUserChange = () => {
+  loadTransferStats()
+  loadAlgorithmStats()
+}
 
 // 传输统计
 const transferPeriod = ref('day')
@@ -324,7 +356,9 @@ const loadStats = async () => {
 const loadTransferStats = async () => {
   transferStatsLoading.value = true
   try {
-    const data = await getTransferStats(transferPeriod.value)
+    // 如果是管理员且指定了用户，传递userId参数
+    const userId = userStore.isAdmin && selectedUserId.value ? selectedUserId.value : null
+    const data = await getTransferStats(transferPeriod.value, userId)
     transferStats.uploadLabels = data.uploadLabels || []
     transferStats.uploadValues = data.uploadValues || []
     transferStats.downloadLabels = data.downloadLabels || []
@@ -337,16 +371,21 @@ const loadTransferStats = async () => {
 }
 
 /**
- * 加载网络质量统计
+ * 加载网络质量统计（该API已被后端禁用）
  */
 const loadNetworkQualityStats = async () => {
   networkQualityLoading.value = true
   try {
-    const data = await getNetworkQualityStats()
-    networkQualityStats.qualityCount = data.qualityCount || {}
-    networkQualityStats.currentQuality = data.currentQuality || 'UNKNOWN'
+    // 该API已被后端禁用，使用默认数据避免页面加载失败
+    networkQualityStats.qualityCount = {
+      '优秀': 0,
+      '良好': 0,
+      '一般': 0,
+      '较差': 0
+    }
+    networkQualityStats.currentQuality = 'UNKNOWN'
   } catch (error) {
-    ElMessage.error('加载网络质量统计失败：' + (error.message || '未知错误'))
+    console.error('加载网络质量统计失败:', error)
   } finally {
     networkQualityLoading.value = false
   }
@@ -358,7 +397,9 @@ const loadNetworkQualityStats = async () => {
 const loadAlgorithmStats = async () => {
   algorithmStatsLoading.value = true
   try {
-    const data = await getAlgorithmStats()
+    // 如果是管理员且指定了用户，传递userId参数
+    const userId = userStore.isAdmin && selectedUserId.value ? selectedUserId.value : null
+    const data = await getAlgorithmStats(userId)
     algorithmStats.algorithmLabels = data.algorithmLabels || []
     algorithmStats.countValues = data.countValues || []
     algorithmStats.sizeValues = data.sizeValues || []
@@ -445,7 +486,20 @@ const getAlgorithmPercentage = (value, values) => {
   return (value / total) * 100
 }
 
+// 加载用户列表（仅管理员）
+const loadUserList = async () => {
+  if (userStore.isAdmin) {
+    try {
+      const res = await getUserList()
+      userList.value = res || []
+    } catch (error) {
+      console.error('加载用户列表失败', error)
+    }
+  }
+}
+
 onMounted(() => {
+  loadUserList()
   loadStats()
   loadTransferStats()
   loadNetworkQualityStats()

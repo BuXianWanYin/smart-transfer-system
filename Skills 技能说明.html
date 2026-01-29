@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenSkills 技能说明</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 2rem;
+      max-width: 1000px;
+      margin-inline: auto;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    th {
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tr:hover td { background: rgba(255, 255, 255, 0.03); }
+    .skill-name {
+      font-family: ui-monospace, monospace;
+      color: var(--accent);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .skill-desc {
+      color: var(--muted);
+      margin: 0;
+    }
+    .num { color: var(--muted); font-variant-numeric: tabular-nums; }
+    footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>OpenSkills 技能说明</h1>
+  <p class="subtitle">基于 Anthropic 官方 Skills，在 Cursor 中通过 AGENTS.md 使用。调用方式：<code>npx openskills read &lt;技能名&gt;</code></p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 3rem;">序号</th>
+          <th style="width: 11rem;">技能名</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="num">1</td>
+          <td class="skill-name">algorithmic-art</td>
+          <td class="skill-desc">使用 p5.js 创建算法艺术，支持随机种子与交互式参数探索。适用于：用代码做艺术、生成艺术、算法艺术、流场、粒子系统。会创作原创算法艺术，避免抄袭他人作品。</td>
+        </tr>
+        <tr>
+          <td class="num">2</td>
+          <td class="skill-name">brand-guidelines</td>
+          <td class="skill-desc">将 Anthropic 官方品牌色与字体应用到各类产出物，使其具有 Anthropic 的视觉风格。适用于：品牌色、风格指南、视觉排版或公司设计规范相关需求。</td>
+        </tr>
+        <tr>
+          <td class="num">3</td>
+          <td class="skill-name">canvas-design</td>
+          <td class="skill-desc">基于设计哲学在 .png 和 .pdf 中创建视觉作品。适用于：海报、艺术作品、设计稿或其他静态视觉。创作原创设计，不复制现有艺术家作品。</td>
+        </tr>
+        <tr>
+          <td class="num">4</td>
+          <td class="skill-name">doc-coauthoring</td>
+          <td class="skill-desc">引导用户完成结构化文档协作流程。适用于：写文档、提案、技术规格、决策文档等。帮助高效传递上下文、迭代润色并验证文档对读者的效果。触发词：写文档、写提案、起草规格等。</td>
+        </tr>
+        <tr>
+          <td class="num">5</td>
+          <td class="skill-name">docx</td>
+          <td class="skill-desc">完整的 Word 文档创建、编辑与分析，支持修订、批注、格式保留与文本提取。适用于：新建文档、修改内容、处理修订、添加批注等与 .docx 相关的任务。</td>
+        </tr>
+        <tr>
+          <td class="num">6</td>
+          <td class="skill-name">frontend-design</td>
+          <td class="skill-desc">创建有辨识度、可上线的前端界面，保证较高设计质量。适用于：Web 组件、页面、海报或应用（如网站、落地页、仪表盘、React 组件、HTML/CSS 布局，或美化任意 Web UI）。生成有创意、精致的代码与 UI，避免通用 AI 风格。</td>
+        </tr>
+        <tr>
+          <td class="num">7</td>
+          <td class="skill-name">internal-comms</td>
+          <td class="skill-desc">提供撰写各类内部沟通内容的资源与公司常用格式。适用于：状态报告、领导层更新、第三方更新、公司通讯、FAQ、事故报告、项目更新等内部沟通。</td>
+        </tr>
+        <tr>
+          <td class="num">8</td>
+          <td class="skill-name">mcp-builder</td>
+          <td class="skill-desc">创建高质量 MCP（Model Context Protocol）服务器的指南，让 LLM 通过设计良好的工具与外部服务交互。适用于：用 Python（FastMCP）或 Node/TypeScript（MCP SDK）搭建 MCP 服务器、对接外部 API 或服务。</td>
+        </tr>
+        <tr>
+          <td class="num">9</td>
+          <td class="skill-name">pdf</td>
+          <td class="skill-desc">PDF 处理工具：提取文本与表格、创建新 PDF、合并/拆分文档、处理表单。适用于：填写 PDF 表单，或以编程方式批量处理、生成或分析 PDF。</td>
+        </tr>
+        <tr>
+          <td class="num">10</td>
+          <td class="skill-name">pptx</td>
+          <td class="skill-desc">演示文稿的创建、编辑与分析。适用于：新建演示、修改内容、调整版式、添加批注或演讲者备注等与 .pptx 相关的任务。</td>
+        </tr>
+        <tr>
+          <td class="num">11</td>
+          <td class="skill-name">skill-creator</td>
+          <td class="skill-desc">创建有效技能的指南。适用于：想新建或更新一个技能，以扩展 Claude 在专业知识、工作流或工具集成方面的能力。</td>
+        </tr>
+        <tr>
+          <td class="num">12</td>
+          <td class="skill-name">slack-gif-creator</td>
+          <td class="skill-desc">为 Slack 制作动图的知识与工具，包含约束、校验与动画思路。适用于：用户要求“为 Slack 做一个 X 在做 Y 的 GIF”等场景。</td>
+        </tr>
+        <tr>
+          <td class="num">13</td>
+          <td class="skill-name">template</td>
+          <td class="skill-desc">占位技能，需替换为具体技能描述及使用场景。</td>
+        </tr>
+        <tr>
+          <td class="num">14</td>
+          <td class="skill-name">theme-factory</td>
+          <td class="skill-desc">为产出物应用主题样式的工具，可作用于幻灯片、文档、报告、HTML 落地页等。提供 10 种预设主题（颜色/字体），也可即时生成新主题。</td>
+        </tr>
+        <tr>
+          <td class="num">15</td>
+          <td class="skill-name">web-artifacts-builder</td>
+          <td class="skill-desc">使用现代前端技术（React、Tailwind CSS、shadcn/ui）创建复杂的多组件 HTML 产出物。适用于需要状态管理、路由或 shadcn/ui 组件的复杂产出物，不适用于简单单文件 HTML/JSX。</td>
+        </tr>
+        <tr>
+          <td class="num">16</td>
+          <td class="skill-name">webapp-testing</td>
+          <td class="skill-desc">使用 Playwright 与本地 Web 应用交互并测试。支持验证前端功能、调试 UI 行为、截屏、查看浏览器日志。</td>
+        </tr>
+        <tr>
+          <td class="num">17</td>
+          <td class="skill-name">xlsx</td>
+          <td class="skill-desc">电子表格的创建、编辑与分析，支持公式、格式、数据分析与图表。适用于：新建带公式与格式的表格、读取或分析数据、在保留公式的前提下修改表格、在表格内做数据分析与可视化、重算公式等。支持 .xlsx、.xlsm、.csv、.tsv 等。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    共 17 个技能 · 来源：anthropics/skills · 通过 OpenSkills 安装，AGENTS.md 同步生成
+  </footer>
+</body>
+</html>

@@ -12,14 +12,6 @@ import java.util.Map;
 import java.util.Queue;
 
 /**
- * 重置类型枚举
- */
-enum ResetType {
-    FULL_RESET,      // 全量重置（初始化时）
-    INCREMENTAL_RESET // 增量重置（切换时）
-}
-
-/**
  * 自适应拥塞控制算法
  * 根据网络质量动态选择Reno、Vegas、CUBIC或BBR
  */
@@ -208,10 +200,12 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     
     @Override
     public void onAck(long ackedBytes, long rtt) {
-        // 记录RTT样本
-        rttSamples.offer(rtt);
-        if (rttSamples.size() > EVALUATION_WINDOW) {
-            rttSamples.poll();
+        // 记录RTT样本（过滤无效值）
+        if (rtt > 0 && rtt < 10000) {  // RTT应在1ms-10秒范围内
+            rttSamples.offer(rtt);
+            if (rttSamples.size() > EVALUATION_WINDOW) {
+                rttSamples.poll();
+            }
         }
         
         // 统计数据包
@@ -266,12 +260,24 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             }
         }
         
-        // 计算网络指标
+        // 计算网络指标（**修复：过滤null值**）
         double lossRate = (double) lostPackets / totalPackets;
         long rttJitter = calculateRttJitter();
-        double avgRtt = rttSamples.stream().mapToLong(Long::longValue).average().orElse(100);
-        long minRtt = rttSamples.stream().mapToLong(Long::longValue).min().orElse(100);
-        long maxRtt = rttSamples.stream().mapToLong(Long::longValue).max().orElse(100);
+        double avgRtt = rttSamples.stream()
+                .filter(rtt -> rtt != null && rtt > 0)
+                .mapToLong(Long::longValue)
+                .average()
+                .orElse(100);
+        long minRtt = rttSamples.stream()
+                .filter(rtt -> rtt != null && rtt > 0)
+                .mapToLong(Long::longValue)
+                .min()
+                .orElse(100);
+        long maxRtt = rttSamples.stream()
+                .filter(rtt -> rtt != null && rtt > 0)
+                .mapToLong(Long::longValue)
+                .max()
+                .orElse(100);
         double rttVariation = maxRtt > 0 ? (double) (maxRtt - minRtt) / maxRtt : 0;
         
         // 获取带宽（用于吞吐量评估）
@@ -761,12 +767,24 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         );
         metrics.setNetworkQuality(scenario.getDescription());
         
-        // 更新当前网络指标
+        // 更新当前网络指标（**修复：过滤null值**）
         double lossRate = totalPackets > 0 ? (double) lostPackets / totalPackets : 0;
         long rttJitter = calculateRttJitter();
-        double avgRtt = rttSamples.stream().mapToLong(Long::longValue).average().orElse(100);
-        long minRtt = rttSamples.stream().mapToLong(Long::longValue).min().orElse(100);
-        long maxRtt = rttSamples.stream().mapToLong(Long::longValue).max().orElse(100);
+        double avgRtt = rttSamples.stream()
+                .filter(rtt -> rtt != null && rtt > 0)
+                .mapToLong(Long::longValue)
+                .average()
+                .orElse(100);
+        long minRtt = rttSamples.stream()
+                .filter(rtt -> rtt != null && rtt > 0)
+                .mapToLong(Long::longValue)
+                .min()
+                .orElse(100);
+        long maxRtt = rttSamples.stream()
+                .filter(rtt -> rtt != null && rtt > 0)
+                .mapToLong(Long::longValue)
+                .max()
+                .orElse(100);
         double rttVariation = maxRtt > 0 ? (double) (maxRtt - minRtt) / maxRtt : 0;
         long bandwidth = currentAlgorithm.getRate();
         long bdp = bandwidth * (long) avgRtt / 1000;

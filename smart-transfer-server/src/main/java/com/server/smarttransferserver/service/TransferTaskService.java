@@ -85,5 +85,18 @@ public interface TransferTaskService extends IService<TransferTask> {
      * @return 活跃任务列表
      */
     List<TransferTask> getActiveTasksByUserId(Long userId);
+
+    /**
+     * 查询当前用户未完成的传输任务（用于刷新后恢复列表）
+     *
+     * @param taskType 任务类型 UPLOAD/DOWNLOAD
+     * @return 任务 VO 列表
+     */
+    List<TransferTaskVO> listIncompleteTasksForCurrentUser(String taskType);
+
+    /**
+     * 将当前用户所有进行中/待处理的任务暂停（用于退出登录时）
+     */
+    int pauseAllCurrentUserTasks();
 }
 

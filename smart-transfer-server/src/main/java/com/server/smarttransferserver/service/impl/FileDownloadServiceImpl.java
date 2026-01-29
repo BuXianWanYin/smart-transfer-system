@@ -10,6 +10,7 @@ import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.service.FileDownloadService;
 import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.RedisService;
+import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.FileDownloadInitVO;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -90,6 +91,21 @@ public class FileDownloadServiceImpl implements FileDownloadService {
         if (fileInfo == null) {
             throw new RuntimeException("文件不存在");
         }
+        
+        // 修复：添加权限检查 - 管理员可以下载任何用户的文件，普通用户只能下载自己的文件
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long fileOwnerId = fileInfo.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole)) {
+            // 普通用户：只能下载自己的文件
+            if (currentUserId == null || !currentUserId.equals(fileOwnerId)) {
+                log.warn("用户尝试下载其他用户的文件 - 用户ID: {}, 文件ID: {}, 文件所有者: {}", 
+                         currentUserId, fileId, fileOwnerId);
+                throw new RuntimeException("无权下载此文件");
+            }
+        }
+        // 管理员：可以下载任何用户的文件，不进行权限检查
         
         if ("DELETED".equals(fileInfo.getUploadStatus())) {
             throw new RuntimeException("文件已被删除");
@@ -437,18 +453,23 @@ public class FileDownloadServiceImpl implements FileDownloadService {
         if (existingTask != null) {
             return existingTask.getTaskId();
         } else {
-            // 创建新任务
+            // 创建新任务（记录当前用户，用于刷新后恢复「我的」未完成任务列表）
             String taskId = UUID.randomUUID().toString();
+            Long userId = null;
+            try {
+                userId = UserContextHolder.getUserId();
+            } catch (Exception ignored) {}
             TransferTask newTask = TransferTask.builder()
                     .taskId(taskId)
                     .fileId(fileId)
+                    .userId(userId)
                     .taskType(taskType)
                     .transferStatus("PENDING")
                     .progress(java.math.BigDecimal.ZERO)
                     .startTime(java.time.LocalDateTime.now())
                     .build();
             transferTaskMapper.insert(newTask);
-            log.info("为文件创建新下载任务 - 文件ID: {}, 任务ID: {}", fileId, taskId);
+            log.info("为文件创建新下载任务 - 文件ID: {}, 任务ID: {}, userId: {}", fileId, taskId, userId);
             return taskId;
         }
     }

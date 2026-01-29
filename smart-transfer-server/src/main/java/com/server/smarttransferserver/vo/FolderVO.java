@@ -19,6 +19,11 @@ public class FolderVO {
 
     private Long id;
 
+    /**
+     * 用户ID（用于管理员查看所有用户文件夹时显示）
+     */
+    private Long userId;
+
     private String folderName;
 
     private Long parentId;

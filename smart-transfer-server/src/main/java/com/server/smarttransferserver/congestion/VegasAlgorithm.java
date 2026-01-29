@@ -231,15 +231,21 @@ public class VegasAlgorithm implements CongestionControlAlgorithm {
      * @param rtt RTT值（毫秒）
      */
     private void updateRttSample(long rtt) {
-        rttSamples.offer(rtt);
-        if (rttSamples.size() > 20) {
-            rttSamples.poll();
-        }
-        
-        // 更新基础RTT（取历史最小值）
-        long minRtt = rttSamples.stream().min(Long::compare).orElse(rtt);
-        if (minRtt < baseRtt) {
-            baseRtt = minRtt;
+        // **修复：过滤无效RTT值**
+        if (rtt > 0 && rtt < 10000) {
+            rttSamples.offer(rtt);
+            if (rttSamples.size() > 20) {
+                rttSamples.poll();
+            }
+            
+            // 更新基础RTT（取历史最小值，过滤null值）
+            long minRtt = rttSamples.stream()
+                    .filter(r -> r != null && r > 0)
+                    .min(Long::compare)
+                    .orElse(rtt);
+            if (minRtt < baseRtt) {
+                baseRtt = minRtt;
+            }
         }
     }
     

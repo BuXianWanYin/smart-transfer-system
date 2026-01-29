@@ -113,9 +113,9 @@
         
         <div class="transfer-stats" v-loading="transferStatsLoading">
           <el-radio-group v-model="transferPeriod" @change="loadTransferStats" size="small">
-            <el-radio-button label="day">日</el-radio-button>
-            <el-radio-button label="week">周</el-radio-button>
-            <el-radio-button label="month">月</el-radio-button>
+            <el-radio-button value="day">日</el-radio-button>
+            <el-radio-button value="week">周</el-radio-button>
+            <el-radio-button value="month">月</el-radio-button>
           </el-radio-group>
           
           <div class="transfer-summary" v-if="transferStats.uploadValues">
@@ -468,8 +468,8 @@ const handleChangePassword = async () => {
     passwordFormRef.value.resetFields()
     
     // 修改密码后退出登录
-    setTimeout(() => {
-      userStore.logout()
+    setTimeout(async () => {
+      await userStore.logout()
     }, 1500)
     
   } catch (error) {

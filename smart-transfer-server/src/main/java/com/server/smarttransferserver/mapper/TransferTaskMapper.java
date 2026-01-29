@@ -97,4 +97,26 @@ public interface TransferTaskMapper extends BaseMapper<TransferTask> {
             "AND t.transfer_status IN ('PENDING', 'PROCESSING') " +
             "ORDER BY t.start_time DESC")
     List<TransferTask> selectActiveTasksByUserId(@Param("userId") Long userId);
+
+    /**
+     * 查询当前用户未完成的上传任务（用于刷新后恢复列表）
+     * 包含 user_id 匹配或通过 file_info 关联的上传任务（兼容历史无 user_id 数据）
+     */
+    @Select("SELECT t.* FROM transfer_task t " +
+            "LEFT JOIN file_info f ON t.file_id = f.id AND f.del_flag = 0 " +
+            "WHERE t.task_type = 'UPLOAD' " +
+            "AND t.transfer_status IN ('PENDING', 'PROCESSING', 'PAUSED', 'FAILED') " +
+            "AND (t.user_id = #{userId} OR (t.user_id IS NULL AND f.user_id = #{userId})) " +
+            "ORDER BY t.start_time DESC")
+    List<TransferTask> selectIncompleteUploadTasksByUserId(@Param("userId") Long userId);
+
+    /**
+     * 查询当前用户未完成的下载任务（用于刷新后恢复列表）
+     */
+    @Select("SELECT * FROM transfer_task " +
+            "WHERE user_id = #{userId} " +
+            "AND task_type = 'DOWNLOAD' " +
+            "AND transfer_status IN ('PENDING', 'PROCESSING', 'PAUSED', 'FAILED') " +
+            "ORDER BY start_time DESC")
+    List<TransferTask> selectIncompleteDownloadTasksByUserId(@Param("userId") Long userId);
 }

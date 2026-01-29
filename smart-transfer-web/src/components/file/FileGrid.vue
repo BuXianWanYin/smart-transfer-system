@@ -1,7 +1,13 @@
 <template>
   <div class="file-grid-wrapper" v-loading="loading" element-loading-text="文件加载中……">
     <!-- 空状态 -->
-    <el-empty v-if="fileList.length === 0" description="暂无文件" />
+    <el-empty v-if="fileList.length === 0" description="暂无数据">
+      <template #image>
+        <el-icon :size="80" color="#c0c4cc">
+          <FolderOpened />
+        </el-icon>
+      </template>
+    </el-empty>
     
     <!-- 文件列表头部（全选） -->
     <div class="grid-header" v-if="fileList.length > 0">

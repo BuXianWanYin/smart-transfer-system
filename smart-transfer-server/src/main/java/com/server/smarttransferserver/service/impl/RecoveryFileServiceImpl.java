@@ -44,12 +44,25 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     private IFileStorageService fileStorageService;
 
     @Override
-    public List<RecoveryFile> getRecoveryFileList() {
+    public List<RecoveryFile> getRecoveryFileList(Long filterUserId) {
         Long userId = UserContextHolder.getUserId();
+        String userRole = UserContextHolder.getRole();
         LambdaQueryWrapper<RecoveryFile> queryWrapper = new LambdaQueryWrapper<>();
-        if (userId != null) {
-            queryWrapper.eq(RecoveryFile::getUserId, userId);
+        
+        // 修复：管理员可以查看所有用户的回收站，普通用户只能查看自己的
+        if ("ADMIN".equals(userRole)) {
+            // 管理员：如果指定了filterUserId，查询指定用户的回收站；否则查询所有用户的回收站
+            if (filterUserId != null) {
+                queryWrapper.eq(RecoveryFile::getUserId, filterUserId);
+            }
+            // 如果未指定filterUserId，不添加userId条件，查询所有用户
+        } else {
+            // 普通用户：只能查看自己的回收站，忽略filterUserId参数
+            if (userId != null) {
+                queryWrapper.eq(RecoveryFile::getUserId, userId);
+            }
         }
+        
         queryWrapper.orderByDesc(RecoveryFile::getDeleteTime);
         return list(queryWrapper);
     }
@@ -57,16 +70,21 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteFileToRecovery(Long fileId) {
-        Long userId = UserContextHolder.getUserId();
         FileInfo fileInfo = fileInfoMapper.selectById(fileId);
         if (fileInfo == null) {
             log.warn("文件不存在，fileId: {}", fileId);
             return;
         }
 
+        // 修复：使用文件所有者的ID作为回收站记录的userId，而不是当前登录用户的ID
+        // 这样管理员删除其他用户文件时，回收站记录属于文件所有者，原用户可以在自己的回收站中看到
+        Long fileOwnerId = fileInfo.getUserId();
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+
         // 创建回收站记录
         RecoveryFile recoveryFile = RecoveryFile.builder()
-                .userId(userId)
+                .userId(fileOwnerId)  // 使用文件所有者的ID
                 .fileId(fileInfo.getId())
                 .fileName(fileInfo.getFileName())
                 .extendName(fileInfo.getExtendName())
@@ -86,15 +104,17 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                 .set(FileInfo::getUpdateTime, LocalDateTime.now());
         fileInfoMapper.update(null, updateWrapper);
 
-        log.info("文件已移至回收站，fileId: {}, fileName: {}, userId: {}", fileId, fileInfo.getFileName(), userId);
+        log.info("文件已移至回收站，fileId: {}, fileName: {}, 文件所有者: {}, 操作者: {}, 角色: {}", 
+                fileId, fileInfo.getFileName(), fileOwnerId, currentUserId, currentUserRole);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchDeleteToRecovery(List<Long> fileIds) {
-        Long userId = UserContextHolder.getUserId();
         String batchNum = UUID.randomUUID().toString().replace("-", "");
         LocalDateTime now = LocalDateTime.now();
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
         
         for (Long fileId : fileIds) {
             FileInfo fileInfo = fileInfoMapper.selectById(fileId);
@@ -102,9 +122,12 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                 continue;
             }
 
+            // 修复：使用文件所有者的ID作为回收站记录的userId
+            Long fileOwnerId = fileInfo.getUserId();
+
             // 创建回收站记录
             RecoveryFile recoveryFile = RecoveryFile.builder()
-                    .userId(userId)
+                    .userId(fileOwnerId)  // 使用文件所有者的ID
                     .fileId(fileInfo.getId())
                     .fileName(fileInfo.getFileName())
                     .extendName(fileInfo.getExtendName())
@@ -125,7 +148,8 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                     .set(FileInfo::getUpdateTime, now);
             fileInfoMapper.update(null, updateWrapper);
         }
-        log.info("批量删除文件到回收站，数量: {}, batchNum: {}, userId: {}", fileIds.size(), batchNum, userId);
+        log.info("批量删除文件到回收站，数量: {}, batchNum: {}, 操作者: {}, 角色: {}", 
+                fileIds.size(), batchNum, currentUserId, currentUserRole);
     }
 
     /**
@@ -134,19 +158,23 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteFolderToRecovery(Long folderId) {
-        Long userId = UserContextHolder.getUserId();
         Folder folder = folderMapper.selectById(folderId);
         if (folder == null) {
             log.warn("文件夹不存在，folderId: {}", folderId);
             return;
         }
 
+        // 修复：使用文件夹所有者的ID作为回收站记录的userId
+        Long folderOwnerId = folder.getUserId();
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+
         String batchNum = UUID.randomUUID().toString().replace("-", "");
         LocalDateTime now = LocalDateTime.now();
 
         // 创建回收站记录（只记录顶层被删除的文件夹）
         RecoveryFile recoveryFile = RecoveryFile.builder()
-                .userId(userId)
+                .userId(folderOwnerId)  // 使用文件夹所有者的ID
                 .fileId(null)  // 文件夹没有 fileId
                 .fileName(folder.getFolderName())
                 .extendName(null)
@@ -161,9 +189,11 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
         save(recoveryFile);
 
         // 标记该文件夹及所有子文件夹和子文件为已删除
-        markFolderAndChildrenDeleted(folderId, batchNum, now, userId);
+        // 注意：markFolderAndChildrenDeleted方法中的userId参数用于查询，应该使用文件夹所有者的ID
+        markFolderAndChildrenDeleted(folderId, batchNum, now, folderOwnerId);
 
-        log.info("文件夹已移至回收站，folderId: {}, folderName: {}, userId: {}", folderId, folder.getFolderName(), userId);
+        log.info("文件夹已移至回收站，folderId: {}, folderName: {}, 文件夹所有者: {}, 操作者: {}, 角色: {}", 
+                folderId, folder.getFolderName(), folderOwnerId, currentUserId, currentUserRole);
     }
 
     /**
@@ -381,11 +411,17 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     @Transactional(rollbackFor = Exception.class)
     public void clearRecoveryBin() {
         Long userId = UserContextHolder.getUserId();
+        String userRole = UserContextHolder.getRole();
         
-        // 只清空当前用户的回收站
+        // 修复：管理员可以清空所有用户的回收站，普通用户只能清空自己的
         LambdaQueryWrapper<RecoveryFile> wrapper = new LambdaQueryWrapper<>();
-        if (userId != null) {
-            wrapper.eq(RecoveryFile::getUserId, userId);
+        if ("ADMIN".equals(userRole)) {
+            // 管理员：不添加userId条件，清空所有用户的回收站
+        } else {
+            // 普通用户：只清空自己的回收站
+            if (userId != null) {
+                wrapper.eq(RecoveryFile::getUserId, userId);
+            }
         }
         
         List<RecoveryFile> recoveryFiles = list(wrapper);

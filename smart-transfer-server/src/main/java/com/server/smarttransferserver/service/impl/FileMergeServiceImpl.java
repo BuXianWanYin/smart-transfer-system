@@ -289,11 +289,20 @@ public class FileMergeServiceImpl implements FileMergeService {
             chunkWrapper.eq("file_id", fileId);
             fileChunkMapper.delete(chunkWrapper);
             
-            // 4. 先删除关联的拥塞指标数据（外键约束要求）
+            // 4. 更新传输任务状态为CANCELLED（而不是直接删除）
             // 查询该文件的所有传输任务
             List<TransferTask> tasks = transferTaskMapper.selectByFileId(fileId);
             if (tasks != null && !tasks.isEmpty()) {
                 for (TransferTask task : tasks) {
+                    // 如果任务是活跃状态，更新为CANCELLED
+                    if ("PENDING".equals(task.getTransferStatus()) || "PROCESSING".equals(task.getTransferStatus())) {
+                        task.setTransferStatus("CANCELLED");
+                        task.setEndTime(LocalDateTime.now());
+                        transferTaskMapper.updateById(task);
+                        log.info("更新任务状态为CANCELLED - 任务ID: {}, 文件ID: {}", task.getTaskId(), fileId);
+                    }
+                    
+                    // 清理拥塞指标数据（外键约束要求）
                     if (task.getTaskId() != null) {
                         int deletedMetricsCount = congestionMetricsMapper.deleteByTaskId(task.getTaskId());
                         if (deletedMetricsCount > 0) {
@@ -302,9 +311,6 @@ public class FileMergeServiceImpl implements FileMergeService {
                     }
                 }
             }
-            
-            // 5. 删除关联的传输任务记录
-            transferTaskMapper.deleteByFileId(fileId);
             
             // 6. 物理删除文件记录（因为文件从未成功上传）
             fileInfoMapper.deletePhysically(fileId);

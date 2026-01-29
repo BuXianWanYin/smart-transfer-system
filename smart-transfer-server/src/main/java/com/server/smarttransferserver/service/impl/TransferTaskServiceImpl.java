@@ -12,6 +12,7 @@ import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.TransferTaskMapper;
 import com.server.smarttransferserver.service.ActiveUserService;
 import com.server.smarttransferserver.service.TransferTaskService;
+import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.TransferTaskVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,22 +58,24 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
     public String createTask(Long fileId, String taskType) {
         String taskId = UUID.randomUUID().toString();
         
+        FileInfo fileInfo = fileInfoMapper.selectById(fileId);
+        Long userId = fileInfo != null ? fileInfo.getUserId() : null;
+
         TransferTask task = TransferTask.builder()
                 .taskId(taskId)
                 .fileId(fileId)
+                .userId(userId)
                 .taskType(taskType)
                 .transferStatus("PENDING")
                 .progress(BigDecimal.ZERO)
                 .startTime(LocalDateTime.now())
                 .build();
-        
+
         save(task);
-        log.info("创建传输任务 - 任务ID: {}, 文件ID: {}, 类型: {}", taskId, fileId, taskType);
-        
-        // 将用户添加到活跃用户集合（通过fileId获取userId）
-        FileInfo fileInfo = fileInfoMapper.selectById(fileId);
-        if (fileInfo != null && fileInfo.getUserId() != null) {
-            activeUserService.addActiveUser(fileInfo.getUserId());
+        log.info("创建传输任务 - 任务ID: {}, 文件ID: {}, 类型: {}, userId: {}", taskId, fileId, taskType, userId);
+
+        if (userId != null) {
+            activeUserService.addActiveUser(userId);
         }
         
         return taskId;
@@ -330,6 +334,53 @@ public class TransferTaskServiceImpl extends ServiceImpl<TransferTaskMapper, Tra
             return true;
         }
         return false;
+    }
+
+    @Override
+    public List<TransferTaskVO> listIncompleteTasksForCurrentUser(String taskType) {
+        Long userId = UserContextHolder.getUserId();
+        if (userId == null) {
+            log.warn("未登录，无法查询未完成任务");
+            return Collections.emptyList();
+        }
+        List<TransferTask> tasks;
+        if ("UPLOAD".equalsIgnoreCase(taskType)) {
+            tasks = transferTaskMapper.selectIncompleteUploadTasksByUserId(userId);
+        } else if ("DOWNLOAD".equalsIgnoreCase(taskType)) {
+            tasks = transferTaskMapper.selectIncompleteDownloadTasksByUserId(userId);
+        } else {
+            log.warn("无效的 taskType: {}", taskType);
+            return Collections.emptyList();
+        }
+        return tasks.stream().map(this::convertToVO).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public int pauseAllCurrentUserTasks() {
+        Long userId = UserContextHolder.getUserId();
+        if (userId == null) {
+            return 0;
+        }
+        List<TransferTask> uploadTasks = transferTaskMapper.selectIncompleteUploadTasksByUserId(userId);
+        List<TransferTask> downloadTasks = transferTaskMapper.selectIncompleteDownloadTasksByUserId(userId);
+        int count = 0;
+        for (TransferTask t : uploadTasks) {
+            if ("PENDING".equals(t.getTransferStatus()) || "PROCESSING".equals(t.getTransferStatus())) {
+                if (updateTaskStatus(t.getTaskId(), "PAUSED")) {
+                    count++;
+                }
+            }
+        }
+        for (TransferTask t : downloadTasks) {
+            if ("PENDING".equals(t.getTransferStatus()) || "PROCESSING".equals(t.getTransferStatus())) {
+                if (updateTaskStatus(t.getTaskId(), "PAUSED")) {
+                    count++;
+                }
+            }
+        }
+        log.info("退出登录时暂停当前用户传输任务 - userId: {}, 暂停数: {}", userId, count);
+        return count;
     }
     
     /**

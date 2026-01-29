@@ -13,9 +13,10 @@ public interface RecoveryFileService extends IService<RecoveryFile> {
     /**
      * 获取回收站文件列表
      *
+     * @param filterUserId 用户ID（可选，仅管理员可用，用于筛选指定用户的回收站）
      * @return 回收站文件列表
      */
-    List<RecoveryFile> getRecoveryFileList();
+    List<RecoveryFile> getRecoveryFileList(Long filterUserId);
 
     /**
      * 删除文件到回收站

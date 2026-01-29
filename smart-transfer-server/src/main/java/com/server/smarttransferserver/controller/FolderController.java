@@ -54,7 +54,12 @@ public class FolderController {
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestParam(required = false) Long userId) {
         
-        log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}, 用户ID: {}", parentId, fileType, userId);
+        // 改进日志：只在管理员指定筛选用户时打印该参数
+        if (userId != null) {
+            log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}, 筛选用户ID: {}", parentId, fileType, userId);
+        } else {
+            log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}", parentId, fileType);
+        }
         try {
             FolderContentVO content = folderService.getFolderContent(parentId, fileType, pageNum, pageSize, userId);
             return Result.success(content);
@@ -73,7 +78,7 @@ public class FolderController {
         
         log.info("获取文件夹列表 - 父ID: {}", parentId);
         try {
-            List<Folder> folders = folderService.getFoldersByParentId(parentId);
+            List<Folder> folders = folderService.getFoldersByParentId(parentId, null);
             return Result.success(folders);
         } catch (Exception e) {
             log.error("获取文件夹列表失败", e);

@@ -6,11 +6,17 @@ import request from '@/utils/http'
 
 /**
  * 获取回收站文件列表
+ * @param {Number} userId - 用户ID（可选，仅管理员可用，用于筛选指定用户的回收站）
  * @returns {Promise}
  */
-export function getRecoveryFileList() {
+export function getRecoveryFileList(userId = null) {
+  const params = {}
+  if (userId) {
+    params.userId = userId
+  }
   return request.get({
-    url: '/recovery/list'
+    url: '/recovery/list',
+    params
   })
 }
 

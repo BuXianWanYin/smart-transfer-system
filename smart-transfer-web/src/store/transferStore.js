@@ -331,7 +331,103 @@ export const useTransferStore = defineStore('transfer', () => {
     }
     return false
   }
-  
+
+  /**
+   * 将后端状态映射为前端状态
+   */
+  function mapBackendStatusToFrontend(transferStatus) {
+    if (!transferStatus) return 'pending'
+    const s = transferStatus.toUpperCase()
+    if (s === 'PROCESSING' || s === 'PENDING') return s === 'PROCESSING' ? 'paused' : 'pending'
+    if (s === 'PAUSED') return 'paused'
+    if (s === 'FAILED') return 'error'
+    return 'pending'
+  }
+
+  /**
+   * 从服务端恢复的未完成任务合并到上传队列（避免重复，按 taskId 去重）
+   * @param {Array} list - 后端返回的 TransferTaskVO 列表
+   */
+  function mergeIncompleteUploadTasksFromServer(list) {
+    if (!list || !Array.isArray(list)) return
+    const existingTaskIds = new Set(uploadQueue.value.map(t => t.taskId).filter(Boolean))
+    for (const vo of list) {
+      if (!vo.taskId || existingTaskIds.has(vo.taskId)) continue
+      existingTaskIds.add(vo.taskId)
+      const status = mapBackendStatusToFrontend(vo.transferStatus)
+      const progress = vo.progress != null ? Number(vo.progress) : 0
+      const fileSize = vo.fileSize || 0
+      uploadQueue.value.push({
+        id: 'server-' + vo.taskId,
+        file: null,
+        fileName: vo.fileName || '',
+        fileSize,
+        folderId: 0,
+        relativePath: '',
+        fileId: vo.fileId,
+        taskId: vo.taskId,
+        fileHash: null,
+        hashProgress: 0,
+        status,
+        progress,
+        speed: 0,
+        uploadedSize: Math.round((progress / 100) * fileSize),
+        uploadedChunks: [],
+        totalChunks: 0,
+        chunkSize: 5 * 1024 * 1024,
+        startTime: vo.startTime ? new Date(vo.startTime).getTime() : null,
+        endTime: vo.endTime ? new Date(vo.endTime).getTime() : null,
+        error: vo.errorMessage || null,
+        retryCount: 0,
+        maxRetry: 3,
+        _fromServer: true
+      })
+    }
+  }
+
+  /**
+   * 从服务端恢复的未完成任务合并到下载队列（按 taskId 去重）
+   * @param {Array} list - 后端返回的 TransferTaskVO 列表
+   */
+  function mergeIncompleteDownloadTasksFromServer(list) {
+    if (!list || !Array.isArray(list)) return
+    const existingTaskIds = new Set(downloadQueue.value.map(t => t.taskId).filter(Boolean))
+    for (const vo of list) {
+      if (!vo.taskId || existingTaskIds.has(vo.taskId)) continue
+      existingTaskIds.add(vo.taskId)
+      const status = mapBackendStatusToFrontend(vo.transferStatus)
+      const progress = vo.progress != null ? Number(vo.progress) : 0
+      const fileSize = vo.fileSize || 0
+      downloadQueue.value.push({
+        id: 'server-' + vo.taskId,
+        fileId: vo.fileId,
+        fileName: vo.fileName || '',
+        fileSize,
+        fileHash: null,
+        taskId: vo.taskId,
+        status,
+        progress,
+        speed: 0,
+        downloadedSize: Math.round((progress / 100) * fileSize),
+        downloadedChunks: [],
+        startTime: vo.startTime ? new Date(vo.startTime).getTime() : null,
+        endTime: vo.endTime ? new Date(vo.endTime).getTime() : null,
+        error: vo.errorMessage || null,
+        retryCount: 0,
+        maxRetry: 3,
+        _fromServer: true
+      })
+    }
+  }
+
+  /**
+   * 退出登录时清空传输队列（在调用「暂停全部」接口之后使用）
+   */
+  function clearAllForLogout() {
+    uploadQueue.value = []
+    downloadQueue.value = []
+  }
+
   return {
     uploadQueue,
     downloadQueue,
@@ -355,7 +451,10 @@ export const useTransferStore = defineStore('transfer', () => {
     clearCompletedUploads,
     clearCompletedDownloads,
     pauseAllUploads,
-    pauseAllDownloads
+    pauseAllDownloads,
+    mergeIncompleteUploadTasksFromServer,
+    mergeIncompleteDownloadTasksFromServer,
+    clearAllForLogout
   }
 })
 

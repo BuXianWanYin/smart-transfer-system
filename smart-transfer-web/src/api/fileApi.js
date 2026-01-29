@@ -134,6 +134,19 @@ export function cancelUpload(fileId) {
 }
 
 /**
+ * 更新任务状态
+ * @param {String} taskId - 任务ID
+ * @param {String} status - 新状态（FAILED/CANCELLED）
+ * @returns {Promise}
+ */
+export function updateTaskStatus(taskId, status) {
+  return request.put({
+    url: `/file/task/${taskId}/status`,
+    params: { status }
+  })
+}
+
+/**
  * 获取文件列表
  * @param {Object} params - 查询参数
  * @returns {Promise}
@@ -328,6 +341,28 @@ export function getTaskList(data) {
 export function deleteTask(taskId) {
   return request.del({
     url: `/file/task/${taskId}`
+  })
+}
+
+/**
+ * 查询当前用户未完成的传输任务（用于刷新/重进传输中心后恢复列表）
+ * @param {String} taskType - UPLOAD | DOWNLOAD
+ * @returns {Promise<{ data: Array }>}
+ */
+export function getIncompleteTasks(taskType) {
+  return request.get({
+    url: '/file/task/incomplete',
+    params: { taskType }
+  })
+}
+
+/**
+ * 暂停当前用户所有进行中/待处理任务（退出登录时调用）
+ * @returns {Promise<{ data: number }>}
+ */
+export function pauseAllTasks() {
+  return request.post({
+    url: '/file/task/pause-all'
   })
 }
 

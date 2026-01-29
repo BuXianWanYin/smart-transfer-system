@@ -37,16 +37,31 @@ public class RttOutlierFilter {
      */
     public List<Long> filterOutliers(Queue<Long> rttSamples) {
         if (!enabled || rttSamples.isEmpty()) {
-            return new ArrayList<>(rttSamples);
+            // **修复：过滤null值后返回**
+            List<Long> result = new ArrayList<>();
+            for (Long rtt : rttSamples) {
+                if (rtt != null && rtt > 0) {
+                    result.add(rtt);
+                }
+            }
+            return result;
         }
         
-        if (rttSamples.size() < 4) {
+        // **修复：先过滤null值和无效值**
+        List<Long> validSamples = new ArrayList<>();
+        for (Long rtt : rttSamples) {
+            if (rtt != null && rtt > 0) {
+                validSamples.add(rtt);
+            }
+        }
+        
+        if (validSamples.size() < 4) {
             // 样本太少，不进行过滤
-            return new ArrayList<>(rttSamples);
+            return validSamples;
         }
         
         // 转换为列表并排序
-        List<Long> sorted = new ArrayList<>(rttSamples);
+        List<Long> sorted = new ArrayList<>(validSamples);
         Collections.sort(sorted);
         
         // 计算四分位数

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { login as loginApi, getUserInfo, checkToken } from '@/api/userApi'
+import { pauseAllTasks } from '@/api/fileApi'
 import router from '@/router'
 import { userStorage } from '@/utils/storage'
 
@@ -65,12 +66,16 @@ export const useUserStore = defineStore('user', () => {
   }
   
   /**
-   * 登出
+   * 登出（先暂停服务端传输任务，再清空本地队列）
    */
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await pauseAllTasks()
+    } catch (_) {}
+    const { useTransferStore } = await import('@/store/transferStore')
+    useTransferStore().clearAllForLogout()
     token.value = ''
     userInfo.value = null
-    // 清除sessionStorage中的用户数据（标签页级别）
     userStorage.clear()
     router.push('/login')
   }

@@ -193,6 +193,37 @@ public class FileController {
     }
     
     /**
+     * 更新任务状态
+     * 前端在任务失败时调用此接口通知后端更新状态
+     *
+     * @param taskId 任务ID
+     * @param status 新状态（FAILED/CANCELLED）
+     * @return 更新结果
+     */
+    @PutMapping("/task/{taskId}/status")
+    public Result<String> updateTaskStatus(
+            @PathVariable String taskId,
+            @RequestParam String status) {
+        log.info("更新任务状态 - 任务ID: {}, 状态: {}", taskId, status);
+        try {
+            // 只允许更新为FAILED或CANCELLED
+            if (!"FAILED".equals(status) && !"CANCELLED".equals(status)) {
+                return Result.error("只允许更新状态为FAILED或CANCELLED");
+            }
+            
+            boolean success = taskService.updateTaskStatus(taskId, status);
+            if (success) {
+                return Result.success("任务状态已更新");
+            } else {
+                return Result.error("任务不存在或更新失败");
+            }
+        } catch (Exception e) {
+            log.error("更新任务状态失败", e);
+            return Result.error("更新任务状态失败: " + e.getMessage());
+        }
+    }
+    
+    /**
      * 查询任务列表
      *
      * @param queryDTO 查询条件
@@ -225,6 +256,37 @@ public class FileController {
         } catch (Exception e) {
             log.error("删除任务失败", e);
             return Result.error("删除任务失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 查询当前用户未完成的传输任务（用于刷新/重进传输中心后恢复列表）
+     *
+     * @param taskType 任务类型 UPLOAD / DOWNLOAD
+     * @return 未完成任务列表
+     */
+    @GetMapping("/task/incomplete")
+    public Result<List<TransferTaskVO>> getIncompleteTasks(@RequestParam String taskType) {
+        try {
+            List<TransferTaskVO> list = taskService.listIncompleteTasksForCurrentUser(taskType);
+            return Result.success(list);
+        } catch (Exception e) {
+            log.error("查询未完成任务失败", e);
+            return Result.error("查询未完成任务失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 暂停当前用户所有进行中/待处理任务（用于退出登录时）
+     */
+    @PostMapping("/task/pause-all")
+    public Result<Integer> pauseAllTasks() {
+        try {
+            int count = taskService.pauseAllCurrentUserTasks();
+            return Result.success(count);
+        } catch (Exception e) {
+            log.error("暂停全部任务失败", e);
+            return Result.error("暂停全部任务失败: " + e.getMessage());
         }
     }
     

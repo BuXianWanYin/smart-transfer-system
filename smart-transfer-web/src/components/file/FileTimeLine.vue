@@ -1,7 +1,13 @@
 <template>
   <div class="file-timeline-wrapper" v-loading="loading" element-loading-text="文件加载中……">
     <!-- 空状态 -->
-    <el-empty v-if="groupedList.length === 0" description="暂无图片" />
+    <el-empty v-if="groupedList.length === 0" description="暂无数据">
+      <template #image>
+        <el-icon :size="80" color="#c0c4cc">
+          <FolderOpened />
+        </el-icon>
+      </template>
+    </el-empty>
     
     <!-- 时间线列表 -->
     <div class="timeline-container" v-else>

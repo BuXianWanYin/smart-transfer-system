@@ -1,5 +1,6 @@
 package com.server.smarttransferserver.common;
 
+import com.server.smarttransferserver.common.enums.ResultCode;
 import lombok.Data;
 
 import java.io.Serializable;

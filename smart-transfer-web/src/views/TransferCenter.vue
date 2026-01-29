@@ -45,7 +45,7 @@
           </el-tooltip>
         </div>
         
-        <!-- 监控面板（可折叠） -->
+        <!-- 监控面板控制按钮 -->
         <div class="monitor-toggle">
           <el-button 
             text 
@@ -67,61 +67,30 @@
               <div class="monitor-value primary">{{ currentMetrics.algorithm || 'CUBIC' }}</div>
             </div>
             <div class="monitor-item">
-              <div class="monitor-label">拥塞窗口</div>
-              <div class="monitor-value info">{{ formatFileSize(currentMetrics.cwnd) }}</div>
-            </div>
-            <div class="monitor-item">
               <div class="monitor-label">传输速率</div>
               <div class="monitor-value success">{{ formatSpeed(realTimeSpeed) }}</div>
+            </div>
+            <div class="monitor-item">
+              <div class="monitor-label">网络质量</div>
+              <div class="monitor-value">
+                <el-tag :type="getQualityType(currentMetrics.networkQuality)" size="small">
+                  {{ currentMetrics.networkQuality || '-' }}
+                </el-tag>
+              </div>
+            </div>
+            <div class="monitor-item">
+              <div class="monitor-label">丢包率</div>
+              <div class="monitor-value" :class="{ danger: currentMetrics.lossRate > 0.05 }">
+                {{ formatPercent(currentMetrics.lossRate || 0) }}
+              </div>
             </div>
             <div class="monitor-item">
               <div class="monitor-label">RTT</div>
               <div class="monitor-value">{{ currentMetrics.rtt || 0 }}ms</div>
             </div>
             <div class="monitor-item">
-              <div class="monitor-label">丢包率</div>
-              <div class="monitor-value" :class="{ danger: currentMetrics.lossRate > 0.05 }">
-                {{ formatPercent(currentMetrics.lossRate) }}
-              </div>
-            </div>
-            <div class="monitor-item">
-              <div class="monitor-label">网络质量</div>
-              <div class="monitor-value">
-                <el-tag :type="getQualityType(currentMetrics.networkQuality)" size="small">
-                  {{ currentMetrics.networkQuality || '良好' }}
-                </el-tag>
-              </div>
-            </div>
-            <div class="monitor-item" v-if="currentMetrics.rttJitter !== undefined">
-              <div class="monitor-label">RTT抖动</div>
-              <div class="monitor-value">{{ currentMetrics.rttJitter || 0 }}ms</div>
-            </div>
-            <div class="monitor-item" v-if="currentMetrics.bdp !== undefined">
-              <div class="monitor-label">BDP</div>
-              <div class="monitor-value info">{{ formatFileSize(currentMetrics.bdp) }}</div>
-            </div>
-            <div class="monitor-item" v-if="currentMetrics.networkTrend">
-              <div class="monitor-label">网络趋势</div>
-              <div class="monitor-value">
-                <el-tag 
-                  :type="getTrendType(currentMetrics.networkTrend)" 
-                  size="small"
-                >
-                  <el-icon v-if="currentMetrics.networkTrend === '上升'"><ArrowUp /></el-icon>
-                  <el-icon v-else-if="currentMetrics.networkTrend === '下降'"><ArrowDown /></el-icon>
-                  <el-icon v-else><Minus /></el-icon>
-                  {{ currentMetrics.networkTrend }}
-                </el-tag>
-              </div>
-            </div>
-            <div class="monitor-item" v-if="currentMetrics.isWarmingUp">
-              <div class="monitor-label">算法状态</div>
-              <div class="monitor-value">
-                <el-tag type="warning" size="small">
-                  <el-icon><Loading /></el-icon>
-                  预热中
-                </el-tag>
-              </div>
+              <div class="monitor-label">估算带宽</div>
+              <div class="monitor-value info">{{ currentMetrics.bandwidth ? formatSpeed(currentMetrics.bandwidth) : '-' }}</div>
             </div>
           </div>
         </div>
@@ -183,17 +152,21 @@
                 <div class="item-name">{{ item.fileName }}</div>
                 <div class="item-progress">
                   <el-progress 
-                    :percentage="item.progress || 0" 
+                    :percentage="item.status === 'hashing' ? (item.hashProgress || 0) : (item.progress || 0)" 
                     :stroke-width="4"
                     :show-text="false"
                   />
-                  <span class="progress-text">
+                  <span class="progress-text" v-if="item.status === 'hashing'">
+                    正在计算文件MD5...
+                  </span>
+                  <span class="progress-text" v-else>
                     {{ formatFileSize(activeMenu === 'upload' ? (item.uploadedSize || 0) : (item.downloadedSize || 0)) }} / {{ formatFileSize(item.fileSize) }}
                   </span>
                 </div>
               </div>
               <div class="item-speed">
-                {{ formatSpeed(item.speed || 0) }}
+                <span v-if="item.status === 'hashing'">-</span>
+                <span v-else>{{ formatSpeed(item.speed || 0) }}</span>
               </div>
               <div class="item-status">
                 <el-tag :type="getStatusType(item.status)" size="small">
@@ -323,7 +296,7 @@ import { formatFileSize, formatSpeed } from '@/utils/format'
 import { formatDateTime } from '@/utils/format'
 import { getHistoryList, deleteHistory, clearAllHistory } from '@/api/historyApi'
 import { getFileIconByType } from '@/utils/fileType'
-import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload } from '@/api/fileApi'
+import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload, updateTaskStatus, getIncompleteTasks } from '@/api/fileApi'
 import SparkMD5 from 'spark-md5'
 
 const congestionStore = useCongestionStore()
@@ -336,15 +309,24 @@ const showMonitor = ref(true) // 监控面板默认显示
 const isMonitoring = ref(true)
 const wsConnected = ref(false)
 
-// 监控数据 - 从 congestionStore 同步
+// 监控数据 - 与后端 CongestionMetricsVO 字段对应，保证所有监控项可绑定
 const currentMetrics = ref({
+  taskId: '',
   algorithm: 'CUBIC',
   cwnd: 0,
+  ssthresh: 0,
   rate: 0,
+  state: '',
   rtt: 0,
+  minRtt: undefined,
   lossRate: 0,
-  bandwidth: 0,
-  networkQuality: '-'
+  bandwidth: undefined,
+  networkQuality: '-',
+  inflightCount: undefined,
+  inflightBytes: undefined,
+  rttJitter: undefined,
+  bdp: undefined,
+  networkTrend: undefined
 })
 
 // 监听 congestionStore 的变化，实时同步算法和其他指标
@@ -444,9 +426,24 @@ let wsUnsubscribe = null
 // emit用于刷新文件列表
 const emit = defineEmits(['refresh'])
 
+// 从服务端恢复未完成任务列表（刷新/重进页面后保留传输列表）
+const loadIncompleteTasks = async () => {
+  try {
+    const [uploadList, downloadList] = await Promise.all([
+      getIncompleteTasks('UPLOAD'),
+      getIncompleteTasks('DOWNLOAD')
+    ])
+    transferStore.mergeIncompleteUploadTasksFromServer(Array.isArray(uploadList) ? uploadList : [])
+    transferStore.mergeIncompleteDownloadTasksFromServer(Array.isArray(downloadList) ? downloadList : [])
+  } catch (e) {
+    console.warn('恢复未完成任务列表失败', e)
+  }
+}
+
 // 生命周期
 onMounted(() => {
   loadCompletedList()
+  loadIncompleteTasks()
   startMonitoring()
   // 自动开始待处理的任务
   startPendingDownloads()
@@ -786,14 +783,24 @@ const startUploadTask = async (task) => {
       delete task._uploadCleanup
     }
     
+    // **修复：通知后端更新任务状态为FAILED**
+    if (task.taskId) {
+      try {
+        await updateTaskStatus(task.taskId, 'FAILED')
+        console.log('已通知后端更新任务状态为FAILED')
+      } catch (updateError) {
+        console.error('更新后端任务状态失败:', updateError)
+        // 即使更新失败也不影响前端失败处理
+      }
+    }
+    
     // 不清理后端数据，保留用于重试（断点续传）
     // 只有在用户明确取消时才清理
     
-    // 使用 failUploadTask 记录失败历史
+    // 使用 failUploadTask标记为失败状态（保留在传输中列表，支持重试）
     await transferStore.failUploadTask(task.id, error.message || '上传失败')
     ElMessage.error(`${task.fileName} 上传失败: ${error.message}，可点击重试`)
-    // 刷新已完成列表（记录失败历史）
-    loadCompletedList()
+    // **修复：失败任务不加载到已完成列表，保留在传输中以便重试**
   }
 }
 
@@ -880,24 +887,26 @@ const handleWsEvent = (event) => {
     // **改进：支持新的按任务推送格式**
     if (data.type === 'metrics' && data.tasks) {
       // 新格式：按任务分别推送
-      // data.tasks 是一个Map，key是taskId，value是CongestionMetricsVO
+      // data.tasks 是一个 Map，key 是 taskId，value 是 CongestionMetricsVO
       const taskMetricsMap = data.tasks
       
-      // **修复：如果有活跃的上传任务，优先使用匹配taskId的任务指标**
-      const activeUploadTask = transferStore.uploadQueue.find(t => 
+      // **修复：优先使用当前活跃任务（上传或下载）的指标，确保监控项正确对应**
+      const activeUploadTask = transferStore.uploadQueue.find(t =>
         t.status === 'uploading' && t.taskId && taskMetricsMap[t.taskId]
       )
+      const activeDownloadTask = transferStore.downloadQueue.find(t =>
+        t.status === 'downloading' && t.taskId && taskMetricsMap[t.taskId]
+      )
       
-      if (activeUploadTask && taskMetricsMap[activeUploadTask.taskId]) {
-        // 使用当前活跃任务的指标
-        const taskMetrics = taskMetricsMap[activeUploadTask.taskId]
+      const matchedTask = activeUploadTask || activeDownloadTask
+      if (matchedTask && taskMetricsMap[matchedTask.taskId]) {
+        const taskMetrics = taskMetricsMap[matchedTask.taskId]
         currentMetrics.value = taskMetrics
         congestionStore.updateMetrics(taskMetrics)
       } else if (Object.keys(taskMetricsMap).length > 0) {
-        // **修复：如果没有匹配的任务，使用第一个任务的指标（确保有数据时显示）**
+        // 无匹配的活跃任务时，使用第一个任务的指标（确保有数据时显示）
         const firstTaskId = Object.keys(taskMetricsMap)[0]
         const taskMetrics = taskMetricsMap[firstTaskId]
-        // **修复：只有当指标不是NONE时才更新（避免覆盖有效数据）**
         if (taskMetrics && taskMetrics.algorithm && taskMetrics.algorithm !== 'NONE') {
           currentMetrics.value = taskMetrics
           congestionStore.updateMetrics(taskMetrics)
@@ -1083,10 +1092,12 @@ const handlePause = (item) => {
 
 const handleResume = (item) => {
   if (activeMenu.value === 'upload') {
-    // 从断点继续上传
+    if (item._fromServer && !item.file) {
+      ElMessage.warning('该上传任务已中断，请从文件管理重新选择文件上传，或取消任务')
+      return
+    }
     startUploadTask(item)
   } else {
-    // 从断点继续下载
     startDownloadTask(item)
   }
   ElMessage.info(`继续: ${item.fileName}`)
@@ -1095,6 +1106,10 @@ const handleResume = (item) => {
 // 重试失败的任务
 const handleRetry = (item) => {
   if (activeMenu.value === 'upload') {
+    if (item._fromServer && !item.file) {
+      ElMessage.warning('该上传任务已中断，请从文件管理重新选择文件上传，或取消任务')
+      return
+    }
     if (transferStore.retryUploadTask(item.id)) {
       startUploadTask(item)
       ElMessage.info(`重试上传: ${item.fileName}`)
@@ -1199,6 +1214,9 @@ const startDownloadTask = async (task) => {
     
     const { totalChunks, chunkSize, taskId, downloaded } = initRes.data
     const downloadedSet = new Set(downloaded || [])
+    
+    // **修复：保存 taskId 到下载任务，用于 WebSocket 监控数据匹配**
+    transferStore.updateDownloadTask(task.id, { taskId, totalChunks, chunkSize })
     
     // 2. 计算待下载的分块
     const pendingChunks = []
@@ -1575,14 +1593,25 @@ const startDownloadTask = async (task) => {
       delete task._downloadCleanup
     }
     
+    // **修复：通知后端更新任务状态为FAILED**
+    if (task.taskId) {
+      try {
+        await updateTaskStatus(task.taskId, 'FAILED')
+        console.log('已通知后端更新下载任务状态为FAILED')
+      } catch (updateError) {
+        console.error('更新后端任务状态失败:', updateError)
+        // 即使更新失败也不影响前端失败处理
+      }
+    }
+    
     // 标记失败
     transferStore.updateDownloadTask(task.id, {
       status: 'error',
-      speed: 0
+      speed: 0,
+      error: error.message || '下载失败'
     })
     ElMessage.error(`下载失败: ${error.message}，可点击重试`)
-    // 失败也刷新列表
-    loadCompletedList()
+    // **修复：失败任务不加载到已完成列表，保留在传输中以便重试**
   }
 }
 
@@ -1703,21 +1732,28 @@ const handleDeleteRecord = async (item) => {
 /* 监控面板 */
 .monitor-panel {
   padding: 16px 20px;
-  background: #f7f9fc;
+  background: #fff;
   border-bottom: 1px solid #e6e6e6;
 }
 
 .monitor-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .monitor-item {
   text-align: center;
   padding: 12px;
-  background: #fff;
+  background: #f7f9fc;
   border-radius: 8px;
+  border: 1px solid #e6e6e6;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.monitor-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .monitor-label {

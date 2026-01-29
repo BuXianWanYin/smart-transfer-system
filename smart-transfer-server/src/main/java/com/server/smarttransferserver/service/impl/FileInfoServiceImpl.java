@@ -73,17 +73,22 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Override
     public FileInfoVO getFileById(Long id) {
         Long userId = UserContextHolder.getUserId();
+        String userRole = UserContextHolder.getRole();
         FileInfo fileInfo = fileInfoMapper.selectById(id);
         if (fileInfo == null) {
             return null;
         }
         
-        // 检查用户权限：只能访问自己的文件
-        if (userId == null || !userId.equals(fileInfo.getUserId())) {
-            log.warn("用户尝试访问其他用户的文件 - 用户ID: {}, 文件ID: {}, 文件所有者: {}", 
-                     userId, id, fileInfo.getUserId());
-            return null;
+        // 修复：管理员可以访问所有用户的文件，普通用户只能访问自己的文件
+        if (!"ADMIN".equals(userRole)) {
+            // 普通用户：只能访问自己的文件
+            if (userId == null || !userId.equals(fileInfo.getUserId())) {
+                log.warn("用户尝试访问其他用户的文件 - 用户ID: {}, 文件ID: {}, 文件所有者: {}", 
+                         userId, id, fileInfo.getUserId());
+                return null;
+            }
         }
+        // 管理员：可以访问任何用户的文件，不进行权限检查
         
         // 只返回上传完成的文件，未完成的文件视为不存在
         if (!"COMPLETED".equals(fileInfo.getUploadStatus())) {
@@ -215,11 +220,17 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Override
     public List<FileInfoVO> searchByFileName(String fileName) {
         Long userId = UserContextHolder.getUserId();
+        String userRole = UserContextHolder.getRole();
         LambdaQueryWrapper<FileInfo> queryWrapper = new LambdaQueryWrapper<>();
         
-        // 用户数据隔离：只搜索当前用户的文件
-        if (userId != null) {
-            queryWrapper.eq(FileInfo::getUserId, userId);
+        // 修复：管理员可以搜索所有用户的文件，普通用户只能搜索自己的文件
+        if ("ADMIN".equals(userRole)) {
+            // 管理员：不添加userId条件，搜索所有用户的文件
+        } else {
+            // 普通用户：只搜索自己的文件
+            if (userId != null) {
+                queryWrapper.eq(FileInfo::getUserId, userId);
+            }
         }
         
         queryWrapper.like(FileInfo::getFileName, fileName)
@@ -252,15 +263,24 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             throw new RuntimeException("文件不存在");
         }
         
-        // 检查同名文件并自动重命名（同一文件夹下，排除当前文件）
-        Long userId = UserContextHolder.getUserId();
+        // 修复：添加权限检查 - 普通用户只能重命名自己的文件，管理员可以重命名任何文件
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long fileOwnerId = fileInfo.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole) && !fileOwnerId.equals(currentUserId)) {
+            throw new RuntimeException("无权重命名此文件");
+        }
+        
+        // 修复：检查同名文件时使用文件所有者的ID，而不是当前登录用户的ID
         Long folderId = fileInfo.getFolderId() != null ? fileInfo.getFolderId() : 0L;
-        String finalFileName = checkAndRenameDuplicateFileForRename(newFileName, folderId, userId, id);
+        String finalFileName = checkAndRenameDuplicateFileForRename(newFileName, folderId, fileOwnerId, id);
         
         fileInfo.setFileName(finalFileName);
         fileInfo.setUpdateTime(LocalDateTime.now());
         updateById(fileInfo);
-        log.info("文件重命名 - ID: {}, 新文件名: {}", id, finalFileName);
+        log.info("文件重命名 - ID: {}, 新文件名: {}, 文件所有者: {}, 操作者: {}, 角色: {}", 
+                id, finalFileName, fileOwnerId, currentUserId, currentUserRole);
     }
     
     /**
@@ -277,6 +297,15 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             throw new RuntimeException("文件不存在");
         }
         
+        // 修复：添加权限检查 - 普通用户只能移动自己的文件，管理员可以移动任何文件
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long fileOwnerId = fileInfo.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole) && !fileOwnerId.equals(currentUserId)) {
+            throw new RuntimeException("无权移动此文件");
+        }
+        
         // 规范化目标文件夹ID
         Long normalizedTargetFolderId = (targetFolderId == null || targetFolderId == 0) ? 0L : targetFolderId;
         
@@ -286,14 +315,28 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             if (targetFolder == null) {
                 throw new RuntimeException("目标文件夹不存在");
             }
+            
+            // 修复：验证目标文件夹的所有者 - 管理员移动文件时，目标文件夹应该属于文件所有者
+            // 普通用户移动文件时，目标文件夹应该属于当前用户
+            if (!"ADMIN".equals(currentUserRole)) {
+                // 普通用户：目标文件夹必须属于自己
+                if (!targetFolder.getUserId().equals(currentUserId)) {
+                    throw new RuntimeException("无权移动文件到该文件夹");
+                }
+            } else {
+                // 管理员：目标文件夹应该属于文件所有者（保持文件的所有者不变）
+                if (!targetFolder.getUserId().equals(fileOwnerId)) {
+                    throw new RuntimeException("目标文件夹必须属于文件所有者");
+                }
+            }
         }
         
         // 如果移动到不同文件夹，检查目标文件夹是否有同名文件
         Long currentFolderId = fileInfo.getFolderId() != null ? fileInfo.getFolderId() : 0L;
         if (!currentFolderId.equals(normalizedTargetFolderId)) {
-            Long userId = UserContextHolder.getUserId();
+            // 修复：检查同名文件时使用文件所有者的ID，而不是当前登录用户的ID
             String finalFileName = checkAndRenameDuplicateFileForRename(
-                    fileInfo.getFileName(), normalizedTargetFolderId, userId, id);
+                    fileInfo.getFileName(), normalizedTargetFolderId, fileOwnerId, id);
             
             if (!finalFileName.equals(fileInfo.getFileName())) {
                 log.info("移动文件时检测到同名文件，自动重命名 - 原文件名: {}, 新文件名: {}, 目标文件夹: {}", 
@@ -305,7 +348,8 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         fileInfo.setFolderId(normalizedTargetFolderId);
         fileInfo.setUpdateTime(LocalDateTime.now());
         updateById(fileInfo);
-        log.info("文件移动 - ID: {}, 目标文件夹: {}", id, normalizedTargetFolderId);
+        log.info("文件移动 - ID: {}, 目标文件夹: {}, 文件所有者: {}, 操作者: {}, 角色: {}", 
+                id, normalizedTargetFolderId, fileOwnerId, currentUserId, currentUserRole);
     }
     
     /**
@@ -366,11 +410,25 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             // 规范化目标文件夹ID
             Long normalizedTargetFolderId = (targetFolderId == null || targetFolderId == 0) ? 0L : targetFolderId;
             
+            // 修复：添加权限检查 - 所有用户（包括管理员）只能复制自己的文件
+            Long currentUserId = UserContextHolder.getUserId();
+            Long sourceFileOwnerId = sourceFile.getUserId();
+            
+            // 管理员也不能复制其他用户的文件
+            if (currentUserId == null || !sourceFileOwnerId.equals(currentUserId)) {
+                throw new RuntimeException("无权复制此文件，只能复制自己的文件");
+            }
+            
             // 验证目标文件夹是否存在（如果targetFolderId不为0）
             if (normalizedTargetFolderId > 0) {
                 Folder targetFolder = folderMapper.selectById(normalizedTargetFolderId);
                 if (targetFolder == null) {
                     throw new RuntimeException("目标文件夹不存在");
+                }
+                
+                // 验证目标文件夹的所有者 - 目标文件夹必须属于当前用户
+                if (!targetFolder.getUserId().equals(currentUserId)) {
+                    throw new RuntimeException("无权复制文件到该文件夹");
                 }
             }
             
@@ -558,6 +616,15 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             throw new RuntimeException("文件不存在");
         }
         
+        // 修复：添加权限检查 - 普通用户只能解压自己的文件，管理员可以解压任何文件
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long fileOwnerId = fileInfo.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole) && !fileOwnerId.equals(currentUserId)) {
+            throw new RuntimeException("无权解压此文件");
+        }
+        
         String extendName = fileInfo.getExtendName();
         if (extendName == null || !extendName.equalsIgnoreCase("zip")) {
             throw new RuntimeException("仅支持解压 ZIP 格式文件");
@@ -588,6 +655,20 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
                     Folder targetFolder = folderMapper.selectById(normalizedTargetFolderId);
                     if (targetFolder == null) {
                         throw new RuntimeException("目标文件夹不存在");
+                    }
+                    
+                    // 修复：验证目标文件夹的所有者 - 普通用户解压文件时，目标文件夹必须属于自己
+                    // 管理员解压文件时，目标文件夹应该属于管理员（因为解压出的文件属于管理员）
+                    if (!"ADMIN".equals(currentUserRole)) {
+                        // 普通用户：目标文件夹必须属于自己
+                        if (!targetFolder.getUserId().equals(currentUserId)) {
+                            throw new RuntimeException("无权解压文件到该文件夹");
+                        }
+                    } else {
+                        // 管理员：目标文件夹应该属于管理员（因为解压出的文件属于管理员）
+                        if (!targetFolder.getUserId().equals(currentUserId)) {
+                            throw new RuntimeException("目标文件夹必须属于当前用户");
+                        }
                     }
                 }
                 destFolderId = normalizedTargetFolderId;

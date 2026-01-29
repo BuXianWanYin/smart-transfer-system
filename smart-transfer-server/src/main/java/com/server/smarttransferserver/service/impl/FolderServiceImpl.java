@@ -90,12 +90,27 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public List<Folder> getFoldersByParentId(Long parentId) {
-        Long userId = UserContextHolder.getUserId();
+    public List<Folder> getFoldersByParentId(Long parentId, Long filterUserId) {
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
         LambdaQueryWrapper<Folder> wrapper = new LambdaQueryWrapper<>();
-        if (userId != null) {
-            wrapper.eq(Folder::getUserId, userId);
+        
+        // 修复：文件夹查询也支持filterUserId参数
+        // 1. 如果是管理员，且指定了filterUserId，则查询指定用户的文件夹
+        // 2. 如果是管理员，且未指定filterUserId，则查询所有用户的文件夹
+        // 3. 如果是普通用户，只能查询自己的文件夹（忽略filterUserId参数）
+        if ("ADMIN".equals(currentUserRole)) {
+            if (filterUserId != null) {
+                wrapper.eq(Folder::getUserId, filterUserId);
+            }
+            // 如果未指定filterUserId，不添加userId条件，查询所有用户
+        } else {
+            // 普通用户：只能查询自己的文件夹
+            if (currentUserId != null) {
+                wrapper.eq(Folder::getUserId, currentUserId);
+            }
         }
+        
         wrapper.eq(Folder::getParentId, parentId == null ? 0L : parentId)
                .eq(Folder::getDelFlag, 0)  // 只查询未删除的文件夹
                .orderByDesc(Folder::getCreateTime);
@@ -109,6 +124,15 @@ public class FolderServiceImpl implements FolderService {
         Long currentFolderId = folderId == null ? 0L : folderId;
         String currentFolderName = "全部文件";
         
+        // 补充日志：显示实际执行查询的用户信息
+        if ("ADMIN".equals(currentUserRole) && filterUserId != null) {
+            log.debug("管理员查询文件夹内容 - 当前用户ID: {}, 筛选用户ID: {}, 文件夹ID: {}", 
+                     currentUserId, filterUserId, currentFolderId);
+        } else {
+            log.debug("查询文件夹内容 - 用户ID: {}, 角色: {}, 文件夹ID: {}", 
+                     currentUserId, currentUserRole, currentFolderId);
+        }
+        
         // 是否按类型筛选（非全部类型时，在所有目录中搜索该类型文件）
         boolean filterByType = fileType != null && fileType > 0 && fileType < 6;
 
@@ -119,32 +143,42 @@ public class FolderServiceImpl implements FolderService {
             }
         }
 
-        // 确定用于查询的用户ID（文件夹查询仍使用当前用户，因为文件夹是按用户隔离的）
-        Long queryUserId = currentUserId;
+        // 修复：文件夹查询也支持filterUserId参数
+        // 文件夹查询的用户ID逻辑：
+        // 1. 如果是管理员，且指定了filterUserId，则查询指定用户的文件夹
+        // 2. 如果是管理员，且未指定filterUserId，则查询所有用户的文件夹
+        // 3. 如果是普通用户，只能查询自己的文件夹
+        Long folderQueryUserId;
+        if ("ADMIN".equals(currentUserRole)) {
+            folderQueryUserId = filterUserId; // 如果指定了filterUserId，查询指定用户；否则为null，查询所有用户
+        } else {
+            folderQueryUserId = currentUserId; // 普通用户只能查询自己的文件夹
+        }
+        
         // 文件查询的用户ID逻辑：
         // 1. 如果是管理员，且指定了filterUserId，则查询指定用户的文件
         // 2. 如果是管理员，且未指定filterUserId，则查询所有用户的文件
         // 3. 如果是普通用户，只能查询自己的文件
-        Long fileQueryUserIdTemp;
+        Long fileQueryUserId;
         if ("ADMIN".equals(currentUserRole)) {
-            fileQueryUserIdTemp = filterUserId; // 如果指定了filterUserId，查询指定用户；否则为null，查询所有用户
+            fileQueryUserId = filterUserId; // 如果指定了filterUserId，查询指定用户；否则为null，查询所有用户
         } else {
-            fileQueryUserIdTemp = currentUserId; // 普通用户只能查询自己的文件
+            fileQueryUserId = currentUserId; // 普通用户只能查询自己的文件
         }
-        final Long fileQueryUserId = fileQueryUserIdTemp;
 
         // 获取子文件夹（仅在"全部"类型时显示文件夹）
-        // 注意：文件夹查询仍使用当前用户，因为文件夹是按用户隔离的
+        // 修复：文件夹查询也使用filterUserId参数
         List<FolderVO> folderVOs = new ArrayList<>();
         if (!filterByType) {
-            List<Folder> subFolders = getFoldersByParentId(currentFolderId);
+            List<Folder> subFolders = getFoldersByParentId(currentFolderId, folderQueryUserId);
             folderVOs = subFolders.stream().map(f -> {
                 FolderVO vo = new FolderVO();
                 BeanUtils.copyProperties(f, vo);
                 vo.setType("folder");
-                // 统计子文件夹和文件数量（文件夹仍按当前用户统计）
-                vo.setSubFolderCount(countSubFolders(f.getId(), queryUserId));
-                vo.setFileCount(countFiles(f.getId(), fileQueryUserId)); // 文件统计使用fileQueryUserId
+                vo.setUserId(f.getUserId()); // 设置用户ID，供管理员查看时显示
+                // 修复：统计子文件夹和文件数量都使用正确的用户ID
+                vo.setSubFolderCount(countSubFolders(f.getId(), folderQueryUserId));
+                vo.setFileCount(countFiles(f.getId(), fileQueryUserId));
                 return vo;
             }).collect(Collectors.toList());
         }
@@ -234,17 +268,26 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件夹不存在");
         }
 
-        Long userId = UserContextHolder.getUserId();
+        // 修复：添加权限检查 - 普通用户只能重命名自己的文件夹，管理员可以重命名任何文件夹
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long folderOwnerId = folder.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole) && !folderOwnerId.equals(currentUserId)) {
+            throw new RuntimeException("无权重命名此文件夹");
+        }
+
         Long parentId = folder.getParentId() != null ? folder.getParentId() : 0L;
         
-        // 检查同名文件夹并自动重命名（排除当前文件夹本身）
-        String finalFolderName = checkAndRenameDuplicateFolderForRename(newName, parentId, userId, folderId);
+        // 修复：检查同名文件夹时使用文件夹所有者的ID，而不是当前登录用户的ID
+        String finalFolderName = checkAndRenameDuplicateFolderForRename(newName, parentId, folderOwnerId, folderId);
 
         folder.setFolderName(finalFolderName);
         folder.setUpdateTime(LocalDateTime.now());
         folderMapper.updateById(folder);
         
-        log.info("重命名文件夹成功 - ID: {}, 新名称: {}", folderId, finalFolderName);
+        log.info("重命名文件夹成功 - ID: {}, 新名称: {}, 文件夹所有者: {}, 操作者: {}, 角色: {}", 
+                folderId, finalFolderName, folderOwnerId, currentUserId, currentUserRole);
     }
 
     @Override
@@ -255,9 +298,19 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件夹不存在");
         }
         
+        // 修复：添加权限检查 - 普通用户只能删除自己的文件夹，管理员可以删除任何文件夹
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long folderOwnerId = folder.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole) && !folderOwnerId.equals(currentUserId)) {
+            throw new RuntimeException("无权删除此文件夹");
+        }
+        
         // 使用回收站服务进行软删除（会递归删除子文件夹和子文件）
         recoveryFileService.deleteFolderToRecovery(folderId);
-        log.info("文件夹已移至回收站 - ID: {}", folderId);
+        log.info("文件夹已移至回收站 - ID: {}, 文件夹所有者: {}, 操作者: {}, 角色: {}", 
+                folderId, folderOwnerId, currentUserId, currentUserRole);
     }
 
     @Override
@@ -291,6 +344,15 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件不存在");
         }
         
+        // 修复：添加权限检查 - 普通用户只能移动自己的文件，管理员可以移动任何文件
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long fileOwnerId = file.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole) && !fileOwnerId.equals(currentUserId)) {
+            throw new RuntimeException("无权移动此文件");
+        }
+        
         // 规范化目标文件夹ID
         Long normalizedTargetFolderId = (folderId == null || folderId == 0) ? 0L : folderId;
         
@@ -300,12 +362,27 @@ public class FolderServiceImpl implements FolderService {
             if (targetFolder == null) {
                 throw new RuntimeException("目标文件夹不存在");
             }
+            
+            // 修复：验证目标文件夹的所有者 - 管理员移动文件时，目标文件夹应该属于文件所有者
+            // 普通用户移动文件时，目标文件夹应该属于当前用户
+            if (!"ADMIN".equals(currentUserRole)) {
+                // 普通用户：目标文件夹必须属于自己
+                if (!targetFolder.getUserId().equals(currentUserId)) {
+                    throw new RuntimeException("无权移动文件到该文件夹");
+                }
+            } else {
+                // 管理员：目标文件夹应该属于文件所有者（保持文件的所有者不变）
+                if (!targetFolder.getUserId().equals(fileOwnerId)) {
+                    throw new RuntimeException("目标文件夹必须属于文件所有者");
+                }
+            }
         }
         
         // 如果移动到不同文件夹，检查目标文件夹是否有同名文件
         Long currentFolderId = file.getFolderId() != null ? file.getFolderId() : 0L;
         if (!currentFolderId.equals(normalizedTargetFolderId)) {
-            Long userId = UserContextHolder.getUserId();
+            // 修复：检查同名文件时使用文件所有者的ID，而不是当前登录用户的ID
+            Long userId = fileOwnerId;
             String finalFileName = fileInfoMapper.selectByFileNameAndFolder(
                     file.getFileName(), normalizedTargetFolderId, userId).isEmpty() 
                     ? file.getFileName() 
@@ -321,6 +398,9 @@ public class FolderServiceImpl implements FolderService {
         file.setFolderId(normalizedTargetFolderId);
         file.setUpdateTime(LocalDateTime.now());
         fileInfoMapper.updateById(file);
+        
+        log.info("文件移动到文件夹 - 文件ID: {}, 目标文件夹ID: {}, 文件所有者: {}, 操作者: {}, 角色: {}", 
+                fileId, normalizedTargetFolderId, fileOwnerId, currentUserId, currentUserRole);
     }
     
     /**
@@ -381,6 +461,15 @@ public class FolderServiceImpl implements FolderService {
             throw new RuntimeException("文件夹不存在");
         }
 
+        // 修复：添加权限检查 - 普通用户只能移动自己的文件夹，管理员可以移动任何文件夹
+        Long currentUserId = UserContextHolder.getUserId();
+        String currentUserRole = UserContextHolder.getRole();
+        Long folderOwnerId = folder.getUserId();
+        
+        if (!"ADMIN".equals(currentUserRole) && !folderOwnerId.equals(currentUserId)) {
+            throw new RuntimeException("无权移动此文件夹");
+        }
+
         // 规范化目标文件夹ID
         Long normalizedTargetFolderId = (targetFolderId == null || targetFolderId == 0) ? 0L : targetFolderId;
         
@@ -392,6 +481,20 @@ public class FolderServiceImpl implements FolderService {
                 throw new RuntimeException("目标文件夹不存在");
             }
             
+            // 修复：验证目标文件夹的所有者 - 管理员移动文件夹时，目标文件夹应该属于文件夹所有者
+            // 普通用户移动文件夹时，目标文件夹应该属于当前用户
+            if (!"ADMIN".equals(currentUserRole)) {
+                // 普通用户：目标文件夹必须属于自己
+                if (!targetFolder.getUserId().equals(currentUserId)) {
+                    throw new RuntimeException("无权移动文件夹到该位置");
+                }
+            } else {
+                // 管理员：目标文件夹应该属于文件夹所有者（保持文件夹的所有者不变）
+                if (!targetFolder.getUserId().equals(folderOwnerId)) {
+                    throw new RuntimeException("目标文件夹必须属于文件夹所有者");
+                }
+            }
+            
             // 检查是否移动到子文件夹（会造成循环）
             if (isSubFolder(folderId, normalizedTargetFolderId)) {
                 throw new RuntimeException("不能移动到子文件夹");
@@ -400,9 +503,9 @@ public class FolderServiceImpl implements FolderService {
         
         // 如果移动到不同父目录，检查目标父目录是否有同名文件夹
         if (!folder.getParentId().equals(normalizedTargetFolderId)) {
-            Long userId = UserContextHolder.getUserId();
+            // 修复：检查同名文件夹时使用文件夹所有者的ID，而不是当前登录用户的ID
             String finalFolderName = checkAndRenameDuplicateFolderForRename(
-                    folder.getFolderName(), normalizedTargetFolderId, userId, folderId);
+                    folder.getFolderName(), normalizedTargetFolderId, folderOwnerId, folderId);
             
             if (!finalFolderName.equals(folder.getFolderName())) {
                 log.info("移动文件夹时检测到同名文件夹，自动重命名 - 原文件夹名: {}, 新文件夹名: {}, 目标父目录: {}", 

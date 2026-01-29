@@ -17,8 +17,10 @@ public interface FolderService {
 
     /**
      * 获取文件夹列表
+     * @param parentId 父文件夹ID
+     * @param filterUserId 用户ID（可选，仅管理员可用，用于筛选指定用户的文件夹）
      */
-    List<Folder> getFoldersByParentId(Long parentId);
+    List<Folder> getFoldersByParentId(Long parentId, Long filterUserId);
 
     /**
      * 获取文件夹内容（文件夹+文件）

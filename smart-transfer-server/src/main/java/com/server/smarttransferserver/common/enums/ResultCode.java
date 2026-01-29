@@ -1,4 +1,4 @@
-package com.server.smarttransferserver.common;
+package com.server.smarttransferserver.common.enums;
 
 /**
  * 统一返回状态码枚举
@@ -140,4 +140,3 @@ public enum ResultCode {
         return message;
     }
 }
-

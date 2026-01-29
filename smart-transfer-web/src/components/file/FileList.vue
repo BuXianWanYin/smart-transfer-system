@@ -245,7 +245,9 @@ const loadFileList = async () => {
   try {
     // 回收站特殊处理
     if (fileType.value === 6) {
-      const data = await getRecoveryFileList()
+      // 如果是管理员且指定了用户，传递userId参数
+      const userId = userStore.isAdmin && selectedUserId.value ? selectedUserId.value : null
+      const data = await getRecoveryFileList(userId)
       fileList.value = data || []
       total.value = fileList.value.length
       return
@@ -276,6 +278,11 @@ const loadFileList = async () => {
     
     fileList.value = [...folders, ...files]
     total.value = res.total || fileList.value.length
+    
+    // 调试：输出文件列表数据
+    console.log('📂 文件列表数据:', fileList.value)
+    console.log('👥 文件夹userId:', folders.map(f => ({ name: f.folderName, userId: f.userId })))
+    console.log('📄 文件userId:', files.map(f => ({ name: f.fileName, userId: f.userId })))
     
   } catch (error) {
     ElMessage.error('加载文件列表失败')

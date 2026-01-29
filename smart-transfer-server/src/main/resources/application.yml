@@ -76,9 +76,10 @@ management:
 logging:
   level:
     root: INFO
-    com.server: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.server: INFO
+    com.server.smarttransferserver.mapper: WARN  # Mapper SQL日志级别设置为WARN，减少日志输出
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
   file:
     name: logs/smart-transfer-server.log
   pattern:

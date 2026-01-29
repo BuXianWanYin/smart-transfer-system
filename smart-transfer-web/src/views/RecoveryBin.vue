@@ -3,6 +3,25 @@
     <!-- 顶部操作栏 -->
     <div class="operation-bar">
       <div class="left-actions">
+        <!-- 管理员：用户筛选 -->
+        <el-select
+          v-if="userStore.isAdmin"
+          v-model="selectedUserId"
+          placeholder="全部用户"
+          clearable
+          filterable
+          style="width: 150px; margin-right: 10px"
+          @change="handleUserChange"
+        >
+          <el-option label="全部用户" value="" />
+          <el-option
+            v-for="user in userList"
+            :key="user.id"
+            :label="user.nickname || user.username"
+            :value="user.id"
+          />
+        </el-select>
+        
         <template v-if="selectedFiles.length > 0">
           <el-button type="primary" @click="handleBatchRestore">
             <el-icon><RefreshLeft /></el-icon>
@@ -49,6 +68,13 @@
           </template>
         </el-table-column>
         
+        <!-- 管理员：显示所属用户 -->
+        <el-table-column v-if="userStore.isAdmin" prop="userId" label="所属用户" width="120" align="center">
+          <template #default="{ row }">
+            <span>{{ getUserName(row.userId) }}</span>
+          </template>
+        </el-table-column>
+        
         <el-table-column prop="deleteTime" label="删除时间" width="180" align="center">
           <template #default="{ row }">
             <span>{{ formatDate(row.deleteTime) }}</span>
@@ -88,10 +114,41 @@ import {
   deleteRecoveryFile, 
   clearAllRecoveryFiles 
 } from '@/api/recoveryApi'
+import { useUserStore } from '@/store/userStore'
+import { getUserList } from '@/api/userApi'
 
+const userStore = useUserStore()
 const loading = ref(false)
 const fileList = ref([])
 const selectedFiles = ref([])
+
+// 用户筛选（仅管理员）
+const selectedUserId = ref('')
+const userList = ref([])
+
+// 用户筛选变化
+const handleUserChange = () => {
+  loadFileList()
+}
+
+// 获取用户名（根据用户ID）
+const getUserName = (userId) => {
+  if (!userId) return '-'
+  const user = userList.value.find(u => u.id === userId)
+  return user ? (user.nickname || user.username) : `用户${userId}`
+}
+
+// 加载用户列表（仅管理员）
+const loadUserList = async () => {
+  if (userStore.isAdmin) {
+    try {
+      const res = await getUserList()
+      userList.value = res || []
+    } catch (error) {
+      console.error('加载用户列表失败', error)
+    }
+  }
+}
 
 // 格式化文件大小
 const formatSize = (size) => {
@@ -115,8 +172,9 @@ const getFileIcon = (row) => {
 const loadFileList = async () => {
   try {
     loading.value = true
-    // HTTP拦截器已经处理了响应格式，直接使用返回的数据
-    const res = await getRecoveryFileList()
+    // 如果是管理员且指定了用户，传递userId参数
+    const userId = userStore.isAdmin && selectedUserId.value ? selectedUserId.value : null
+    const res = await getRecoveryFileList(userId)
     fileList.value = res || []
   } catch {
     ElMessage.error('加载回收站失败')
@@ -265,6 +323,7 @@ const handleClearAll = async () => {
 
 // 初始化
 onMounted(() => {
+  loadUserList()
   loadFileList()
 })
 </script>

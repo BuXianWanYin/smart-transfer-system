@@ -11,6 +11,16 @@
       @row-contextmenu="handleContextMenu"
       @row-dblclick="handleRowDblClick"
     >
+      <!-- 空状态 -->
+      <template #empty>
+        <el-empty description="暂无数据">
+          <template #image>
+            <el-icon :size="80" color="#c0c4cc">
+              <FolderOpened />
+            </el-icon>
+          </template>
+        </el-empty>
+      </template>
       <!-- 选择列 -->
       <el-table-column type="selection" width="55" />
       
@@ -50,15 +60,22 @@
       <el-table-column
         prop="userId"
         label="所属用户"
-        width="120"
+        width="160"
         sortable
         align="center"
         v-if="userStore.isAdmin && !isMobile"
       >
         <template #default="{ row }">
-          <el-tag v-if="row.userId" size="small" type="info">
-            {{ getUserName(row.userId) }}
-          </el-tag>
+          <div v-if="row.userId" class="user-info">
+            <el-avatar 
+              :size="28" 
+              :src="getUserAvatar(row.userId)"
+              class="user-avatar"
+            >
+              {{ getUserName(row.userId).charAt(0) }}
+            </el-avatar>
+            <span class="user-name">{{ getUserName(row.userId) }}</span>
+          </div>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -278,17 +295,38 @@ onMounted(async () => {
     try {
       const res = await getUserList()
       userList.value = res || []
+      console.log('✅ 用户列表加载成功:', userList.value)
     } catch (error) {
-      console.error('加载用户列表失败', error)
+      console.error('❌ 加载用户列表失败:', error)
     }
   }
 })
 
 // 获取用户名（根据用户ID）
 const getUserName = (userId) => {
+  console.log('🔍 查找用户:', userId, '用户列表:', userList.value)
   if (!userId) return '-'
   const user = userList.value.find(u => u.id === userId)
-  return user ? (user.nickname || user.username) : `用户${userId}`
+  const name = user ? (user.nickname || user.username) : `用户${userId}`
+  console.log('👤 用户名:', name, '用户对象:', user)
+  return name
+}
+
+// 获取用户头像（根据用户ID）
+const getUserAvatar = (userId) => {
+  if (!userId) return ''
+  const user = userList.value.find(u => u.id === userId)
+  if (user && user.avatar) {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+    // 如果avatar已经是完整URL，直接返回；否则拼接
+    if (user.avatar.startsWith('http://') || user.avatar.startsWith('https://')) {
+      return user.avatar
+    }
+    // 相对路径格式：avatars/userId/filename
+    const timestamp = new Date().getTime()
+    return `${baseURL}/user/avatar/${user.avatar}?t=${timestamp}`
+  }
+  return ''
 }
 
 // 屏幕宽度检测
@@ -751,6 +789,26 @@ defineExpose({
     
     &:hover {
       color: var(--el-color-primary);
+    }
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    
+    .user-avatar {
+      flex-shrink: 0;
+    }
+    
+    .user-name {
+      font-size: 13px;
+      color: #606266;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100px;
     }
   }
   

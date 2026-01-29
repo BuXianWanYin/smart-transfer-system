@@ -61,7 +61,7 @@
         style="width: 150px; margin-right: 10px"
         @change="handleUserChange"
       >
-        <el-option label="全部用户" :value="null" />
+        <el-option label="全部用户" value="" />
         <el-option
           v-for="user in userList"
           :key="user.id"
@@ -187,12 +187,13 @@ const props = defineProps({
 const emit = defineEmits(['refresh', 'upload-file', 'new-folder', 'search-file', 'show-upload', 'change-mode', 'change-grid-size', 'change-columns', 'user-change'])
 
 // 用户筛选（仅管理员）
-const selectedUserId = ref(null)
+const selectedUserId = ref('')
 const userList = ref([])
 
 // 用户筛选变化
 const handleUserChange = (userId) => {
-  emit('user-change', userId)
+  // 将空字符串转换为 null 传递给父组件
+  emit('user-change', userId === '' ? null : userId)
 }
 
 // 加载用户列表（仅管理员）

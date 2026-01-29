@@ -42,6 +42,13 @@ public class TransferTask implements Serializable {
     private Long fileId;
 
     /**
+     * 用户ID（任务所属用户：上传为文件所属用户，下载为发起下载的用户）
+     * 用于刷新/重登后恢复「我的」未完成任务列表
+     */
+    @TableField("user_id")
+    private Long userId;
+
+    /**
      * 任务类型：UPLOAD-上传 DOWNLOAD-下载
      */
     @TableField("task_type")

@@ -57,12 +57,6 @@ const routes = [
     redirect: '/transfer'
   },
   {
-    path: '/monitor',
-    name: 'CongestionMonitor',
-    component: () => import('@/views/CongestionMonitor.vue'),
-    meta: { title: '拥塞控制监控', requiresAdmin: true }
-  },
-  {
     path: '/recovery',
     redirect: '/files?fileType=6'
   }
@@ -153,9 +147,9 @@ router.beforeEach(async (to, from, next) => {
             userStore.userInfo = storedUserInfo
           }
         }
-        // 管理员跳转到文件管理，普通用户跳转到传输中心
+        // 管理员跳转到系统统计，普通用户跳转到传输中心
         if (userStore.isAdmin) {
-          next('/files')
+          next('/admin/stats')
         } else {
           next('/transfer')
         }
@@ -184,9 +178,9 @@ router.beforeEach(async (to, from, next) => {
             userStore.userInfo = storedUserInfo
           }
         }
-        // 根据角色跳转：管理员跳转到文件管理，普通用户跳转到传输中心
+        // 根据角色跳转：管理员跳转到系统统计，普通用户跳转到传输中心
         if (userStore.isAdmin) {
-          next('/files')
+          next('/admin/stats')
         } else {
           next('/transfer')
         }
@@ -246,8 +240,8 @@ router.beforeEach(async (to, from, next) => {
         }
       }
       if (userStore.isAdmin) {
-        ElMessage.warning('管理员请使用文件管理功能')
-        next('/files')
+        ElMessage.warning('管理员请使用系统管理功能')
+        next('/admin/stats')
         return
       }
     }

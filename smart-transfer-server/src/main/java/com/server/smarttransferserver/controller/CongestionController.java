@@ -15,12 +15,15 @@ import java.util.Map;
 
 /**
  * 拥塞控制Controller
- * 需要管理员权限
+ * 已废弃：监控功能已移除，管理员不再需要此功能
+ * 原因：不同用户传输的算法不一致，无法统一显示全局监控数据
+ * 
+ * @deprecated 此Controller已废弃，所有接口已禁用，返回403禁止访问
  */
 @Slf4j
 @RestController
 @RequestMapping("/congestion")
-@RequireAdmin
+@Deprecated
 public class CongestionController {
     
     @Autowired
@@ -31,109 +34,75 @@ public class CongestionController {
     
     /**
      * 获取当前拥塞控制指标
+     * 已禁用：监控功能已移除
      *
-     * @return 指标信息
+     * @return 403禁止访问
      */
     @GetMapping("/metrics")
     public Result<CongestionMetricsVO> getCurrentMetrics() {
-        log.info("获取当前拥塞控制指标");
-        try {
-            CongestionMetricsVO metrics = metricsService.getCurrentMetrics();
-            return Result.success(metrics);
-        } catch (Exception e) {
-            log.error("获取拥塞控制指标失败", e);
-            return Result.error("获取指标失败: " + e.getMessage());
-        }
+        log.warn("尝试访问已禁用的监控接口: /congestion/metrics");
+        return Result.error(403, "监控功能已移除，此接口不可用");
     }
     
     /**
      * 获取当前使用的算法
+     * 已禁用：监控功能已移除
      *
-     * @return 算法名称
+     * @return 403禁止访问
      */
     @GetMapping("/algorithm")
     public Result<String> getCurrentAlgorithm() {
-        log.info("获取当前算法");
-        try {
-            String algorithm = algorithmService.getCurrentAlgorithmName();
-            return Result.success(algorithm);
-        } catch (Exception e) {
-            log.error("获取当前算法失败", e);
-            return Result.error("获取算法失败: " + e.getMessage());
-        }
+        log.warn("尝试访问已禁用的监控接口: /congestion/algorithm");
+        return Result.error(403, "监控功能已移除，此接口不可用");
     }
     
     /**
      * 切换拥塞控制算法
+     * 已禁用：监控功能已移除
      *
-     * @param algorithm 算法名称（RENO, VEGAS, CUBIC, BBR, ADAPTIVE）
-     * @return 切换结果
+     * @param algorithm 算法名称
+     * @return 403禁止访问
      */
     @PostMapping("/algorithm")
     public Result<String> switchAlgorithm(@RequestParam String algorithm) {
-        log.info("切换拥塞控制算法 - 算法: {}", algorithm);
-        try {
-            algorithmService.switchAlgorithm(algorithm);
-            return Result.success("算法切换成功");
-        } catch (Exception e) {
-            log.error("切换算法失败", e);
-            return Result.error("切换算法失败: " + e.getMessage());
-        }
+        log.warn("尝试访问已禁用的监控接口: /congestion/algorithm (POST)");
+        return Result.error(403, "监控功能已移除，此接口不可用");
     }
     
     /**
      * 获取算法状态详情
+     * 已禁用：监控功能已移除
      *
-     * @return 状态详情
+     * @return 403禁止访问
      */
     @GetMapping("/status")
     public Result<String> getAlgorithmStatus() {
-        log.info("获取算法状态详情");
-        try {
-            String status = algorithmService.getAlgorithmStatus();
-            return Result.success(status);
-        } catch (Exception e) {
-            log.error("获取算法状态失败", e);
-            return Result.error("获取状态失败: " + e.getMessage());
-        }
+        log.warn("尝试访问已禁用的监控接口: /congestion/status");
+        return Result.error(403, "监控功能已移除，此接口不可用");
     }
     
     /**
-     * 获取自适应算法详细指标（用于可观测性）
-     * 包括算法评分、切换历史、网络趋势等
+     * 获取自适应算法详细指标
+     * 已禁用：监控功能已移除
      *
-     * @return 自适应算法指标
+     * @return 403禁止访问
      */
     @GetMapping("/adaptive-metrics")
     public Result<AdaptiveAlgorithmMetrics> getAdaptiveMetrics() {
-        log.info("获取自适应算法详细指标");
-        try {
-            AdaptiveAlgorithmMetrics metrics = algorithmService.getAdaptiveMetrics();
-            return Result.success(metrics);
-        } catch (Exception e) {
-            log.error("获取自适应算法指标失败", e);
-            return Result.error("获取指标失败: " + e.getMessage());
-        }
+        log.warn("尝试访问已禁用的监控接口: /congestion/adaptive-metrics");
+        return Result.error(403, "监控功能已移除，此接口不可用");
     }
     
     /**
      * 获取网络质量统计
-     * 从最近的拥塞指标中统计网络质量分布
+     * 已禁用：监控功能已移除
      *
-     * @return 网络质量统计数据
+     * @return 403禁止访问
      */
     @GetMapping("/network-quality-stats")
     public Result<Map<String, Object>> getNetworkQualityStats() {
-        log.info("获取网络质量统计");
-        try {
-            // 从metricsService获取网络质量统计，传入当前算法
-            CongestionControlAlgorithm currentAlgorithm = algorithmService.getCurrentAlgorithm();
-            Map<String, Object> stats = metricsService.getNetworkQualityStats(currentAlgorithm);
-            return Result.success(stats);
-        } catch (Exception e) {
-            log.error("获取网络质量统计失败", e);
-            return Result.error("获取统计失败: " + e.getMessage());
-        }
+        log.warn("尝试访问已禁用的监控接口: /congestion/network-quality-stats");
+        return Result.error(403, "监控功能已移除，此接口不可用");
     }
 }
 

@@ -25,10 +25,11 @@ public class RecoveryFileController {
 
     /**
      * 获取回收站文件列表
+     * @param userId 用户ID（可选，仅管理员可用，用于筛选指定用户的回收站）
      */
     @GetMapping("/list")
-    public Result<List<RecoveryFile>> list() {
-        List<RecoveryFile> list = recoveryFileService.getRecoveryFileList();
+    public Result<List<RecoveryFile>> list(@RequestParam(required = false) Long userId) {
+        List<RecoveryFile> list = recoveryFileService.getRecoveryFileList(userId);
         return Result.success(list);
     }
 

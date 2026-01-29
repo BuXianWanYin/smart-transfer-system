@@ -65,7 +65,7 @@ const handleCommand = async (command) => {
       await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
         type: 'warning'
       })
-      userStore.logout()
+      await userStore.logout()
     } catch {
       // 取消
     }
