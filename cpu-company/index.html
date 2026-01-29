@@ -134,9 +134,9 @@
       animation: float 8s ease-in-out infinite;
     }
 
-    .glow-orb-1 { top: -200px; right: -100px; background: var(--cyan); opacity: 0.2; animation-delay: 0s; }
-    .glow-orb-2 { bottom: -200px; left: -100px; background: var(--purple); opacity: 0.18; animation-delay: -4s; }
-    .glow-orb-3 { top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--blue); width: 500px; height: 500px; opacity: 0.12; animation: pulse 6s ease-in-out infinite; }
+    .glow-orb-1 { top: -200px; right: -100px; background: var(--cyan); opacity: 0.25; animation-delay: 0s; }
+    .glow-orb-2 { bottom: -200px; left: -100px; background: var(--purple); opacity: 0.22; animation-delay: -4s; }
+    .glow-orb-3 { top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--blue); width: 500px; height: 500px; opacity: 0.15; animation: pulse 6s ease-in-out infinite; }
 
     @keyframes float {
       0%, 100% { transform: translate(0, 0); }
@@ -213,6 +213,73 @@
       width: 100%;
     }
 
+    /* 滚动进度条 - 参考 Stripe/Vercel */
+    .scroll-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
+      z-index: 101;
+      transition: width 0.08s ease-out;
+      box-shadow: 0 0 12px var(--cyan-glow);
+    }
+
+    /* Hero 渐变网格背景 - 参考 Vercel/Linear */
+    .hero-mesh {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .hero-mesh-blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.5;
+      animation: meshMove 18s ease-in-out infinite;
+    }
+
+    .hero-mesh-blob-1 {
+      width: 70vmin;
+      height: 70vmin;
+      background: radial-gradient(circle, var(--cyan) 0%, transparent 70%);
+      top: -20%;
+      left: -10%;
+      animation-delay: 0s;
+      animation-duration: 20s;
+    }
+
+    .hero-mesh-blob-2 {
+      width: 50vmin;
+      height: 50vmin;
+      background: radial-gradient(circle, var(--purple) 0%, transparent 70%);
+      top: 40%;
+      right: -15%;
+      animation-delay: -5s;
+      animation-duration: 22s;
+    }
+
+    .hero-mesh-blob-3 {
+      width: 60vmin;
+      height: 60vmin;
+      background: radial-gradient(circle, var(--blue) 0%, transparent 70%);
+      bottom: -20%;
+      left: 20%;
+      animation-delay: -10s;
+      animation-duration: 19s;
+    }
+
+    @keyframes meshMove {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(5%, -10%) scale(1.1); }
+      50% { transform: translate(-8%, 5%) scale(0.95); }
+      75% { transform: translate(10%, 8%) scale(1.05); }
+    }
+
     /* Hero */
     .hero {
       position: relative;
@@ -222,8 +289,18 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 120px 24px 80px;
+      padding: 120px 24px 100px;
       z-index: 1;
+    }
+
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      width: 100%;
+      position: relative;
+      transition: transform 0.1s ease-out, opacity 0.1s ease-out;
     }
 
     .hero-badge,
@@ -448,6 +525,47 @@
       50% { stroke-opacity: 1; filter: drop-shadow(0 0 16px rgba(34, 211, 238, 0.8)); }
     }
 
+    /* 向下滚动提示 - 参考优秀官网 */
+    .hero-scroll-hint {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      opacity: 0.9;
+      animation: scrollHintFade 3s ease-in-out 2s both;
+    }
+
+    .hero-scroll-hint .chevron {
+      width: 24px;
+      height: 24px;
+      border-right: 2px solid var(--cyan);
+      border-bottom: 2px solid var(--cyan);
+      transform: rotate(45deg);
+      animation: scrollBounce 2s ease-in-out infinite;
+    }
+
+    @keyframes scrollHintFade {
+      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      to { opacity: 0.9; transform: translateX(-50%) translateY(0); }
+    }
+
+    @keyframes scrollBounce {
+      0%, 100% { transform: rotate(45deg) translateY(0); opacity: 0.8; }
+      50% { transform: rotate(45deg) translateY(6px); opacity: 1; }
+    }
+
+    /* 磁吸按钮 - 需 JS 配合 */
+    .btn-magnetic {
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
     /* Sections 通用 */
     section {
       position: relative;
@@ -587,18 +705,19 @@
       color: var(--text-muted);
     }
 
-    /* 产品/特性 */
+    /* 产品/特性 - Bento 网格 参考 Vercel */
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
       gap: 24px;
     }
 
     .feature-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 36px 28px;
+      border-radius: 20px;
+      padding: 40px 32px;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
@@ -612,7 +731,7 @@
       transform: translateY(0);
     }
 
-    .feature-card:nth-child(1) { transition-delay: 0.1s; }
+    .feature-card:nth-child(1) { transition-delay: 0.1s; grid-column: span 2; padding: 48px 40px; }
     .feature-card:nth-child(2) { transition-delay: 0.2s; }
     .feature-card:nth-child(3) { transition-delay: 0.3s; }
 
@@ -684,10 +803,19 @@
       color: var(--text);
     }
 
+    .feature-card:first-child h3 {
+      font-size: 1.35rem;
+    }
+
     .feature-card p {
       font-size: 0.9rem;
       color: var(--text-muted);
       line-height: 1.7;
+    }
+
+    .feature-card:first-child p {
+      font-size: 1rem;
+      max-width: 70%;
     }
 
     /* 技术时间线/流程 */
@@ -1180,6 +1308,8 @@
       .nav { gap: 20px; font-size: 0.85rem; }
       .stats-row { grid-template-columns: repeat(2, 1fr); }
       .features-grid { grid-template-columns: 1fr; }
+      .feature-card:nth-child(1) { grid-column: span 1; padding: 36px 28px; }
+      .feature-card:first-child p { max-width: none; }
       .use-cases { grid-template-columns: 1fr 1fr; }
       .news-grid { grid-template-columns: 1fr; }
       .timeline-line { left: 12px; }
@@ -1205,6 +1335,8 @@
   <div class="glow-orb glow-orb-2"></div>
   <div class="glow-orb glow-orb-3"></div>
 
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
   <header class="header">
     <div class="logo">CORECHIP</div>
     <nav class="nav">
@@ -1221,31 +1353,42 @@
   </header>
 
   <section class="hero" id="hero">
-    <div class="hero-badge">下一代算力 · 中国芯</div>
-    <h1 data-text="引领算力未来">引领算力未来</h1>
-    <p class="tagline">专注高性能处理器研发与制造，为数据中心、AI 与边缘计算提供核心算力解决方案</p>
-    <div class="hero-cta">
-      <a href="#features" class="btn btn-primary">了解产品</a>
-      <a href="#contact" class="btn btn-ghost">联系我们</a>
+    <div class="hero-mesh" aria-hidden="true">
+      <div class="hero-mesh-blob hero-mesh-blob-1"></div>
+      <div class="hero-mesh-blob hero-mesh-blob-2"></div>
+      <div class="hero-mesh-blob hero-mesh-blob-3"></div>
     </div>
-    <div class="chip-visual">
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <rect class="core" x="25" y="25" width="50" height="50" rx="4"/>
-        <line class="pin" x1="10" y1="30" x2="25" y2="30"/>
-        <line class="pin" x1="10" y1="40" x2="25" y2="40"/>
-        <line class="pin" x1="10" y1="50" x2="25" y2="50"/>
-        <line class="pin" x1="10" y1="60" x2="25" y2="60"/>
-        <line class="pin" x1="75" y1="30" x2="90" y2="30"/>
-        <line class="pin" x1="75" y1="40" x2="90" y2="40"/>
-        <line class="pin" x1="75" y1="50" x2="90" y2="50"/>
-        <line class="pin" x1="75" y1="60" x2="90" y2="60"/>
-        <line class="pin" x1="30" y1="75" x2="30" y2="90"/>
-        <line class="pin" x1="50" y1="75" x2="50" y2="90"/>
-        <line class="pin" x1="70" y1="75" x2="70" y2="90"/>
-        <line class="pin" x1="30" y1="10" x2="30" y2="25"/>
-        <line class="pin" x1="50" y1="10" x2="50" y2="25"/>
-        <line class="pin" x1="70" y1="10" x2="70" y2="25"/>
-      </svg>
+    <div class="hero-content" id="hero-content">
+      <div class="hero-badge">下一代算力 · 中国芯</div>
+      <h1 data-text="引领算力未来">引领算力未来</h1>
+      <p class="tagline">专注高性能处理器研发与制造，为数据中心、AI 与边缘计算提供核心算力解决方案</p>
+      <div class="hero-cta">
+        <a href="#features" class="btn btn-primary btn-magnetic">了解产品</a>
+        <a href="#contact" class="btn btn-ghost btn-magnetic">联系我们</a>
+      </div>
+      <div class="chip-visual">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <rect class="core" x="25" y="25" width="50" height="50" rx="4"/>
+          <line class="pin" x1="10" y1="30" x2="25" y2="30"/>
+          <line class="pin" x1="10" y1="40" x2="25" y2="40"/>
+          <line class="pin" x1="10" y1="50" x2="25" y2="50"/>
+          <line class="pin" x1="10" y1="60" x2="25" y2="60"/>
+          <line class="pin" x1="75" y1="30" x2="90" y2="30"/>
+          <line class="pin" x1="75" y1="40" x2="90" y2="40"/>
+          <line class="pin" x1="75" y1="50" x2="90" y2="50"/>
+          <line class="pin" x1="75" y1="60" x2="90" y2="60"/>
+          <line class="pin" x1="30" y1="75" x2="30" y2="90"/>
+          <line class="pin" x1="50" y1="75" x2="50" y2="90"/>
+          <line class="pin" x1="70" y1="75" x2="70" y2="90"/>
+          <line class="pin" x1="30" y1="10" x2="30" y2="25"/>
+          <line class="pin" x1="50" y1="10" x2="50" y2="25"/>
+          <line class="pin" x1="70" y1="10" x2="70" y2="25"/>
+        </svg>
+      </div>
+      <div class="hero-scroll-hint">
+        <span class="chevron"></span>
+        <span>向下滚动</span>
+      </div>
     </div>
   </section>
 
@@ -1299,22 +1442,22 @@
     <h2 class="section-title">应用场景</h2>
     <div class="use-cases">
       <div class="use-case-card">
-        <div class="use-case-icon">☁</div>
+        <div class="use-case-icon">云</div>
         <h3>云计算与数据中心</h3>
         <p>为公有云、私有云及混合云提供高性能、高可靠算力，支撑大规模虚拟化与容器化部署。</p>
       </div>
       <div class="use-case-card">
-        <div class="use-case-icon">🧠</div>
+        <div class="use-case-icon">AI</div>
         <h3>人工智能训练与推理</h3>
         <p>大模型训练集群、边缘推理设备，与主流 AI 框架深度适配，加速智能应用落地。</p>
       </div>
       <div class="use-case-card">
-        <div class="use-case-icon">🚗</div>
+        <div class="use-case-icon">车</div>
         <h3>智能汽车与自动驾驶</h3>
         <p>车载 SoC 与域控芯片，满足功能安全与实时性要求，助力智能座舱与自动驾驶。</p>
       </div>
       <div class="use-case-card">
-        <div class="use-case-icon">🏭</div>
+        <div class="use-case-icon">工</div>
         <h3>工业互联网与边缘</h3>
         <p>工业控制、机器视觉、预测性维护等边缘场景，低功耗、高可靠、易部署。</p>
       </div>
@@ -1534,6 +1677,61 @@
         orbs[0].style.transform = 'translate(0, ' + (-y * rate) + 'px)';
         orbs[1].style.transform = 'translate(0, ' + (y * rate) + 'px)';
       }, { passive: true });
+
+      // 滚动进度条 - 参考 Stripe/Vercel
+      var progressBar = document.getElementById('scroll-progress');
+      if (progressBar) {
+        window.addEventListener('scroll', function () {
+          var h = document.documentElement.scrollHeight - window.innerHeight;
+          var pct = h > 0 ? (window.scrollY / h) * 100 : 0;
+          progressBar.style.width = pct + '%';
+        }, { passive: true });
+      }
+
+      // Hero 滚动视差：离开首屏时内容缩小、淡出
+      var heroContent = document.getElementById('hero-content');
+      if (heroContent) {
+        window.addEventListener('scroll', function () {
+          var y = window.scrollY;
+          var h = window.innerHeight;
+          if (y <= h) {
+            var t = y / h;
+            var scale = 1 - t * 0.08;
+            var opacity = 1 - t * 0.4;
+            heroContent.style.transform = 'scale(' + scale + ') translateY(' + (y * 0.15) + 'px)';
+            heroContent.style.opacity = opacity;
+          } else {
+            heroContent.style.transform = '';
+            heroContent.style.opacity = '0.6';
+          }
+        }, { passive: true });
+      }
+
+      // 磁吸按钮 - 参考优秀官网交互
+      var magneticBtns = document.querySelectorAll('.btn-magnetic');
+      var strength = 12;
+      magneticBtns.forEach(function (btn) {
+        btn.addEventListener('mouseenter', function () {
+          btn._magnetic = true;
+        });
+        btn.addEventListener('mouseleave', function () {
+          btn._magnetic = false;
+          btn.style.transform = '';
+        });
+      });
+      document.addEventListener('mousemove', function (e) {
+        magneticBtns.forEach(function (btn) {
+          if (!btn._magnetic) return;
+          var rect = btn.getBoundingClientRect();
+          var cx = rect.left + rect.width / 2;
+          var cy = rect.top + rect.height / 2;
+          var dx = (e.clientX - cx) * 0.2;
+          var dy = (e.clientY - cy) * 0.2;
+          dx = Math.max(-strength, Math.min(strength, dx));
+          dy = Math.max(-strength, Math.min(strength, dy));
+          btn.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+        });
+      });
     })();
   </script>
 </body>

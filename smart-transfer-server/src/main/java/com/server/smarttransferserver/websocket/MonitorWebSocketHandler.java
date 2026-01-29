@@ -1,6 +1,5 @@
 package com.server.smarttransferserver.websocket;
 
-import com.server.smarttransferserver.task.MonitorPushTask;
 import com.server.smarttransferserver.util.JwtUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +27,7 @@ public class MonitorWebSocketHandler extends TextWebSocketHandler {
         // 从查询参数获取Token
         Long userId = extractUserIdFromSession(session);
         if (userId != null) {
-            MonitorPushTask.registerSession(userId, session);
+            MonitorPushService.registerSession(userId, session);
             log.info("注册WebSocket会话 - 用户ID: {}, SessionId: {}", userId, session.getId());
         } else {
             log.warn("WebSocket连接失败 - 无法获取用户ID, SessionId: {}", session.getId());
@@ -44,11 +43,11 @@ public class MonitorWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         Long userId = extractUserIdFromSession(session);
         if (userId != null) {
-            MonitorPushTask.removeSession(userId, session);
+            MonitorPushService.removeSession(userId, session);
             log.info("移除WebSocket会话 - 用户ID: {}, SessionId: {}", userId, session.getId());
         } else {
             // 如果没有userId，尝试移除所有会话（兼容处理）
-            MonitorPushTask.removeSession(null, session);
+            MonitorPushService.removeSession(null, session);
         }
     }
 
@@ -64,9 +63,9 @@ public class MonitorWebSocketHandler extends TextWebSocketHandler {
         log.error("WebSocket传输错误 - SessionId: {}, 错误: {}", session.getId(), exception.getMessage());
         Long userId = extractUserIdFromSession(session);
         if (userId != null) {
-            MonitorPushTask.removeSession(userId, session);
+            MonitorPushService.removeSession(userId, session);
         } else {
-            MonitorPushTask.removeSession(null, session);
+            MonitorPushService.removeSession(null, session);
         }
     }
 

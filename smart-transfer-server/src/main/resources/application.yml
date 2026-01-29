@@ -64,6 +64,10 @@ transfer:
   avatar-path: ./uploads/avatars
   # 密码加密盐值（用于密码MD5加密）
   password-salt: smart-transfer-salt
+  # 监控推送（WebSocket）
+  monitor:
+    push-interval-ms: 500   # 有会话时推送间隔（毫秒）
+    idle-sleep-ms: 2000     # 无会话时休眠间隔（毫秒），避免空转
 
 
 # Actuator监控配置
