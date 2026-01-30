@@ -496,79 +496,115 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         
         // 获取当前算法性能评分
         double currentScore = algorithmScores.getOrDefault(currentAlgorithm.getAlgorithmName(), 50.0);
-        boolean isCurrentPerformingWell = currentScore > 60.0;
+        String currentAlgName = currentAlgorithm.getAlgorithmName();
         
-        // **修复：优先根据网络条件选择算法，而不是优先保持当前算法**
-        // 优秀网络：优先BBR（BBR在优秀网络下表现最好）
-        // 高BDP网络（带宽时延积>1MB）时，BBR优势更明显
-        if (isExcellentNetwork) {
-            if (bbrAlgorithm != null) {
+        // **优化：基于网络条件的强制切换逻辑（降低评分比较的阻碍）**
+        // 目标：在明确的网络条件下，优先根据网络特征选择最适合的算法
+        
+        // === 场景1：优秀网络 → 强烈推荐BBR ===
+        // 条件：丢包率<0.5%，RTT抖动<25ms
+        if (isExcellentNetwork && bbrAlgorithm != null) {
+            if (!currentAlgName.equals("BBR")) {
                 double bdp = bandwidth * avgRtt / 1000.0;  // 带宽时延积（字节）
-                double bbrScore = algorithmScores.getOrDefault("BBR", 60.0);
+                double bbrScore = algorithmScores.getOrDefault("BBR", 50.0);
                 
-                // 高BDP网络或BBR评分较好时，切换到BBR
-                if ((bdp > 1024 * 1024 || bbrScore > 40.0) && 
-                    !currentAlgorithm.getAlgorithmName().equals("BBR")) {
-                    log.info("优秀网络条件，切换到BBR算法 - 当前算法: {}, BBR评分: {}, BDP: {}MB", 
-                            currentAlgorithm.getAlgorithmName(), String.format("%.2f", bbrScore),
-                            String.format("%.2f", bdp / (1024.0 * 1024.0)));
+                // 降低切换门槛：只要BBR评分不是特别差（>35），就切换
+                if (bbrScore > 35.0) {
+                    log.info("优秀网络条件（丢包: {}%, 抖动: {}ms），切换到BBR算法 - 当前算法: {}, BBR评分: {}", 
+                            String.format("%.2f", lossRate * 100), rttJitter, 
+                            currentAlgName, String.format("%.2f", bbrScore));
                     return bbrAlgorithm;
                 }
             }
+            // 如果当前已经是BBR，继续使用
+            return bbrAlgorithm;
         }
         
-        // **修复：如果当前算法表现很差（评分<40），即使网络条件一般，也尝试切换**
-        if (currentScore < 40.0) {
-            log.info("当前算法性能较差（评分: {}），尝试切换算法", String.format("%.2f", currentScore));
-            // 继续执行下面的算法选择逻辑
-        } else if (isCurrentPerformingWell && !isPoorNetwork && !isExcellentNetwork) {
-            // **修复：只有在非优秀网络且当前算法表现良好时，才保持当前算法**
-            log.debug("当前算法性能良好（评分: {}），且网络条件一般，保持使用", String.format("%.2f", currentScore));
-            return currentAlgorithm;
+        // === 场景4：高丢包网络 → 强制使用Reno ===
+        // 条件：丢包率>2% 或 RTT抖动>100ms
+        if (isPoorNetwork && renoAlgorithm != null) {
+            if (!currentAlgName.equals("Reno")) {
+                log.info("网络质量差（丢包: {}%, 抖动: {}ms），切换到保守的Reno算法 - 当前算法: {}", 
+                        String.format("%.2f", lossRate * 100), rttJitter, currentAlgName);
+                return renoAlgorithm;
+            }
+            // 如果当前已经是Reno，继续使用
+            return renoAlgorithm;
         }
         
-        // 良好网络：根据RTT特征和变化率选择
-        if (isGoodNetwork) {
-            // 高延迟且RTT变化小的网络：Vegas更适合
-            if (avgRtt > 100 && rttVariation < 0.2 && vegasAlgorithm != null) {
+        // === 场景3：高延迟网络 → 强烈推荐Vegas ===
+        // 条件：良好网络（丢包<1%），RTT>100ms，RTT变化不大
+        if (isGoodNetwork && avgRtt > 100 && vegasAlgorithm != null) {
+            if (!currentAlgName.equals("Vegas")) {
                 double vegasScore = algorithmScores.getOrDefault("Vegas", 50.0);
-                if (vegasScore > currentScore * 0.9) {
+                
+                // 高延迟场景：降低切换门槛，只要Vegas评分>40或当前算法评分<55就切换
+                if (vegasScore > 40.0 || currentScore < 55.0) {
+                    log.info("高延迟网络（RTT: {}ms，丢包: {}%），切换到Vegas算法 - 当前算法: {}, Vegas评分: {}", 
+                            String.format("%.2f", avgRtt), String.format("%.2f", lossRate * 100),
+                            currentAlgName, String.format("%.2f", vegasScore));
                     return vegasAlgorithm;
                 }
             }
-            // 低延迟或RTT变化大的网络：CUBIC
-            if (cubicAlgorithm != null) {
+            // 如果当前已经是Vegas，继续使用
+            return vegasAlgorithm;
+        }
+        
+        // === 场景2：良好网络（中等延迟）→ 推荐CUBIC ===
+        // 条件：良好网络（丢包<1%），RTT<=100ms
+        if (isGoodNetwork && avgRtt <= 100 && cubicAlgorithm != null) {
+            if (!currentAlgName.equals("CUBIC")) {
                 double cubicScore = algorithmScores.getOrDefault("CUBIC", 50.0);
-                if (cubicScore > currentScore * 0.8) {
+                
+                // 降低切换门槛：只要CUBIC评分>40或当前算法评分<55就切换
+                if (cubicScore > 40.0 || currentScore < 55.0) {
+                    log.info("良好网络（RTT: {}ms，丢包: {}%），切换到CUBIC算法 - 当前算法: {}, CUBIC评分: {}", 
+                            String.format("%.2f", avgRtt), String.format("%.2f", lossRate * 100),
+                            currentAlgName, String.format("%.2f", cubicScore));
                     return cubicAlgorithm;
                 }
             }
+            // 如果当前已经是CUBIC，继续使用
+            return cubicAlgorithm;
         }
         
-        // 差网络：使用保守的Reno算法
-        if (isPoorNetwork) {
-            if (renoAlgorithm != null) {
-                log.info("网络质量差，切换到保守的Reno算法");
-                return renoAlgorithm;
-            }
-        }
-        
-        // 一般网络：使用CUBIC或Vegas（根据RTT特征）
-        if (avgRtt > 100 && vegasAlgorithm != null) {
+        // === 一般网络：根据延迟选择CUBIC或Vegas ===
+        // 如果不是明确的优秀/良好/差网络，根据延迟特征选择
+        if (avgRtt > 120 && vegasAlgorithm != null) {
+            // 较高延迟：倾向Vegas
             double vegasScore = algorithmScores.getOrDefault("Vegas", 50.0);
-            if (vegasScore > currentScore * 0.9) {
+            if (vegasScore > 45.0 && !currentAlgName.equals("Vegas")) {
+                log.info("一般网络（高延迟: {}ms），切换到Vegas算法 - 当前算法: {}", 
+                        String.format("%.2f", avgRtt), currentAlgName);
                 return vegasAlgorithm;
             }
         }
         
-        if (cubicAlgorithm != null) {
+        // 默认：使用CUBIC（稳定可靠的通用算法）
+        if (cubicAlgorithm != null && !currentAlgName.equals("CUBIC")) {
             double cubicScore = algorithmScores.getOrDefault("CUBIC", 50.0);
-            if (cubicScore > currentScore * 0.8) {
+            // 只有在CUBIC评分不太差的情况下才切换
+            if (cubicScore > 45.0) {
+                log.info("一般网络条件，切换到CUBIC算法 - 当前算法: {}, CUBIC评分: {}", 
+                        currentAlgName, String.format("%.2f", cubicScore));
                 return cubicAlgorithm;
             }
         }
         
-        // 默认返回当前算法（如果没有找到明显更优的）
+        // 最终兜底：如果当前算法表现还可以（>40分），就保持不变
+        if (currentScore > 40.0) {
+            log.debug("当前算法性能可接受（评分: {}），暂时保持 - 算法: {}", 
+                    String.format("%.2f", currentScore), currentAlgName);
+            return currentAlgorithm;
+        }
+        
+        // 如果当前算法评分很差，返回CUBIC作为安全的默认选择
+        if (cubicAlgorithm != null) {
+            log.info("当前算法性能差（评分: {}），切换到CUBIC作为默认算法", String.format("%.2f", currentScore));
+            return cubicAlgorithm;
+        }
+        
+        // 最终兜底：返回当前算法
         return currentAlgorithm;
     }
     
@@ -702,7 +738,9 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     
     @Override
     public String getAlgorithmName() {
-        return "Adaptive(" + currentAlgorithm.getAlgorithmName() + ")";
+        // 直接返回当前使用的子算法名称（CUBIC、BBR、Vegas、Reno）
+        // 而不是返回 "Adaptive(XXX)" 格式，保持前后端一致
+        return currentAlgorithm.getAlgorithmName();
     }
     
     @Override

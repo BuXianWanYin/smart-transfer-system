@@ -22,6 +22,35 @@ public class AlgorithmFactory {
     private CongestionConfig congestionConfig;
     
     /**
+     * 根据配置创建算法实例
+     * 根据管理员配置的算法类型，为每个任务创建独立的算法实例
+     *
+     * @return 新的算法实例
+     */
+    public CongestionControlAlgorithm createAlgorithm() {
+        String algorithmType = congestionConfig.getAlgorithm();
+        if (algorithmType == null || algorithmType.isEmpty()) {
+            algorithmType = "ADAPTIVE"; // 默认使用自适应算法
+        }
+        
+        log.debug("根据配置创建算法实例 - 算法类型: {}", algorithmType);
+        
+        switch (algorithmType.toUpperCase()) {
+            case "RENO":
+                return createRenoAlgorithm();
+            case "VEGAS":
+                return createVegasAlgorithm();
+            case "CUBIC":
+                return createCubicAlgorithm();
+            case "BBR":
+                return createBBRAlgorithm();
+            case "ADAPTIVE":
+            default:
+                return createAdaptiveAlgorithm();
+        }
+    }
+    
+    /**
      * 创建新的AdaptiveAlgorithm实例
      * 为每个任务创建独立的底层算法实例，确保任务之间互不干扰
      *

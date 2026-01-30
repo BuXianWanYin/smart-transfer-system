@@ -64,7 +64,7 @@
           <div class="monitor-grid">
             <div class="monitor-item">
               <div class="monitor-label">当前算法</div>
-              <div class="monitor-value primary">{{ currentMetrics.algorithm || 'CUBIC' }}</div>
+              <div class="monitor-value primary">{{ currentMetrics.algorithm || 'NONE' }}</div>
             </div>
             <div class="monitor-item">
               <div class="monitor-label">传输速率</div>

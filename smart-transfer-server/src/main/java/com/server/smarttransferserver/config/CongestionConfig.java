@@ -19,6 +19,9 @@ public class CongestionConfig {
     @Autowired
     private SystemConfigMapper configMapper;
     
+    // 算法选择配置
+    private String algorithm = "ADAPTIVE";     // 默认使用自适应算法 (RENO/VEGAS/CUBIC/BBR/ADAPTIVE)
+    
     // CUBIC算法配置
     private long initialCwnd = 10485760L;      // 10MB
     private long ssthresh = 52428800L;         // 50MB
@@ -66,6 +69,9 @@ public class CongestionConfig {
      */
     public void loadFromDatabase() {
         try {
+            // 算法选择配置
+            algorithm = getStringConfig("congestion.algorithm", algorithm);
+            
             // CUBIC配置
             initialCwnd = getLongConfig("congestion.initial-cwnd", initialCwnd);
             ssthresh = getLongConfig("congestion.ssthresh", ssthresh);
@@ -99,8 +105,8 @@ public class CongestionConfig {
             // 最小切换间隔配置
             minSwitchInterval = getLongConfig("congestion.min-switch-interval", minSwitchInterval);
             
-            log.info("从数据库加载拥塞控制配置 - initialCwnd: {}, maxCwnd: {}, trendWindowSize: {}, confidenceThreshold: {}", 
-                    initialCwnd, maxCwnd, trendWindowSize, confidenceThreshold);
+            log.info("从数据库加载拥塞控制配置 - algorithm: {}, initialCwnd: {}, maxCwnd: {}, trendWindowSize: {}, confidenceThreshold: {}", 
+                    algorithm, initialCwnd, maxCwnd, trendWindowSize, confidenceThreshold);
         } catch (Exception e) {
             log.error("加载配置失败，使用默认值", e);
         }
@@ -167,6 +173,10 @@ public class CongestionConfig {
     }
     
     // Getter方法
+    public String getAlgorithm() {
+        return algorithm;
+    }
+    
     public long getInitialCwnd() {
         return initialCwnd;
     }

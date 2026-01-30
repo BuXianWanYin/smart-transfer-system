@@ -231,6 +231,12 @@
     <el-card style="margin-top: 20px">
       <template #header>配置说明</template>
       <el-descriptions :column="1" border>
+        <el-descriptions-item label="TCP Reno 算法">
+          经典TCP算法，基于丢包反馈进行拥塞控制，适用于一般网络环境
+        </el-descriptions-item>
+        <el-descriptions-item label="TCP Vegas 算法">
+          基于延迟的拥塞控制算法，在网络拥塞前主动调整窗口，适用于低延迟网络
+        </el-descriptions-item>
         <el-descriptions-item label="CUBIC 算法">
           Linux内核默认算法，适用于高带宽长距离网络，具有良好的公平性
         </el-descriptions-item>

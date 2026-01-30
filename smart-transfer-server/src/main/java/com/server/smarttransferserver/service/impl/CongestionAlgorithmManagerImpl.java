@@ -100,8 +100,8 @@ public class CongestionAlgorithmManagerImpl implements CongestionAlgorithmManage
      * **关键修复：使用AlgorithmFactory为每个任务创建完全独立的算法实例**
      * 
      * 这样每个任务有独立的：
-     * 1. AdaptiveAlgorithm实例（独立的rttSamples, totalPackets等）
-     * 2. 底层算法实例（Reno/Vegas/CUBIC/BBR）- 每个任务都有自己的实例
+     * 1. 算法实例（根据管理员配置：RENO/VEGAS/CUBIC/BBR/ADAPTIVE）
+     * 2. 对于AdaptiveAlgorithm：独立的rttSamples, totalPackets等和底层算法实例
      * 3. 算法状态（cwnd, state, ssthresh等）- 完全独立
      * 
      * 结果：任务之间完全隔离，互不干扰
@@ -109,11 +109,11 @@ public class CongestionAlgorithmManagerImpl implements CongestionAlgorithmManage
      * @return 新的算法实例
      */
     private CongestionControlAlgorithm createNewAlgorithmInstance() {
-        // **关键修复：使用AlgorithmFactory创建完全独立的算法实例**
+        // **关键修复：使用AlgorithmFactory根据配置创建完全独立的算法实例**
         if (algorithmFactory != null) {
-            AdaptiveAlgorithm newAdaptive = algorithmFactory.createAdaptiveAlgorithm();
-            log.debug("通过AlgorithmFactory创建新的AdaptiveAlgorithm实例 - 包含独立的底层算法实例");
-            return newAdaptive;
+            CongestionControlAlgorithm newAlgorithm = algorithmFactory.createAlgorithm();
+            log.debug("通过AlgorithmFactory创建新算法实例 - 算法: {}", newAlgorithm.getAlgorithmName());
+            return newAlgorithm;
         }
         
         // Fallback：如果工厂不可用，使用默认方式（会有共享问题）
