@@ -29,16 +29,31 @@ export function initUpload(data) {
  */
 export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) {
   const STALL_TIMEOUT = 30000 // 30秒无进度才认为卡死
+  const CONNECTION_TIMEOUT = 60000 // **新增：60秒连接建立超时**
 
   const uploadWithStallDetection = () => {
     return new Promise((resolve, reject) => {
+      const startTime = Date.now()
       let lastProgressTime = Date.now()
+      let hasStartedTransfer = false  // **新增：标记是否已开始传输**
       let stallTimer = null
       let abortController = new AbortController()
 
-      // 检测进度停滞
+      // 检测进度停滞和连接超时
       const checkStall = () => {
-        if (Date.now() - lastProgressTime > STALL_TIMEOUT) {
+        const now = Date.now()
+        
+        // **修复：连接建立阶段超时检测（60秒）**
+        if (!hasStartedTransfer && now - startTime > CONNECTION_TIMEOUT) {
+          console.warn('连接建立超时（60秒），中止请求')
+          abortController.abort()
+          reject(new Error('CONNECTION_TIMEOUT'))
+          return
+        }
+        
+        // **修复：只有在开始传输后才检测停滞，避免连接建立阶段误判**
+        if (hasStartedTransfer && now - lastProgressTime > STALL_TIMEOUT) {
+          console.warn('上传停滞超过30秒，中止请求')
           abortController.abort()
           reject(new Error('STALL_TIMEOUT'))
         }
@@ -59,6 +74,7 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) 
         // 明确设置超时为0（或很大的值）以覆盖实例默认值
         validateStatus: () => true, // 允许所有状态码，避免被拦截器拦截
         onUploadProgress: progressEvent => {
+          hasStartedTransfer = true  // **标记已开始传输**
           lastProgressTime = Date.now() // 有进度就更新时间
           if (onProgress) {
             const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -91,15 +107,26 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) 
     } catch (error) {
       lastError = error
       const isStall = error.message === 'STALL_TIMEOUT'
+      const isConnectionTimeout = error.message === 'CONNECTION_TIMEOUT'
       const isTimeout = error.message === 'UPLOAD_TIMEOUT' || error.code === 'ECONNABORTED'
+      const isNetworkError = error.message === 'Network Error' || error.code === 'ERR_NETWORK'
       
-      if (attempt < maxRetries && (isStall || isTimeout)) {
+      // **修复：增加重试条件，包括网络错误**
+      const shouldRetry = isStall || isTimeout || isConnectionTimeout || isNetworkError
+      
+      if (attempt < maxRetries && shouldRetry) {
         const delay = Math.pow(2, attempt) * 1000
-        console.warn(`分片上传${isTimeout ? '超时' : '卡死'}，${delay/1000}秒后重试 (${attempt + 1}/${maxRetries})`)
+        let errorType = '未知错误'
+        if (isStall) errorType = '停滞'
+        else if (isConnectionTimeout) errorType = '连接超时'
+        else if (isTimeout) errorType = '传输超时'
+        else if (isNetworkError) errorType = '网络错误'
+        
+        console.warn(`分片上传${errorType}，${delay/1000}秒后重试 (${attempt + 1}/${maxRetries})`)
         // 分片上传重试
         await new Promise(resolve => setTimeout(resolve, delay))
-      } else if (!isStall && !isTimeout) {
-        // 非超时错误，直接抛出
+      } else if (!shouldRetry) {
+        // 非可重试错误，直接抛出
         throw error
       }
     }

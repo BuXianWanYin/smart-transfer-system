@@ -260,6 +260,24 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
         return cwnd;
     }
     
+    /**
+     * 设置拥塞窗口（用于算法切换时继承cwnd）
+     * @param cwnd 新的拥塞窗口大小
+     */
+    public void setCwnd(long cwnd) {
+        this.cwnd = Math.max(cwnd, congestionConfig.getMinCwnd());
+        
+        // **修复：同时初始化带宽估计，避免cwnd被重置为0**
+        // 根据 cwnd = BDP * gain，反推 bottleneckBandwidth
+        // 假设当前 minRtt = 10ms（典型值），pacingGain = 1.0
+        long estimatedRtt = this.minRtt == Long.MAX_VALUE ? 10 : this.minRtt;
+        this.bottleneckBandwidth = (cwnd * 1000) / Math.max(estimatedRtt, 1);
+        
+        log.info("BBR算法设置cwnd: {}字节 ({:.2f}MB), 估算带宽: {}字节/秒 ({:.2f}MB/s)", 
+                cwnd, cwnd / 1024.0 / 1024.0,
+                bottleneckBandwidth, bottleneckBandwidth / 1024.0 / 1024.0);
+    }
+    
     @Override
     public long getRate() {
         return (long) (bottleneckBandwidth * pacingGain);

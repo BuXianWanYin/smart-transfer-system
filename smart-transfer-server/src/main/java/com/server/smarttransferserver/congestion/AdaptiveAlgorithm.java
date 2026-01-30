@@ -56,6 +56,12 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     private long lostPackets;
     
     /**
+     * 当前网络指标（用于算法切换决策）
+     */
+    private double currentLossRate;
+    private long currentRttJitter;
+    
+    /**
      * RTT样本队列
      */
     private final Queue<Long> rttSamples;
@@ -138,6 +144,13 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     private final java.util.Queue<Long> preservedRttSamples;
     
     /**
+     * **新增：实时滑动窗口**
+     * 用于快速响应网络变化（最近200个包的统计）
+     */
+    private final java.util.Queue<Boolean> recentPackets; // true=成功, false=丢包
+    private static final int RECENT_WINDOW_SIZE = 200;
+    
+    /**
      * 构造方法
      */
     @Autowired
@@ -153,6 +166,7 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         this.currentAlgorithmStartTime = System.currentTimeMillis();
         this.lossRateHistory = new LinkedList<>();
         this.preservedRttSamples = new LinkedList<>();
+        this.recentPackets = new LinkedList<>(); // **新增：初始化滑动窗口**
         this.metrics = new AdaptiveAlgorithmMetrics();
         this.isWarmingUp = false;
         this.warmupRttCount = 0;
@@ -211,6 +225,12 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         // 统计数据包
         totalPackets++;
         
+        // **新增：更新滑动窗口（记录成功接收的包）**
+        recentPackets.offer(true);
+        if (recentPackets.size() > RECENT_WINDOW_SIZE) {
+            recentPackets.poll();
+        }
+        
         // 调用当前算法
         currentAlgorithm.onAck(ackedBytes, rtt);
         
@@ -232,6 +252,12 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     public void onLoss(long lostBytes) {
         // 统计丢包
         lostPackets++;
+        
+        // **新增：更新滑动窗口（记录丢包）**
+        recentPackets.offer(false);
+        if (recentPackets.size() > RECENT_WINDOW_SIZE) {
+            recentPackets.poll();
+        }
         
         // 调用当前算法
         currentAlgorithm.onLoss(lostBytes);
@@ -260,9 +286,21 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             }
         }
         
-        // 计算网络指标（**修复：过滤null值**）
-        double lossRate = (double) lostPackets / totalPackets;
+        // **修复：使用滑动窗口计算丢包率（快速响应网络变化）**
+        double lossRate;
+        if (recentPackets.size() >= 50) {
+            // 滑动窗口有足够样本，使用实时数据
+            long recentLost = recentPackets.stream().filter(p -> !p).count();
+            lossRate = (double) recentLost / recentPackets.size();
+        } else {
+            // 样本不足，使用累积数据
+            lossRate = totalPackets > 0 ? (double) lostPackets / totalPackets : 0;
+        }
         long rttJitter = calculateRttJitter();
+        
+        // **更新成员变量，供算法切换决策使用**
+        this.currentLossRate = lossRate;
+        this.currentRttJitter = rttJitter;
         double avgRtt = rttSamples.stream()
                 .filter(rtt -> rtt != null && rtt > 0)
                 .mapToLong(Long::longValue)
@@ -320,18 +358,79 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         if (selectedAlgorithm != null && selectedAlgorithm != currentAlgorithm) {
             long now = System.currentTimeMillis();
             
-            // 检查切换间隔
-            if (now - lastSwitchTime < congestionConfig.getMinSwitchInterval()) {
+            // **DEBUG：添加详细日志**
+            log.info("尝试切换算法 - 当前: {}, 目标: {}", 
+                    currentAlgorithm.getAlgorithmName(), selectedAlgorithm.getAlgorithmName());
+            
+            // **优化：最小切换间隔检查 + 动态冷却期**
+            long timeSinceLastSwitch = now - lastSwitchTime;
+            long minInterval = congestionConfig.getMinSwitchInterval();
+            
+            // 如果刚切换过且性能在下降，延长冷却期（防止震荡）
+            if (previousAlgorithm != null) {
+                double currentScore = algorithmScores.getOrDefault(currentAlgorithm.getAlgorithmName(), 50.0);
+                if (currentScore < previousAlgorithmScore) {
+                    // 性能下降，延长冷却期到2倍
+                    minInterval = minInterval * 2;
+                    log.debug("算法性能下降，延长冷却期至{}ms", minInterval);
+                }
+            }
+            
+            if (timeSinceLastSwitch < minInterval) {
+                log.info("切换间隔不足（{}ms < {}ms），跳过切换", 
+                        timeSinceLastSwitch, minInterval);
                 return;
             }
             
-            // 置信度阈值检查
+            // **修复：置信度阈值检查 - 仅对评分接近的算法进行限制**
+            // selectOptimalAlgorithm 已经做了基于网络条件的智能判断，
+            // 这里的置信度检查只是为了防止频繁切换，但不应该完全阻止切换
             double currentScore = algorithmScores.getOrDefault(currentAlgorithm.getAlgorithmName(), 50.0);
             double selectedScore = algorithmScores.getOrDefault(selectedAlgorithm.getAlgorithmName(), 50.0);
             double scoreDiff = (selectedScore - currentScore) / Math.max(currentScore, 1.0);
-            if (scoreDiff < congestionConfig.getConfidenceThreshold()) {
-                log.debug("算法得分差异不足置信度阈值（{}%），保持当前算法", 
-                         String.format("%.2f", scoreDiff * 100));
+            
+            // **DEBUG：输出评分信息**
+            log.info("算法评分对比 - 当前: {} ({}分), 目标: {} ({}分), 差异: {}%", 
+                    currentAlgorithm.getAlgorithmName(), String.format("%.2f", currentScore),
+                    selectedAlgorithm.getAlgorithmName(), String.format("%.2f", selectedScore),
+                    String.format("%.2f", scoreDiff * 100));
+            
+            // **优化：智能评分继承机制**
+            // 当目标算法是新算法时，给它一个合理的起始评分
+            if (selectedScore < 60.0) {  // 接近初始评分50的算法
+                log.info("目标算法是新算法（评分{}），使用智能评分继承", 
+                        String.format("%.2f", selectedScore));
+                
+                // **策略1：如果当前算法表现优秀（>70分），给新算法更高的起始评分**
+                // 这样在网络条件好时，更愿意尝试新算法
+                if (currentScore > 70.0) {
+                    selectedScore = currentScore * 0.9;  // 给90%的评分
+                } else {
+                    selectedScore = currentScore * 0.8;  // 给80%的评分
+                }
+                
+                algorithmScores.put(selectedAlgorithm.getAlgorithmName(), selectedScore);
+                scoreDiff = (selectedScore - currentScore) / Math.max(currentScore, 1.0);
+                
+                log.info("调整后评分对比 - 目标: {} ({}分), 差异: {}%", 
+                        selectedAlgorithm.getAlgorithmName(), 
+                        String.format("%.2f", selectedScore),
+                        String.format("%.2f", scoreDiff * 100));
+            }
+            
+            // **优化：根据网络条件动态调整切换阈值**
+            double switchThreshold = -0.30;  // 默认阈值-30%
+            
+            // 如果网络条件优秀，允许更激进的切换
+            if (this.currentLossRate < 0.001 && this.currentRttJitter < 10) {  // 超低丢包和抖动
+                switchThreshold = -0.40;  // 放宽到-40%
+                log.debug("优秀网络条件，放宽切换阈值至{}%", switchThreshold * 100);
+            }
+            
+            if (scoreDiff < switchThreshold) {
+                log.info("目标算法评分明显更低（{}% < {}%），保持当前算法", 
+                         String.format("%.2f", scoreDiff * 100),
+                         String.format("%.2f", switchThreshold * 100));
                 return;
             }
             
@@ -342,14 +441,41 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             lastSwitchTime = now;
             currentAlgorithmStartTime = now;
             
-            // 算法预热：设置预热状态和初始cwnd
+            // **优化：算法状态继承机制（统一处理所有算法）**
+            // 1. 保存上一个算法的关键状态
             isWarmingUp = true;
-            warmupRttCount = congestionConfig.getWarmupRttCount();
             preWarmupCwnd = previousAlgorithm.getCwnd();
-            long newCwnd = (long) (preWarmupCwnd * 0.5);
-            // 注意：这里需要根据具体算法实现来设置cwnd，暂时记录日志
-            log.info("算法预热开始 - 新算法: {}, 预热前cwnd: {}, 预热初始cwnd: {}", 
-                    selectedAlgorithm.getAlgorithmName(), preWarmupCwnd, newCwnd);
+            long previousRate = previousAlgorithm.getRate();
+            
+            // 2. 根据目标算法类型，设置合适的预热期
+            int warmupPeriod = congestionConfig.getWarmupRttCount();
+            String targetAlgName = selectedAlgorithm.getAlgorithmName();
+            
+            // BBR需要更长的预热期（至少5个RTT来测量带宽）
+            if ("BBR".equals(targetAlgName)) {
+                warmupPeriod = Math.max(warmupPeriod, 5);
+            }
+            
+            // **修复：为所有算法设置cwnd（使用反射或类型判断）**
+            try {
+                // 尝试使用setCwnd方法（所有算法现在都有这个方法）
+                if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.BBRAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.BBRAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
+                } else if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.CubicAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.CubicAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
+                } else if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.VegasAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.VegasAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
+                } else if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.RenoAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.RenoAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
+                }
+                
+                log.info("算法预热开始 - 新算法: {}, 继承cwnd: {}字节 ({:.2f}MB), 预热期: {}个RTT", 
+                        targetAlgName, preWarmupCwnd, preWarmupCwnd / 1024.0 / 1024.0, warmupPeriod);
+            } catch (Exception e) {
+                log.warn("设置新算法cwnd失败: {}, 使用默认值", e.getMessage());
+            }
+            
+            warmupRttCount = warmupPeriod;
             
             // 记录切换历史
             AdaptiveAlgorithmMetrics.AlgorithmSwitchRecord record = 
@@ -621,6 +747,7 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             rttSamples.clear();
             preservedRttSamples.clear();
             lossRateHistory.clear();
+            recentPackets.clear(); // **新增：重置滑动窗口**
             lastEvaluationTime = System.currentTimeMillis();
             lastSwitchTime = 0;
             currentAlgorithmStartTime = System.currentTimeMillis();
@@ -642,6 +769,7 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             totalPackets = 0;
             lostPackets = 0;
             rttSamples.clear();
+            recentPackets.clear(); // **新增：重置滑动窗口**
             
             // 将保留的样本重新加入
             while (!preservedRttSamples.isEmpty()) {

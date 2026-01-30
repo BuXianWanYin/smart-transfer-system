@@ -149,9 +149,11 @@ const request = {
    */
   post(config) {
     // 合并配置，确保timeout等参数正确传递
+    // **修复：当timeout显式设置为0时，表示无限超时，不使用默认值**
     const axiosConfig = {
       ...config,
-      timeout: config.timeout !== undefined ? config.timeout : service.defaults.timeout,
+      // 如果 config.timeout 是 0，使用 0（无限超时）；如果是 undefined，使用默认值
+      timeout: config.timeout === 0 ? 0 : (config.timeout !== undefined ? config.timeout : service.defaults.timeout),
       headers: {
         ...service.defaults.headers,
         ...config.headers

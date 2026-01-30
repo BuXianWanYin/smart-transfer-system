@@ -1,5 +1,12 @@
 server:
   port: 8081
+  tomcat:
+    threads:
+      max: 200                # 最大工作线程数
+      min-spare: 10           # 最小空闲线程数
+    max-connections: 10000    # 最大连接数
+    accept-count: 100         # 等待队列长度
+    connection-timeout: 60000 # 连接超时：60秒
 
 spring:
   # 控制台输出启用 ANSI 颜色（ERROR 红、WARN 黄等）
@@ -25,11 +32,11 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false  # **修复：关闭SQL日志，减少IO开销**
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
-        format_sql: true
+        format_sql: false  # **修复：关闭SQL格式化**
   
   # Redis配置
   redis:
@@ -86,6 +93,7 @@ logging:
     root: INFO
     com.server: INFO
     com.server.smarttransferserver.mapper: WARN  # Mapper SQL日志级别设置为WARN，减少日志输出
+    com.server.smarttransferserver.service.impl.FileStorageServiceImpl: WARN  # **减少分片保存日志**
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
   file:

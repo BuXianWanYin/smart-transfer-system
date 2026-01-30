@@ -635,12 +635,22 @@ const startUploadTask = async (task) => {
       task._uploadCleanup.uploadQueue = uploadQueue
     }
     
+    // 添加失败标志
+    let uploadFailed = false
+    
     // 动态控制并发上传
     async function startNextChunk() {
+      // **修复：检查失败标志，避免失败后继续启动新分片**
+      if (uploadFailed) {
+        console.log(`任务 ${task.fileName} 已标记为失败，停止启动新分片`)
+        return
+      }
+      
       // 检查任务状态
       currentTask = transferStore.uploadQueue.find(t => t.id === task.id)
       if (!currentTask || currentTask.status === 'paused' || currentTask.status === 'error') {
         console.log(`任务 ${task.fileName} 已暂停或出错，停止上传`)
+        uploadFailed = true
         return
       }
       
@@ -655,7 +665,8 @@ const startUploadTask = async (task) => {
       }
       
       // **改进：根据当前cwnd动态计算并发数（每个分片完成后立即重新计算）**
-      const maxConcurrent = Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))
+      // **修复：降低最大并发数从6→4，避免达到浏览器连接限制，提高稳定性**
+      const maxConcurrent = Math.max(1, Math.min(4, Math.floor(currentCwnd / CHUNK_SIZE)))
       
       // 如果当前活跃数未达到最大并发数，启动新的上传
       while (activeUploads.size < maxConcurrent && uploadQueue.length > 0) {
@@ -687,7 +698,7 @@ const startUploadTask = async (task) => {
               } else {
                 currentCwnd = receivedCwnd
               }
-              console.log(`分片${i}上传完成 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 新并发数: ${Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))}`)
+              console.log(`分片${i}上传完成 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 新并发数: ${Math.max(1, Math.min(4, Math.floor(currentCwnd / CHUNK_SIZE)))}`)
             }
             
             // 更新metrics数据
@@ -721,14 +732,23 @@ const startUploadTask = async (task) => {
             return { index: i, size: chunk.size, result }
           } catch (error) {
             console.error(`分片${i}上传失败:`, error)
-            // 重新加入队列重试
-            uploadQueue.unshift(i)
-            throw error
-          } finally {
+            
+            // **修复：设置失败标志，防止继续启动新分片**
+            uploadFailed = true
+            
             // 从活跃队列移除
             activeUploads.delete(i)
-            // **关键：分片完成后立即尝试启动新的上传（使用新的cwnd计算并发数）**
-            startNextChunk()
+            
+            // 抛出错误到外层catch处理
+            throw error
+          } finally {
+            // 从活跃队列移除（确保异常情况下也能移除）
+            activeUploads.delete(i)
+            
+            // **修复：只有在未失败时才继续启动新分片**
+            if (!uploadFailed) {
+              startNextChunk()
+            }
           }
         })()
         
@@ -813,6 +833,21 @@ const startUploadTask = async (task) => {
     
     // 使用 failUploadTask标记为失败状态（保留在传输中列表，支持重试）
     await transferStore.failUploadTask(task.id, error.message || '上传失败')
+    
+    // **修复：任务失败时清空监控数据**
+    currentMetrics.value = {
+      taskId: '',
+      algorithm: 'CUBIC',
+      cwnd: 0,
+      ssthresh: 0,
+      rate: 0,
+      rtt: 0,
+      lossRate: 0,
+      bandwidth: 0,
+      networkQuality: '-'
+    }
+    congestionStore.updateMetrics(currentMetrics.value)
+    
     ElMessage.error(`${task.fileName} 上传失败: ${error.message}，可点击重试`)
     // **修复：失败任务不加载到已完成列表，保留在传输中以便重试**
   }
@@ -918,14 +953,21 @@ const handleWsEvent = (event) => {
         // 全量替换，确保当前算法、网络质量等与后端实时一致
         currentMetrics.value = { ...taskMetrics }
         congestionStore.updateMetrics(taskMetrics)
-      } else if (Object.keys(taskMetricsMap).length > 0) {
-        // 无匹配的活跃任务时，使用第一个任务的指标（确保有数据时显示）
-        const firstTaskId = Object.keys(taskMetricsMap)[0]
-        const taskMetrics = taskMetricsMap[firstTaskId]
-        if (taskMetrics && taskMetrics.algorithm && taskMetrics.algorithm !== 'NONE') {
-          currentMetrics.value = { ...taskMetrics }
-          congestionStore.updateMetrics(taskMetrics)
+      } else {
+        // **修复：没有活跃任务时，清空监控数据，避免显示已失败任务的数据**
+        // 不再使用第一个任务的指标，防止显示已停止任务的陈旧数据
+        currentMetrics.value = {
+          taskId: '',
+          algorithm: 'CUBIC',
+          cwnd: 0,
+          ssthresh: 0,
+          rate: 0,
+          rtt: 0,
+          lossRate: 0,
+          bandwidth: 0,
+          networkQuality: '-'
         }
+        congestionStore.updateMetrics(currentMetrics.value)
       }
     } else {
       // 兼容旧格式：单个指标对象

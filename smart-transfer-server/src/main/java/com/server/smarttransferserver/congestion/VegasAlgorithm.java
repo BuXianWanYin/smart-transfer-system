@@ -254,6 +254,15 @@ public class VegasAlgorithm implements CongestionControlAlgorithm {
         return cwnd;
     }
     
+    /**
+     * 设置拥塞窗口（用于算法切换时继承cwnd）
+     * @param cwnd 新的拥塞窗口大小
+     */
+    public void setCwnd(long cwnd) {
+        this.cwnd = Math.max(cwnd, congestionConfig.getMinCwnd());
+        log.info("TCP Vegas算法设置cwnd: {}字节 ({:.2f}MB)", cwnd, cwnd / 1024.0 / 1024.0);
+    }
+    
     @Override
     public long getRate() {
         // 速率 = 拥塞窗口 / RTT
