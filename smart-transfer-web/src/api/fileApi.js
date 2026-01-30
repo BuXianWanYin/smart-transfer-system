@@ -4,7 +4,22 @@ import { userStorage } from '@/utils/storage'
 
 /**
  * 文件传输 API
+ * RTT/丢包：与后端 CongestionClientMetricsConstants 约定一致的范围，发送前限幅避免非法值
  */
+const RTT_MS_MAX = 60000   // 与后端 RTT_MS_MAX 一致
+const RETRY_COUNT_MAX = 10 // 与后端 RETRY_COUNT_CAP 一致
+
+function clampRttForHeader(ms) {
+  const n = Number(ms)
+  if (typeof n !== 'number' || !Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(RTT_MS_MAX, Math.round(n)))
+}
+
+function clampRetryCountForHeader(c) {
+  const n = Number(c)
+  if (typeof n !== 'number' || !Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(RETRY_COUNT_MAX, Math.round(n)))
+}
 
 /**
  * 初始化文件上传
@@ -25,13 +40,15 @@ export function initUpload(data) {
  * @param {Function} onProgress - 进度回调
  * @param {number} maxRetries - 最大重试次数
  * @param {AbortSignal} signal - 取消信号（可选，用于取消请求）
- * @returns {Promise}
+ * @param {number} lastRtt - 上一分片客户端测量的 RTT（ms），用于后端拥塞算法，默认 0
+ * @param {number} lastRetryCount - 上一分片的重试次数（成功前的失败次数），用于后端丢包率统计，默认 0
+ * @returns {Promise<{ ...ChunkUploadVO, clientRtt: number, retryCount: number }>}
  */
-export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) {
+export async function uploadChunk(formData, onProgress, maxRetries = 3, signal, lastRtt = 0, lastRetryCount = 0) {
   const STALL_TIMEOUT = 30000 // 30秒无进度才认为卡死
   const CONNECTION_TIMEOUT = 60000 // **新增：60秒连接建立超时**
 
-  const uploadWithStallDetection = () => {
+  const uploadWithStallDetection = (attemptIndex) => {
     return new Promise((resolve, reject) => {
       const startTime = Date.now()
       let lastProgressTime = Date.now()
@@ -63,13 +80,17 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) 
       // 使用外部传入的 signal 或内部创建的 abortController
       const finalSignal = signal || abortController.signal
 
+      // RTT 修复：记录请求发出时刻，用于计算真实网络往返时延
+      const sendTime = Date.now()
       request.post({
         url: '/file/upload/chunk',
         data: formData,
         timeout: 0, // 不设超时，但axios可能仍使用实例默认值
         signal: finalSignal,  // **修复CRITICAL-4: 支持外部传入的signal**
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'multipart/form-data',
+          'X-Last-RTT-Ms': String(clampRttForHeader(lastRtt)),
+          'X-Chunk-Retry-Count': String(clampRetryCountForHeader(lastRetryCount))
         },
         // 明确设置超时为0（或很大的值）以覆盖实例默认值
         validateStatus: () => true, // 允许所有状态码，避免被拦截器拦截
@@ -84,7 +105,9 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) 
       })
       .then(res => {
         clearInterval(stallTimer)
-        resolve(res)
+        const clientRtt = Date.now() - sendTime
+        const data = res.data?.data ?? res.data ?? {}
+        resolve({ ...data, clientRtt, retryCount: attemptIndex })
       })
       .catch(err => {
         clearInterval(stallTimer)
@@ -103,7 +126,7 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3, signal) 
   let lastError = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await uploadWithStallDetection()
+      return await uploadWithStallDetection(attempt)
     } catch (error) {
       lastError = error
       const isStall = error.message === 'STALL_TIMEOUT'
@@ -212,38 +235,42 @@ export function initDownload(fileId, chunkSize) {
 /**
  * 下载文件分块（集成拥塞控制，二进制流传输）
  * **优化：使用二进制流传输（标准做法），元数据通过响应头传输**
+ * **RTT/丢包：支持传入上一分片的 clientRtt 与 retryCount，并在返回中提供本次分片的 clientRtt**
  * @param {Number} fileId - 文件ID
  * @param {Number} chunkNumber - 分块编号
  * @param {Number} startByte - 起始字节位置（可选）
  * @param {Number} endByte - 结束字节位置（可选）
  * @param {AbortSignal} signal - 取消信号（可选，用于取消请求）
- * @returns {Promise} 返回完整的axios响应对象（包含响应头和二进制数据）
+ * @param {number} lastRtt - 上一分片客户端测量的 RTT（ms），用于后端拥塞算法，默认 0
+ * @param {number} lastRetryCount - 上一分片的重试次数（成功前的失败次数），用于后端丢包率统计，默认 0
+ * @returns {Promise<{ response: import('axios').AxiosResponse, clientRtt: number }>} 返回 { response, clientRtt }
  */
-export function downloadChunk(fileId, chunkNumber, startByte, endByte, signal) {
+export async function downloadChunk(fileId, chunkNumber, startByte, endByte, signal, lastRtt = 0, lastRetryCount = 0) {
   const params = {}
   if (startByte !== undefined) params.startByte = startByte
   if (endByte !== undefined) params.endByte = endByte
-  
-  // 使用axios直接调用，接收二进制数据
-  // 注意：需要绕过request封装，直接使用axios实例（因为需要responseType: 'arraybuffer'）
+
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
   const token = userStorage.getToken()
-  
-  // 创建独立的axios实例用于二进制下载（不受响应拦截器影响）
+
   const axiosInstance = axios.create({
     baseURL,
-    timeout: 0,  // 不设超时
-    responseType: 'arraybuffer',  // 接收二进制数据
+    timeout: 0,
+    responseType: 'arraybuffer',
     headers: {
-      'Authorization': token ? `Bearer ${token}` : ''
+      'Authorization': token ? `Bearer ${token}` : '',
+      'X-Last-RTT-Ms': String(clampRttForHeader(lastRtt)),
+      'X-Chunk-Retry-Count': String(clampRetryCountForHeader(lastRetryCount))
     }
   })
-  
-  // **修复P2/P3: 支持请求取消（通过AbortSignal）**
-  return axiosInstance.get(`/file/download/chunk/${fileId}/${chunkNumber}`, { 
+
+  const sendTime = Date.now()
+  const response = await axiosInstance.get(`/file/download/chunk/${fileId}/${chunkNumber}`, {
     params,
-    signal  // 传递取消信号
+    signal
   })
+  const clientRtt = Date.now() - sendTime
+  return { response, clientRtt }
 }
 
 /**

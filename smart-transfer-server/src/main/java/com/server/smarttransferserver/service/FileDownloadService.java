@@ -29,9 +29,11 @@ public interface FileDownloadService {
      * @param chunkNumber 分块编号
      * @param startByte 起始字节位置
      * @param endByte 结束字节位置
+     * @param clientRttMs 客户端测量的上一分片 RTT（毫秒），可选，用于拥塞算法使用真实网络往返时延
+     * @param clientRetryCount 上一分片在客户端的重试次数，可选，用于应用层丢包率统计
      * @return ResponseEntity包含二进制数据和元数据响应头
      */
-    ResponseEntity<byte[]> downloadChunk(Long fileId, Integer chunkNumber, Long startByte, Long endByte);
+    ResponseEntity<byte[]> downloadChunk(Long fileId, Integer chunkNumber, Long startByte, Long endByte, Long clientRttMs, Integer clientRetryCount);
     
     /**
      * 处理下载分块错误

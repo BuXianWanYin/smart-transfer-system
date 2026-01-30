@@ -908,6 +908,15 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     }
     
     /**
+     * 获取当前滑动窗口丢包率（用于监控显示，与算法决策一致）
+     *
+     * @return 最近窗口内的丢包率 [0, 1]
+     */
+    public double getCurrentLossRate() {
+        return currentLossRate;
+    }
+    
+    /**
      * 获取当前使用的算法名称
      *
      * @return 算法名称

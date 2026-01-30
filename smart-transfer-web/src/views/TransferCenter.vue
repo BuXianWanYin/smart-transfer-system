@@ -637,7 +637,11 @@ const startUploadTask = async (task) => {
     
     // 添加失败标志
     let uploadFailed = false
-    
+    // RTT 修复：客户端测量的上一分片 RTT，供下次请求带给后端
+    let lastRtt = 0
+    // 丢包率优化：上一分片的重试次数，供下次请求带给后端
+    let lastRetryCount = 0
+
     // 动态控制并发上传
     async function startNextChunk() {
       // **修复：检查失败标志，避免失败后继续启动新分片**
@@ -686,9 +690,17 @@ const startUploadTask = async (task) => {
             formData.append('totalChunks', totalChunks)
             formData.append('chunkHash', fileHash)
             
-            // **修复CRITICAL-4: 传递AbortSignal以支持取消上传**
-            const result = await uploadChunk(formData, () => {}, 3, abortController.signal)
-            
+            // **修复CRITICAL-4: 传递AbortSignal；lastRtt / lastRetryCount 供后端拥塞与丢包率（与后端范围一致：RTT 0–60000ms，重试 0–10）**
+            const result = await uploadChunk(formData, () => {}, 3, abortController.signal, lastRtt, lastRetryCount)
+            if (result && result.success === true) {
+              if (typeof result.clientRtt === 'number' && Number.isFinite(result.clientRtt)) {
+                lastRtt = Math.max(0, Math.min(60000, Math.round(result.clientRtt)))
+              }
+              if (typeof result.retryCount === 'number' && Number.isInteger(result.retryCount) && result.retryCount >= 0) {
+                lastRetryCount = Math.min(10, result.retryCount)
+              }
+            }
+
             // **改进：每个分片完成后立即更新cwnd和并发数**
             if (result && result.cwnd) {
               const receivedCwnd = Number(result.cwnd)
@@ -701,12 +713,12 @@ const startUploadTask = async (task) => {
               console.log(`分片${i}上传完成 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 新并发数: ${Math.max(1, Math.min(4, Math.floor(currentCwnd / CHUNK_SIZE)))}`)
             }
             
-            // 更新metrics数据
-            if (result && result.rtt !== undefined) {
+            // 更新 metrics：优先使用客户端测量的 RTT（真实网络往返时延）
+            if (result && (result.clientRtt !== undefined || result.rtt !== undefined)) {
               const metrics = {
                 algorithm: currentMetrics.value.algorithm || 'CUBIC',
                 cwnd: result.cwnd || currentMetrics.value.cwnd || 0,
-                rtt: result.rtt || 0,
+                rtt: result.clientRtt ?? result.rtt ?? 0,
                 lossRate: currentMetrics.value.lossRate || 0
               }
               currentMetrics.value = { ...currentMetrics.value, ...metrics }
@@ -1380,6 +1392,9 @@ const startDownloadTask = async (task) => {
     // **修复M3: 为每个分块添加重试次数计数器（防止无限重试）**
     const chunkRetryCount = new Map() // chunkNumber -> retryCount
     const MAX_CHUNK_RETRIES = 3 // 每个分块最大重试次数
+    // **RTT/丢包：上一分片成功时的 RTT 与重试次数，供后端拥塞算法使用**
+    let lastRtt = 0
+    let lastRetryCount = 0
     
     // **修复ISSUE-1: 将AbortController存储到任务对象，复用chunkDataMap**
     if (!task._downloadCleanup) {
@@ -1436,7 +1451,8 @@ const startDownloadTask = async (task) => {
             
             // **优化：使用二进制流传输，从响应头获取元数据**
             // **修复P2/P3: 支持请求取消（通过AbortController）**
-            const response = await downloadChunk(task.fileId, chunkNumber, startByte, endByte, abortController.signal)
+            // **RTT/丢包：传入上一分片的 lastRtt/lastRetryCount，接收本分片的 clientRtt**
+            const { response, clientRtt } = await downloadChunk(task.fileId, chunkNumber, startByte, endByte, abortController.signal, lastRtt, lastRetryCount)
             
             // **修复P3: 在下载完成后检查任务状态，如果被暂停/取消则中断处理**
             currentTask = transferStore.downloadQueue.find(t => t.id === task.id)
@@ -1455,6 +1471,13 @@ const startDownloadTask = async (task) => {
             const success = getHeader('x-success') === 'true'
             
             if (success) {
+              // **RTT/丢包：仅在本分片成功时更新，供下一个分片请求携带（与后端范围一致：RTT 0–60000ms，重试 0–10）**
+              if (typeof clientRtt === 'number' && Number.isFinite(clientRtt)) {
+                lastRtt = Math.max(0, Math.min(60000, Math.round(clientRtt)))
+              }
+              const rawRetry = chunkRetryCount.get(chunkNumber) || 0
+              lastRetryCount = typeof rawRetry === 'number' && Number.isInteger(rawRetry) && rawRetry >= 0 ? Math.min(10, rawRetry) : 0
+
               // **改进：每个分块完成后立即更新cwnd和并发数**
               // **修复P5: 增强响应头解析错误处理，防止NaN**
               const receivedCwndStr = getHeader('x-cwnd') || '0'

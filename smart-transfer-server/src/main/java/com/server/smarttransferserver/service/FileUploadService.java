@@ -38,8 +38,10 @@ public interface FileUploadService {
      * @param chunkNumber 分片编号
      * @param chunkHash 分片哈希
      * @param file 分片文件
+     * @param clientRttMs 客户端测量的上一分片 RTT（毫秒），可选，用于拥塞算法使用真实网络往返时延
+     * @param clientRetryCount 上一分片在客户端的重试次数，可选，用于应用层丢包率统计
      * @return 分片上传结果
      */
-    ChunkUploadVO uploadChunk(Long fileId, Integer chunkNumber, String chunkHash, MultipartFile file);
+    ChunkUploadVO uploadChunk(Long fileId, Integer chunkNumber, String chunkHash, MultipartFile file, Long clientRttMs, Integer clientRetryCount);
 }
 

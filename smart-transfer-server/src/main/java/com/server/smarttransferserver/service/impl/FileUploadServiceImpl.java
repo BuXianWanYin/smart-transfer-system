@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.server.smarttransferserver.util.CongestionClientMetricsConstants;
 import com.server.smarttransferserver.util.UserContextHolder;
 
 import java.io.IOException;
@@ -274,12 +275,14 @@ public class FileUploadServiceImpl implements FileUploadService {
      */
     @Override
     @Transactional
-    public ChunkUploadVO uploadChunk(Long fileId, Integer chunkNumber, String chunkHash, MultipartFile file) {
+    public ChunkUploadVO uploadChunk(Long fileId, Integer chunkNumber, String chunkHash, MultipartFile file, Long clientRttMs, Integer clientRetryCount) {
         ChunkUploadDTO dto = new ChunkUploadDTO();
         dto.setFileId(fileId);
         dto.setChunkNumber(chunkNumber);
         dto.setChunkHash(chunkHash);
         dto.setFile(file);
+        dto.setClientRttMs(clientRttMs);
+        dto.setClientRetryCount(clientRetryCount);
         return uploadChunkInternal(dto);
     }
     
@@ -298,6 +301,19 @@ public class FileUploadServiceImpl implements FileUploadService {
         String taskId = getOrCreateTaskId(dto.getFileId());
         CongestionControlAlgorithm algorithm = algorithmManager.getOrCreateAlgorithm(taskId);
         
+        // 丢包率优化：上一分片在客户端的重试次数视为应用层“丢包”，计入滑动窗口（上限防恶意/异常值，与前端 RETRY_COUNT_MAX 一致）
+        Integer retryCount = dto.getClientRetryCount();
+        if (retryCount != null && retryCount > 0 && algorithm != null) {
+            int capped = Math.min(retryCount, CongestionClientMetricsConstants.RETRY_COUNT_CAP);
+            long chunkSizeForLoss = dto.getFile().getSize();
+            for (int i = 0; i < capped; i++) {
+                algorithm.onLoss(chunkSizeForLoss);
+            }
+            if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+                log.debug("应用层丢包统计 - 上一分片重试{}次，计入{}次丢包", retryCount, capped);
+            }
+        }
+        
         // 记录分片上传开始时间（用于计算RTT）
         String chunkKey = dto.getFileId() + "-" + dto.getChunkNumber();
         long startTime = System.currentTimeMillis();
@@ -310,15 +326,21 @@ public class FileUploadServiceImpl implements FileUploadService {
             long chunkSize = dto.getFile().getSize();
             storageService.saveChunk(dto.getFileId(), dto.getChunkNumber(), dto.getFile());
             
-            // 2. 计算本次传输的RTT
+            // 2. RTT：优先使用客户端测量的上一分片网络往返时延，否则用服务端处理时间
             long endTime = System.currentTimeMillis();
-            long rtt = endTime - startTime;
+            long serverProcessingMs = endTime - startTime;
             chunkStartTimes.remove(chunkKey);
+            long rtt;
+            if (dto.getClientRttMs() != null && dto.getClientRttMs() > 0) {
+                rtt = Math.max(CongestionClientMetricsConstants.RTT_MS_MIN, Math.min(CongestionClientMetricsConstants.RTT_MS_MAX, dto.getClientRttMs()));
+            } else {
+                rtt = serverProcessingMs;
+            }
             
             // 3. 记录传输字节数用于带宽估计
             bandwidthEstimator.recordSent(chunkSize);
             
-            // 4. **关键修复：使用任务独立的算法实例触发ACK响应**
+            // 4. **关键修复：使用任务独立的算法实例触发ACK响应（使用真实网络RTT）**
             if (algorithm != null) {
                 algorithm.onAck(chunkSize, rtt);
                 if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {

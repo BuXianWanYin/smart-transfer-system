@@ -87,10 +87,13 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
         // 获取网络趋势和预热状态（如果是自适应算法）
         String networkTrend = null;
         Boolean isWarmingUp = null;
+        double lossRateForVo = networkMonitor.getLossRate();
         if (algorithm instanceof AdaptiveAlgorithm) {
             AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) algorithm;
             networkTrend = adaptiveAlg.getNetworkTrend();
             isWarmingUp = adaptiveAlg.isWarmingUp();
+            // 丢包率优化：上传场景用自适应算法的滑动窗口丢包率（与算法决策一致，上传有数据）
+            lossRateForVo = adaptiveAlg.getCurrentLossRate();
         }
         
         CongestionMetricsVO vo = CongestionMetricsVO.builder()
@@ -101,7 +104,7 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .state(algorithm.getState().getDescription())
                 .rtt(algorithm.getRtt())
                 .minRtt(networkMonitor.getMinRtt())
-                .lossRate(networkMonitor.getLossRate())
+                .lossRate(lossRateForVo)
                 .bandwidth(bandwidth)
                 .networkQuality(qualityDesc)
                 .inflightCount(networkMonitor.getInflightCount())
@@ -177,7 +180,10 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
         if (algorithm == null || networkMonitor == null) {
             return;
         }
-        
+        double lossRateForRecord = networkMonitor.getLossRate();
+        if (algorithm instanceof AdaptiveAlgorithm) {
+            lossRateForRecord = ((AdaptiveAlgorithm) algorithm).getCurrentLossRate();
+        }
         CongestionMetrics metrics = CongestionMetrics.builder()
                 .taskId(taskId)
                 .algorithm(algorithm.getAlgorithmName())
@@ -185,7 +191,7 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .ssthresh(algorithm.getSsthresh())
                 .rtt(algorithm.getRtt())
                 .bandwidth(networkMonitor.getEstimatedBandwidth())
-                .lossRate(BigDecimal.valueOf(networkMonitor.getLossRate()))
+                .lossRate(BigDecimal.valueOf(lossRateForRecord))
                 .recordTime(LocalDateTime.now())
                 .build();
         

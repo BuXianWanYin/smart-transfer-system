@@ -7,6 +7,7 @@ import com.server.smarttransferserver.domain.Folder;
 import com.server.smarttransferserver.domain.RecoveryFile;
 import com.server.smarttransferserver.entity.FileInfo;
 import com.server.smarttransferserver.entity.TransferTask;
+import com.server.smarttransferserver.mapper.CongestionMetricsMapper;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
 import com.server.smarttransferserver.mapper.FolderMapper;
 import com.server.smarttransferserver.mapper.RecoveryFileMapper;
@@ -39,6 +40,9 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
     
     @Autowired
     private TransferTaskMapper transferTaskMapper;
+    
+    @Autowired
+    private CongestionMetricsMapper congestionMetricsMapper;
     
     @Autowired
     private IFileStorageService fileStorageService;
@@ -342,7 +346,13 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                         recoveryId, recoveryFile.getFileId());
             }
             
-            // 2. 删除关联的传输任务记录
+            // 2. 先删除拥塞指标（外键依赖 transfer_task），再删除传输任务
+            List<TransferTask> tasksToDelete = transferTaskMapper.selectByFileId(recoveryFile.getFileId());
+            if (tasksToDelete != null) {
+                for (TransferTask t : tasksToDelete) {
+                    congestionMetricsMapper.deleteByTaskId(t.getTaskId());
+                }
+            }
             transferTaskMapper.deleteByFileId(recoveryFile.getFileId());
             // 3. 彻底删除单个文件记录（物理删除，使用原生SQL）
             fileInfoMapper.deletePhysically(recoveryFile.getFileId());
@@ -367,7 +377,15 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
             }
         }
         
-        // 2. 删除关联的传输任务记录（通过批次号关联的文件）
+        // 2. 先删除拥塞指标（外键依赖 transfer_task），再删除传输任务
+        for (FileInfo file : files) {
+            List<TransferTask> tasks = transferTaskMapper.selectByFileId(file.getId());
+            if (tasks != null) {
+                for (TransferTask t : tasks) {
+                    congestionMetricsMapper.deleteByTaskId(t.getTaskId());
+                }
+            }
+        }
         transferTaskMapper.deleteByBatchNum(batchNum);
         
         // 3. 彻底删除所有标记为该批次号的文件记录
@@ -465,7 +483,13 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
                             recoveryFile.getId(), recoveryFile.getFileId());
                 }
                 
-                // 2. 删除关联的传输任务记录
+                // 2. 先删除拥塞指标（外键依赖 transfer_task），再删除传输任务
+                List<TransferTask> tasksToDelete = transferTaskMapper.selectByFileId(recoveryFile.getFileId());
+                if (tasksToDelete != null) {
+                    for (TransferTask t : tasksToDelete) {
+                        congestionMetricsMapper.deleteByTaskId(t.getTaskId());
+                    }
+                }
                 transferTaskMapper.deleteByFileId(recoveryFile.getFileId());
                 // 3. 彻底删除单个文件记录（物理删除）
                 fileInfoMapper.deletePhysically(recoveryFile.getFileId());

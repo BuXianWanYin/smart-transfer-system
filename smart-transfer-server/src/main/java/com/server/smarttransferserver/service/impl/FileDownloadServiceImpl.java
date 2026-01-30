@@ -10,6 +10,7 @@ import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.service.FileDownloadService;
 import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.RedisService;
+import com.server.smarttransferserver.util.CongestionClientMetricsConstants;
 import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.FileDownloadInitVO;
 import org.springframework.http.HttpHeaders;
@@ -171,7 +172,7 @@ public class FileDownloadServiceImpl implements FileDownloadService {
     
     @Override
     @Transactional
-    public ResponseEntity<byte[]> downloadChunk(Long fileId, Integer chunkNumber, Long startByte, Long endByte) {
+    public ResponseEntity<byte[]> downloadChunk(Long fileId, Integer chunkNumber, Long startByte, Long endByte, Long clientRttMs, Integer clientRetryCount) {
         log.info("下载分块 - 文件ID: {}, 分块: {}, 范围: {}-{}", fileId, chunkNumber, startByte, endByte);
         
         // 获取任务ID
@@ -331,22 +332,37 @@ public class FileDownloadServiceImpl implements FileDownloadService {
                 }
             }
             
-            // 3. 计算本次传输的RTT
-            long endTime = System.currentTimeMillis();
-            long rtt = endTime - startTime;
+            // 3. 丢包率优化：上一分片在客户端的重试次数视为应用层“丢包”，计入滑动窗口（上限防恶意/异常值，与前端 RETRY_COUNT_MAX 一致）
+            if (clientRetryCount != null && clientRetryCount > 0) {
+                int capped = Math.min(clientRetryCount, CongestionClientMetricsConstants.RETRY_COUNT_CAP);
+                for (int i = 0; i < capped; i++) {
+                    algorithm.onLoss(actualChunkSize);
+                }
+                log.debug("下载应用层丢包统计 - 上一分片重试{}次，计入{}次丢包", clientRetryCount, capped);
+            }
             
-            // 4. **关键：触发拥塞控制算法的ACK响应**
+            // 4. 计算本次传输的RTT：优先使用客户端测量的上一分片网络往返时延，否则用服务端处理时间
+            long endTime = System.currentTimeMillis();
+            long serverProcessingMs = endTime - startTime;
+            long rtt;
+            if (clientRttMs != null && clientRttMs > 0) {
+                rtt = Math.max(CongestionClientMetricsConstants.RTT_MS_MIN, Math.min(CongestionClientMetricsConstants.RTT_MS_MAX, clientRttMs));
+            } else {
+                rtt = serverProcessingMs;
+            }
+            
+            // 5. **关键：触发拥塞控制算法的ACK响应**
             // 注意：algorithm已经在方法开始时检查过，这里可以直接使用
             algorithm.onAck(actualChunkSize, rtt);
             log.debug("拥塞控制响应ACK - 任务ID: {}, 算法: {}, 分块大小: {}字节, RTT: {}ms, 当前cwnd: {}字节",
                      taskId, algorithm.getAlgorithmName(), actualChunkSize, rtt, algorithm.getCwnd());
             
-            // 5. 记录拥塞指标到数据库
+            // 6. 记录拥塞指标到数据库
             if (metricsService instanceof CongestionMetricsServiceImpl) {
                 ((CongestionMetricsServiceImpl) metricsService).recordMetrics(taskId, algorithm);
             }
             
-            // 6. **修复P0-1：使用Redis记录真实的已完成分块数（修复进度计算）**
+            // 7. **修复P0-1：使用Redis记录真实的已完成分块数（修复进度计算）**
             String completedChunksKey = DOWNLOAD_COMPLETED_CHUNKS_KEY_PREFIX + taskId;
             // **修复C1: 使用一致的chunkSize计算totalChunks（使用之前计算的totalChunks变量）**
             int completedChunks;

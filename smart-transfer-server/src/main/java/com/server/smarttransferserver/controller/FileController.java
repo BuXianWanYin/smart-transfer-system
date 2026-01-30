@@ -124,12 +124,15 @@ public class FileController {
             @RequestParam("fileId") Long fileId,
             @RequestParam("chunkNumber") Integer chunkNumber,
             @RequestParam("chunkHash") String chunkHash,
-            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestHeader(value = "X-Last-RTT-Ms", required = false) String clientRttMsStr,
+            @RequestHeader(value = "X-Chunk-Retry-Count", required = false) String clientRetryCountStr) {
         
         log.info("上传分片 - 文件ID: {}, 分片: {}", fileId, chunkNumber);
-        
+        Long clientRttMs = parseLongHeader(clientRttMsStr);
+        Integer clientRetryCount = parseIntHeader(clientRetryCountStr);
         try {
-            ChunkUploadVO vo = uploadService.uploadChunk(fileId, chunkNumber, chunkHash, file);
+            ChunkUploadVO vo = uploadService.uploadChunk(fileId, chunkNumber, chunkHash, file, clientRttMs, clientRetryCount);
             return Result.success(vo);
         } catch (Exception e) {
             log.error("分片上传失败", e);
@@ -370,10 +373,14 @@ public class FileController {
             @PathVariable Long id,
             @PathVariable Integer chunkNumber,
             @RequestParam(value = "startByte", required = false) Long startByte,
-            @RequestParam(value = "endByte", required = false) Long endByte) {
+            @RequestParam(value = "endByte", required = false) Long endByte,
+            @RequestHeader(value = "X-Last-RTT-Ms", required = false) String clientRttMsStr,
+            @RequestHeader(value = "X-Chunk-Retry-Count", required = false) String clientRetryCountStr) {
         log.info("下载分块 - 文件ID: {}, 分块: {}, 范围: {}-{}", id, chunkNumber, startByte, endByte);
+        Long clientRttMs = parseLongHeader(clientRttMsStr);
+        Integer clientRetryCount = parseIntHeader(clientRetryCountStr);
         try {
-            return downloadService.downloadChunk(id, chunkNumber, startByte, endByte);
+            return downloadService.downloadChunk(id, chunkNumber, startByte, endByte, clientRttMs, clientRetryCount);
         } catch (Exception e) {
             log.error("下载分块失败", e);
             return downloadService.handleDownloadChunkError(e);
@@ -638,6 +645,30 @@ public class FileController {
             } catch (Exception ex) {
                 log.error("发送错误响应失败", ex);
             }
+        }
+    }
+
+    /**
+     * 安全解析 RTT 请求头（X-Last-RTT-Ms），非法或缺失时返回 null，避免 400
+     */
+    private static Long parseLongHeader(String value) {
+        if (value == null || value.trim().isEmpty()) return null;
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 安全解析重试次数请求头（X-Chunk-Retry-Count），非法或缺失时返回 null，避免 400
+     */
+    private static Integer parseIntHeader(String value) {
+        if (value == null || value.trim().isEmpty()) return null;
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }
