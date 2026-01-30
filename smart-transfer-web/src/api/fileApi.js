@@ -106,7 +106,8 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3, signal, 
       .then(res => {
         clearInterval(stallTimer)
         const clientRtt = Date.now() - sendTime
-        const data = res.data?.data ?? res.data ?? {}
+        // 响应拦截器已经返回了 res.data（即 ChunkUploadVO 对象），所以这里直接使用 res
+        const data = res ?? {}
         resolve({ ...data, clientRtt, retryCount: attemptIndex })
       })
       .catch(err => {

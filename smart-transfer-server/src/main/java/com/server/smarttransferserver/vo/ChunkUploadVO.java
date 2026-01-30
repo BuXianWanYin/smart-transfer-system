@@ -56,6 +56,17 @@ public class ChunkUploadVO {
     private Long rtt;
     
     /**
+     * 当前算法速率（字节/秒）
+     */
+    private Long rate;
+    
+    /**
+     * 单向传播时延（毫秒）：与 Clumsy 的「延迟」一致（配 50ms 即返回 50ms）
+     * 后端计算：(clientRtt - serverProcessingMs) / 2
+     */
+    private Long propagationRtt;
+    
+    /**
      * 提示信息
      */
     private String message;

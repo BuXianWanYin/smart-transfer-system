@@ -78,7 +78,7 @@ public class CubicAlgorithm implements CongestionControlAlgorithm {
         this.wMax = 0;
         this.ackCount = 0;
         this.lastCongestionTime = System.currentTimeMillis();
-        this.currentRtt = 100; // 默认RTT 100ms
+        this.currentRtt = 0;
         this.state = CongestionState.SLOW_START;
         
         log.info("CUBIC算法初始化 - cwnd: {}字节, ssthresh: {}字节", cwnd, ssthresh);
@@ -91,8 +91,9 @@ public class CubicAlgorithm implements CongestionControlAlgorithm {
      * @param rtt        往返时延（毫秒）
      */
     @Override
-    public void onAck(long ackedBytes, long rtt) {
-        this.currentRtt = rtt;
+    public void onAck(long ackedBytes, long fullRttMs, Long propagationRttMs) {
+        this.currentRtt = propagationRttMs != null ? propagationRttMs : fullRttMs;
+        long rtt = this.currentRtt;
         
         if (state == CongestionState.SLOW_START) {
             // 慢启动阶段：指数增长

@@ -351,11 +351,16 @@ public class FileDownloadServiceImpl implements FileDownloadService {
                 rtt = serverProcessingMs;
             }
             
-            // 5. **关键：触发拥塞控制算法的ACK响应**
-            // 注意：algorithm已经在方法开始时检查过，这里可以直接使用
-            algorithm.onAck(actualChunkSize, rtt);
-            log.debug("拥塞控制响应ACK - 任务ID: {}, 算法: {}, 分块大小: {}字节, RTT: {}ms, 当前cwnd: {}字节",
-                     taskId, algorithm.getAlgorithmName(), actualChunkSize, rtt, algorithm.getCwnd());
+            // 5. 算法使用双 RTT：full 用于带宽估计，propagation 用于延迟逻辑（与 Clumsy 50ms 一致）
+            //    **关键修复**：用服务端实际测量的处理时间（主要是传输时间）来计算传播 RTT，
+            //    而不是用算法的理论 rate（cwnd/rtt），因为理论 rate 可能远大于实际带宽。
+            Long propagationRttMs = null;
+            if (serverProcessingMs > 0) {
+                propagationRttMs = Math.max(0L, rtt - serverProcessingMs);
+            }
+            algorithm.onAck(actualChunkSize, rtt, propagationRttMs);
+            log.debug("拥塞控制响应ACK - 任务ID: {}, 算法: {}, 分块: {}字节, fullRtt: {}ms, propRtt: {}ms, cwnd: {}字节",
+                     taskId, algorithm.getAlgorithmName(), actualChunkSize, rtt, propagationRttMs, algorithm.getCwnd());
             
             // 6. 记录拥塞指标到数据库
             if (metricsService instanceof CongestionMetricsServiceImpl) {
@@ -413,6 +418,10 @@ public class FileDownloadServiceImpl implements FileDownloadService {
             headers.set("X-Progress", String.valueOf(progress));
             headers.set("X-Cwnd", String.valueOf(currentCwnd));
             headers.set("X-Rtt", String.valueOf(rtt));
+            // 单向传播时延（与 Clumsy「延迟」一致，配 50ms 即返回 50ms）
+            if (propagationRttMs != null) {
+                headers.set("X-Propagation-RTT", String.valueOf(propagationRttMs / 2));
+            }
             
             return ResponseEntity.ok()
                     .headers(headers)

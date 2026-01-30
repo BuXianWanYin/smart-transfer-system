@@ -3,9 +3,7 @@ package com.server.smarttransferserver.congestion;
 import lombok.Data;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 自适应算法运行指标
@@ -18,11 +16,6 @@ public class AdaptiveAlgorithmMetrics {
      * 当前算法名称
      */
     private String currentAlgorithm;
-    
-    /**
-     * 各算法得分
-     */
-    private Map<String, Double> algorithmScores;
     
     /**
      * 网络质量等级
@@ -48,21 +41,16 @@ public class AdaptiveAlgorithmMetrics {
         private String fromAlgorithm;
         private String toAlgorithm;
         private String reason;
-        private double beforeScore;
-        private double afterScore;
         private double lossRate;
         private long rttJitter;
         private double avgRtt;
         
         public AlgorithmSwitchRecord(String fromAlgorithm, String toAlgorithm, String reason,
-                                    double beforeScore, double afterScore, double lossRate,
-                                    long rttJitter, double avgRtt) {
+                                    double lossRate, long rttJitter, double avgRtt) {
             this.timestamp = System.currentTimeMillis();
             this.fromAlgorithm = fromAlgorithm;
             this.toAlgorithm = toAlgorithm;
             this.reason = reason;
-            this.beforeScore = beforeScore;
-            this.afterScore = afterScore;
             this.lossRate = lossRate;
             this.rttJitter = rttJitter;
             this.avgRtt = avgRtt;
@@ -96,7 +84,6 @@ public class AdaptiveAlgorithmMetrics {
      * 构造方法
      */
     public AdaptiveAlgorithmMetrics() {
-        this.algorithmScores = new HashMap<>();
         this.switchHistory = new ArrayList<>();
     }
     

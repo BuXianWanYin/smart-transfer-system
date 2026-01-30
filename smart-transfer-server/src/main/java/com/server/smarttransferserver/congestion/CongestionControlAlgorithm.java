@@ -13,13 +13,20 @@ public interface CongestionControlAlgorithm {
     void initialize();
     
     /**
-     * 处理ACK确认
-     * 根据确认的字节数和RTT调整拥塞窗口
+     * 处理ACK确认（双 RTT：带宽估计用 fullRtt，延迟相关逻辑用 propagationRtt）
      *
-     * @param ackedBytes 确认的字节数
-     * @param rtt        往返时延（毫秒）
+     * @param ackedBytes      确认的字节数
+     * @param fullRttMs       分片往返总时延（含传输时间，用于带宽估计）
+     * @param propagationRttMs 传播 RTT（不含分片传输时间，用于延迟相关逻辑）；null 时用 fullRttMs
      */
-    void onAck(long ackedBytes, long rtt);
+    void onAck(long ackedBytes, long fullRttMs, Long propagationRttMs);
+
+    /**
+     * 兼容旧调用：仅传一个 RTT 时视为 fullRtt，propagation 用 null（算法内部用 fullRtt）
+     */
+    default void onAck(long ackedBytes, long rtt) {
+        onAck(ackedBytes, rtt, null);
+    }
     
     /**
      * 处理丢包事件

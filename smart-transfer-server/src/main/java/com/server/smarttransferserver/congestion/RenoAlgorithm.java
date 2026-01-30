@@ -62,7 +62,7 @@ public class RenoAlgorithm implements CongestionControlAlgorithm {
         // 这里使用配置的最小窗口，但为了体现Reno的保守特性，可以使用更小的值
         this.cwnd = Math.min(congestionConfig.getInitialCwnd(), MSS * 10); // 初始窗口不超过10 MSS
         this.ssthresh = congestionConfig.getSsthresh();
-        this.currentRtt = 100; // 默认RTT 100ms
+        this.currentRtt = 0;
         this.lastCwndUpdateTime = System.currentTimeMillis();
         this.state = CongestionState.SLOW_START;
         
@@ -77,8 +77,9 @@ public class RenoAlgorithm implements CongestionControlAlgorithm {
      * @param rtt        往返时延（毫秒）
      */
     @Override
-    public void onAck(long ackedBytes, long rtt) {
-        this.currentRtt = rtt;
+    public void onAck(long ackedBytes, long fullRttMs, Long propagationRttMs) {
+        this.currentRtt = propagationRttMs != null ? propagationRttMs : fullRttMs;
+        long rtt = this.currentRtt;
         
         if (state == CongestionState.SLOW_START) {
             // 慢启动阶段：每收到一个ACK，cwnd增加1 MSS（指数增长）
@@ -172,7 +173,7 @@ public class RenoAlgorithm implements CongestionControlAlgorithm {
      */
     public void setCwnd(long cwnd) {
         this.cwnd = Math.max(cwnd, congestionConfig.getMinCwnd());
-        log.info("TCP Reno算法设置cwnd: {}字节 ({:.2f}MB)", cwnd, cwnd / 1024.0 / 1024.0);
+        log.info("TCP Reno算法设置cwnd: {}字节 ({} MB)", cwnd, String.format("%.2f", cwnd / 1024.0 / 1024.0));
     }
     
     @Override

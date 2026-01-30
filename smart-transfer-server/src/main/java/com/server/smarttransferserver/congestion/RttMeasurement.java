@@ -129,7 +129,7 @@ public class RttMeasurement {
      * @return 平滑RTT
      */
     public long getSmoothedRtt() {
-        return smoothedRtt > 0 ? smoothedRtt : 100; // 默认100ms
+        return smoothedRtt > 0 ? smoothedRtt : 0;
     }
     
     /**
@@ -147,7 +147,7 @@ public class RttMeasurement {
      * @return 最小RTT
      */
     public long getMinRtt() {
-        return minRtt != Long.MAX_VALUE ? minRtt : 100;
+        return minRtt != Long.MAX_VALUE ? minRtt : 0;
     }
     
     /**
@@ -156,7 +156,7 @@ public class RttMeasurement {
      * @return 最大RTT
      */
     public long getMaxRtt() {
-        return maxRtt > 0 ? maxRtt : 100;
+        return maxRtt > 0 ? maxRtt : 0;
     }
     
     /**
@@ -166,12 +166,12 @@ public class RttMeasurement {
      */
     public long getAverageRtt() {
         if (rttSamples.isEmpty()) {
-            return 100;
+            return 0;
         }
         return (long) rttSamples.stream()
                 .mapToLong(Long::longValue)
                 .average()
-                .orElse(100);
+                .orElse(0);
     }
     
     /**

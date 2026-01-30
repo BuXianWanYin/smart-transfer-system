@@ -98,8 +98,8 @@ public class VegasAlgorithm implements CongestionControlAlgorithm {
         this.cwnd = Math.min(congestionConfig.getInitialCwnd(), 1048576L * 5); // 初始不超过5MB
         this.ssthresh = congestionConfig.getSsthresh();
         this.baseRtt = Long.MAX_VALUE;
-        this.currentRtt = 100; // 默认RTT 100ms
-        this.lastRtt = 100;
+        this.currentRtt = 0;
+        this.lastRtt = 0;
         this.state = CongestionState.SLOW_START;
         
         rttSamples.clear();
@@ -116,8 +116,9 @@ public class VegasAlgorithm implements CongestionControlAlgorithm {
      * @param rtt        往返时延（毫秒）
      */
     @Override
-    public void onAck(long ackedBytes, long rtt) {
-        // 更新RTT样本
+    public void onAck(long ackedBytes, long fullRttMs, Long propagationRttMs) {
+        // Vegas 基于延迟，用传播 RTT（与 Clumsy 配置一致）
+        long rtt = propagationRttMs != null ? propagationRttMs : fullRttMs;
         updateRttSample(rtt);
         this.currentRtt = rtt;
         
@@ -133,27 +134,20 @@ public class VegasAlgorithm implements CongestionControlAlgorithm {
         }
         
         if (state == CongestionState.SLOW_START) {
-            // 慢启动阶段：指数增长，但监测RTT变化
             cwnd += ackedBytes;
-            
-            // Vegas改进的慢启动：如果RTT开始增长，提前切换到拥塞避免
             if (rtt > lastRtt + GAMMA && baseRtt != Long.MAX_VALUE) {
                 ssthresh = cwnd;
                 state = CongestionState.CONGESTION_AVOIDANCE;
                 log.debug("TCP Vegas检测到RTT增长，提前切换到拥塞避免 - cwnd: {}字节, rtt: {}ms", cwnd, rtt);
             } else if (cwnd >= ssthresh) {
-                // 达到阈值，切换到拥塞避免
                 state = CongestionState.CONGESTION_AVOIDANCE;
                 log.debug("TCP Vegas切换到拥塞避免阶段 - cwnd: {}字节, ssthresh: {}字节", cwnd, ssthresh);
             }
         } else {
-            // 拥塞避免阶段：基于延迟差异调整窗口
             adjustWindowByDelay();
         }
         
         lastRtt = rtt;
-        
-        // 限制窗口范围（从配置获取）
         cwnd = Math.max(congestionConfig.getMinCwnd(), Math.min(cwnd, congestionConfig.getMaxCwnd()));
         
         log.debug("TCP Vegas onAck - cwnd: {}字节, rtt: {}ms, baseRtt: {}ms, state: {}", 

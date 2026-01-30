@@ -183,7 +183,7 @@
             <el-option label="Vegas" value="Vegas" />
             <el-option label="BBR" value="BBR" />
           </el-select>
-          <span class="form-hint" style="margin-left: 10px">（用于相对评分，默认CUBIC）</span>
+          <span class="form-hint" style="margin-left: 10px">（默认CUBIC）</span>
         </el-form-item>
         
         <el-form-item label="预热RTT周期数" prop="warmupRttCount">

@@ -85,7 +85,9 @@
               </div>
             </div>
             <div class="monitor-item">
-              <div class="monitor-label">RTT</div>
+              <el-tooltip placement="top" effect="light">
+                <div class="monitor-label">传播时延</div>
+              </el-tooltip>
               <div class="monitor-value">{{ currentMetrics.rtt || 0 }}ms</div>
             </div>
             <div class="monitor-item">
@@ -713,13 +715,18 @@ const startUploadTask = async (task) => {
               console.log(`分片${i}上传完成 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 新并发数: ${Math.max(1, Math.min(4, Math.floor(currentCwnd / CHUNK_SIZE)))}`)
             }
             
-            // 更新 metrics：优先使用客户端测量的 RTT（真实网络往返时延）
-            if (result && (result.clientRtt !== undefined || result.rtt !== undefined)) {
+            // 更新 metrics：只更新 cwnd 与 RTT，丢包率/算法由 WebSocket 推送
+            // **关键修复**：使用后端返回的 propagationRtt（单向传播时延），后端用实际传输时间计算
+            if (result) {
+              // 后端返回的 propagationRtt 是单向传播时延（与 Clumsy「延迟」一致，配 50ms 即返回 50ms）
+              const displayRttOneWay = result.propagationRtt ?? 0
+              const prevRtt = currentMetrics.value.rtt || displayRttOneWay
+              const smoothedRtt = displayRttOneWay > 0 
+                ? Math.round(prevRtt * 0.75 + displayRttOneWay * 0.25) 
+                : prevRtt
               const metrics = {
-                algorithm: currentMetrics.value.algorithm || 'CUBIC',
                 cwnd: result.cwnd || currentMetrics.value.cwnd || 0,
-                rtt: result.clientRtt ?? result.rtt ?? 0,
-                lossRate: currentMetrics.value.lossRate || 0
+                rtt: smoothedRtt
               }
               currentMetrics.value = { ...currentMetrics.value, ...metrics }
               congestionStore.updateMetrics(metrics)
@@ -1006,10 +1013,11 @@ const stopMonitoring = () => {
   monitorWs.disconnect()
 }
 
-// 格式化百分比
+// 格式化百分比（丢包率为 0–1 小数，超出时限制在 0–100% 显示）
 const formatPercent = (value) => {
-  if (value === null || value === undefined) return '0%'
-  return (value * 100).toFixed(2) + '%'
+  if (value === null || value === undefined || isNaN(value)) return '0%'
+  const clamped = Math.min(1, Math.max(0, Number(value)))
+  return (clamped * 100).toFixed(2) + '%'
 }
 
 // 获取网络质量标签类型
@@ -1491,6 +1499,20 @@ const startDownloadTask = async (task) => {
                 currentCwnd = receivedCwnd
               }
               console.log(`分块${chunkNumber}下载完成 - cwnd: ${(currentCwnd / 1024 / 1024).toFixed(2)}MB, 新并发数: ${Math.max(1, Math.min(6, Math.floor(currentCwnd / CHUNK_SIZE)))}`)
+              
+              // **关键修复**：使用后端返回的单向传播时延（与 Clumsy「延迟」一致，配 50ms 即显示 50ms）
+              const propagationRttStr = getHeader('x-propagation-rtt') || ''
+              const propagationRtt = parseInt(propagationRttStr)
+              if (!isNaN(propagationRtt) && propagationRtt >= 0) {
+                const prevRtt = currentMetrics.value.rtt || propagationRtt
+                const smoothedRtt = Math.round(prevRtt * 0.75 + propagationRtt * 0.25)
+                const metrics = {
+                  cwnd: receivedCwnd > 0 ? receivedCwnd : currentMetrics.value.cwnd,
+                  rtt: smoothedRtt
+                }
+                currentMetrics.value = { ...currentMetrics.value, ...metrics }
+                congestionStore.updateMetrics(metrics)
+              }
               
               // **优化：直接使用二进制数据（无需Base64解码）**
               const chunkData = new Uint8Array(response.data)  // 直接使用二进制数据

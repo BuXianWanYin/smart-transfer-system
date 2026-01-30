@@ -82,18 +82,25 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
         // 计算BDP（带宽时延积）
         long bandwidth = networkMonitor.getEstimatedBandwidth();
         long rtt = algorithm.getRtt();
+        long rttForDisplay = rtt;
+        double lossRateForVo = networkMonitor.getLossRate();
+        if (algorithm instanceof AdaptiveAlgorithm) {
+            AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) algorithm;
+            // 传播时延只用 getDisplayRtt()（单向，与 Clumsy 一致），无样本时为 0，不捏造默认值
+            long displayRttOneWay = adaptiveAlg.getDisplayRtt();
+            rttForDisplay = displayRttOneWay;
+            // 界面丢包率用累计值，使少量重试也能显示非 0
+            lossRateForVo = adaptiveAlg.getDisplayLossRate();
+        }
         long bdp = bandwidth > 0 && rtt > 0 ? (bandwidth * rtt / 1000) : 0;
         
         // 获取网络趋势和预热状态（如果是自适应算法）
         String networkTrend = null;
         Boolean isWarmingUp = null;
-        double lossRateForVo = networkMonitor.getLossRate();
         if (algorithm instanceof AdaptiveAlgorithm) {
             AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) algorithm;
             networkTrend = adaptiveAlg.getNetworkTrend();
             isWarmingUp = adaptiveAlg.isWarmingUp();
-            // 丢包率优化：上传场景用自适应算法的滑动窗口丢包率（与算法决策一致，上传有数据）
-            lossRateForVo = adaptiveAlg.getCurrentLossRate();
         }
         
         CongestionMetricsVO vo = CongestionMetricsVO.builder()
@@ -102,7 +109,7 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
                 .ssthresh(algorithm.getSsthresh())
                 .rate(algorithm.getRate())
                 .state(algorithm.getState().getDescription())
-                .rtt(algorithm.getRtt())
+                .rtt(rttForDisplay)
                 .minRtt(networkMonitor.getMinRtt())
                 .lossRate(lossRateForVo)
                 .bandwidth(bandwidth)

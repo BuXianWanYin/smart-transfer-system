@@ -76,8 +76,14 @@ public class FileUploadServiceImpl implements FileUploadService {
      */
     private final ConcurrentHashMap<String, Long> chunkStartTimes = new ConcurrentHashMap<>();
     
+    /**
+     * 每个任务上一分片的服务端处理时间（ms），用于与客户端上报的「上一分片 RTT」配对计算传播 RTT。
+     * 当前请求的 clientRttMs 对应的是上一分片的 RTT，必须用上一分片的 serverProcessingMs 相减才能得到正确的传播时延。
+     */
+    private final ConcurrentHashMap<String, Long> lastServerProcessingMsByTask = new ConcurrentHashMap<>();
+    
     /** 分片日志采样间隔：每 N 个分片或首/尾分片才打印进度类日志，减少大量分片时的刷屏 */
-    private static final int CHUNK_LOG_SAMPLE_INTERVAL = 50;
+    private static final int CHUNK_LOG_SAMPLE_INTERVAL = 5;
     
     /**
      * 初始化文件上传
@@ -330,6 +336,15 @@ public class FileUploadServiceImpl implements FileUploadService {
             long endTime = System.currentTimeMillis();
             long serverProcessingMs = endTime - startTime;
             chunkStartTimes.remove(chunkKey);
+            
+            // **DEBUG: 记录原始值（移到外面，确保每个采样分片都打印）**
+            if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+                log.info("RTT原始值 - 分片{}: clientRttMs={}, serverProcessingMs={}ms", 
+                        dto.getChunkNumber(), 
+                        (dto.getClientRttMs() != null ? dto.getClientRttMs() + "ms" : "null"), 
+                        serverProcessingMs);
+            }
+            
             long rtt;
             if (dto.getClientRttMs() != null && dto.getClientRttMs() > 0) {
                 rtt = Math.max(CongestionClientMetricsConstants.RTT_MS_MIN, Math.min(CongestionClientMetricsConstants.RTT_MS_MAX, dto.getClientRttMs()));
@@ -340,12 +355,24 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 3. 记录传输字节数用于带宽估计
             bandwidthEstimator.recordSent(chunkSize);
             
-            // 4. **关键修复：使用任务独立的算法实例触发ACK响应（使用真实网络RTT）**
+            // 4. 算法使用双 RTT：full 用于带宽估计，propagation 用于延迟逻辑（与 Clumsy 延迟一致）
+            //    **关键修复**：clientRttMs 是「上一分片」的 RTT，必须用「上一分片」的 serverProcessingMs 相减才得到正确的传播 RTT。
+            Long propagationRttMs = null;
             if (algorithm != null) {
-                algorithm.onAck(chunkSize, rtt);
+                Long prevServerMs = lastServerProcessingMsByTask.get(taskId);
+                if (dto.getClientRttMs() != null && dto.getClientRttMs() > 0 && prevServerMs != null && prevServerMs > 0) {
+                    propagationRttMs = Math.max(0L, rtt - prevServerMs);
+                    // **DEBUG: RTT 调试日志**
+                    if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+                        log.info("RTT调试 - 分片{}: clientRtt={}ms, prevServerMs={}ms, propagationRtt={}ms, 当前serverMs={}ms", 
+                                dto.getChunkNumber(), rtt, prevServerMs, propagationRttMs, serverProcessingMs);
+                    }
+                }
+                lastServerProcessingMsByTask.put(taskId, serverProcessingMs);
+                algorithm.onAck(chunkSize, rtt, propagationRttMs);
                 if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
-                    log.debug("拥塞控制响应ACK - 任务ID: {}, 文件ID: {}, 分片: {}, 算法: {}, RTT: {}ms, cwnd: {}字节", 
-                             taskId, dto.getFileId(), dto.getChunkNumber(), algorithm.getAlgorithmName(), rtt, algorithm.getCwnd());
+                    log.debug("拥塞控制响应ACK - 任务ID: {}, 文件ID: {}, 分片: {}, 算法: {}, fullRtt: {}ms, propRtt: {}ms, cwnd: {}字节", 
+                             taskId, dto.getFileId(), dto.getChunkNumber(), algorithm.getAlgorithmName(), rtt, propagationRttMs, algorithm.getCwnd());
                 }
                 // **关键修复：记录指标到数据库（关联taskId）**
                 // 使用CongestionMetricsServiceImpl的recordMetrics方法（不是接口方法，需要强制转换）
@@ -408,6 +435,9 @@ public class FileUploadServiceImpl implements FileUploadService {
                          algorithm != null ? algorithm.getAlgorithmName() : "NONE", currentCwnd);
             }
             
+            long rateBps = algorithm != null ? algorithm.getRate() : 0L;
+            // 单向传播时延 = propagationRttMs / 2，与 Clumsy 的「延迟」一致（配 50ms 即返回 50ms）
+            Long propagationRttOneWay = propagationRttMs != null ? propagationRttMs / 2 : null;
             return ChunkUploadVO.builder()
                     .fileId(dto.getFileId())
                     .chunkNumber(dto.getChunkNumber())
@@ -416,7 +446,9 @@ public class FileUploadServiceImpl implements FileUploadService {
                     .totalChunks(totalChunks)
                     .progress(progress)
                     .cwnd(currentCwnd)  // 返回当前拥塞窗口
-                    .rtt(rtt)           // 返回本次RTT
+                    .rtt(rtt)           // 返回本次RTT（fullRtt，含传输时间）
+                    .rate(rateBps > 0 ? rateBps : null)
+                    .propagationRtt(propagationRttOneWay)  // 单向传播时延，与 Clumsy「延迟」一致
                     .message("分片上传成功")
                     .build();
             

@@ -109,13 +109,14 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
     }
     
     @Override
-    public void onAck(long ackedBytes, long rtt) {
-        // 更新RTT样本
-        updateRttSample(rtt);
-        
-        // 计算当前带宽：带宽 = 确认字节数 / RTT
-        long currentBandwidth = (ackedBytes * 1000) / Math.max(rtt, 1);
+    public void onAck(long ackedBytes, long fullRttMs, Long propagationRttMs) {
+        // 带宽估计用 fullRtt（含传输时间），得到真实吞吐
+        long rttForBandwidth = Math.max(fullRttMs, 1);
+        long currentBandwidth = (ackedBytes * 1000) / rttForBandwidth;
         updateBandwidthSample(currentBandwidth);
+        // 延迟/BDP 用传播 RTT（与 Clumsy 配置的 50ms 一致）
+        long rttForDelay = propagationRttMs != null ? propagationRttMs : fullRttMs;
+        updateRttSample(rttForDelay);
         
         // 根据当前状态处理
         switch (state) {
@@ -135,14 +136,13 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
                 break;
         }
         
-        // 更新拥塞窗口：cwnd = BDP * gain
-        // BDP (Bandwidth-Delay Product) = 带宽 × RTT
+        // 更新拥塞窗口：cwnd = BDP * gain，BDP 用传播 RTT
         long bdp = (bottleneckBandwidth * minRtt) / 1000;
         cwnd = (long) (bdp * pacingGain);
         cwnd = Math.max(congestionConfig.getMinCwnd(), Math.min(cwnd, congestionConfig.getMaxCwnd()));
         
-        log.debug("BBR onAck - state: {}, cwnd: {}字节, bandwidth: {}字节/秒, rtt: {}ms", 
-                  state, cwnd, bottleneckBandwidth, rtt);
+        log.debug("BBR onAck - state: {}, cwnd: {}字节, bandwidth: {}字节/秒, fullRtt: {}ms, propRtt: {}ms", 
+                  state, cwnd, bottleneckBandwidth, fullRttMs, rttForDelay);
     }
     
     @Override
@@ -273,9 +273,9 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
         long estimatedRtt = this.minRtt == Long.MAX_VALUE ? 10 : this.minRtt;
         this.bottleneckBandwidth = (cwnd * 1000) / Math.max(estimatedRtt, 1);
         
-        log.info("BBR算法设置cwnd: {}字节 ({:.2f}MB), 估算带宽: {}字节/秒 ({:.2f}MB/s)", 
-                cwnd, cwnd / 1024.0 / 1024.0,
-                bottleneckBandwidth, bottleneckBandwidth / 1024.0 / 1024.0);
+        log.info("BBR算法设置cwnd: {}字节 ({}MB), 估算带宽: {}字节/秒 ({}MB/s)", 
+                cwnd, String.format("%.2f", cwnd / 1024.0 / 1024.0),
+                bottleneckBandwidth, String.format("%.2f", bottleneckBandwidth / 1024.0 / 1024.0));
     }
     
     @Override
@@ -301,7 +301,7 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
     
     @Override
     public long getRtt() {
-        return minRtt != Long.MAX_VALUE ? minRtt : 100;
+        return minRtt != Long.MAX_VALUE ? minRtt : 0;
     }
     
     @Override
