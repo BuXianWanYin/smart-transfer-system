@@ -143,7 +143,7 @@ public class MonitorPushService {
                 for (TransferTask task : activeTasks) {
                     CongestionControlAlgorithm algorithm = algorithmManager.getAlgorithm(task.getTaskId());
                     if (algorithm != null) {
-                        CongestionMetricsVO metrics = metricsService.getCurrentMetrics(algorithm);
+                        CongestionMetricsVO metrics = metricsService.getCurrentMetrics(algorithm, userId);
                         metrics.setTaskId(task.getTaskId());
                         taskMetricsMap.put(task.getTaskId(), metrics);
                     } else {

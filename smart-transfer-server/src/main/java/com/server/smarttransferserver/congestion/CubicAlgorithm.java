@@ -187,7 +187,7 @@ public class CubicAlgorithm implements CongestionControlAlgorithm {
      */
     public void setCwnd(long cwnd) {
         this.cwnd = Math.max(cwnd, congestionConfig.getMinCwnd());
-        log.info("CUBIC算法设置cwnd: {}字节 ({:.2f}MB)", cwnd, cwnd / 1024.0 / 1024.0);
+        log.info("CUBIC算法设置cwnd: {}字节 ({} MB)", cwnd, String.format("%.2f", cwnd / 1024.0 / 1024.0));
     }
     
     @Override

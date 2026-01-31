@@ -113,6 +113,10 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
      */
     private CongestionControlAlgorithm previousAlgorithm;
     
+    /**
+     * 本任务总分片数（init 时确定），用于丢包率 = 总丢包数/总分片数。0 表示未知，退回滑动窗口/累积计算。
+     */
+    private int totalChunks;
     
     /**
      * 算法预热状态：预热RTT计数
@@ -191,6 +195,8 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         // 默认使用CUBIC（平衡性能与稳定性）
         currentAlgorithm = cubicAlgorithm != null ? cubicAlgorithm : bbrAlgorithm;
         
+        totalChunks = 0;
+        
         // 初始化辅助组件
         trendAnalyzer = new NetworkTrendAnalyzer(
                 congestionConfig.getTrendWindowSize(),
@@ -212,32 +218,30 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     
     @Override
     public void onAck(long ackedBytes, long fullRttMs, Long propagationRttMs) {
-        // 用于评估/显示的 RTT 用传播 RTT（与 Clumsy 配置一致）
-        long rttForSample = propagationRttMs != null ? propagationRttMs : fullRttMs;
-        if (rttForSample > 0 && rttForSample < 10000) {
-            rttSamples.offer(rttForSample);
+        // RTT 仅使用独立探测值：只有 propagationRttMs（前端 probe）非空时才入样、参与 RTT 突增推断
+        if (propagationRttMs != null && propagationRttMs > 0 && propagationRttMs < 10000) {
+            rttSamples.offer(propagationRttMs);
             if (rttSamples.size() > EVALUATION_WINDOW) {
                 rttSamples.poll();
+            }
+            // RTT 突增推断丢包（仅在有探测 RTT 时）
+            boolean inferredLoss = false;
+            if (rttSamples.size() >= 3) {
+                double avg = rttSamples.stream().mapToLong(Long::longValue).average().orElse(0);
+                if (avg > 0 && propagationRttMs >= 1.8 * avg) {
+                    inferredLoss = true;
+                    if (log.isDebugEnabled()) {
+                        log.debug("RTT突增推断丢包 - 当前RTT: {}ms, 近期平均: {}ms", propagationRttMs, String.format("%.0f", avg));
+                    }
+                }
+            }
+            recentPackets.offer(inferredLoss ? false : true);
+            if (recentPackets.size() > RECENT_WINDOW_SIZE) {
+                recentPackets.poll();
             }
         }
         
         totalPackets++;
-        // Clumsy 在 TCP 层丢包时应用层无重试，retryCount 恒为 0；用 RTT 突增推断丢包/重传，保证差网络时能切出 BBR 到 Reno
-        boolean inferredLoss = false;
-        if (rttSamples.size() >= 3 && rttForSample > 0) {
-            double avg = rttSamples.stream().mapToLong(Long::longValue).average().orElse(0);
-            if (avg > 0 && rttForSample >= 1.8 * avg) {
-                inferredLoss = true;
-                if (log.isDebugEnabled()) {
-                    log.debug("RTT突增推断丢包 - 当前RTT: {}ms, 近期平均: {}ms", rttForSample, String.format("%.0f", avg));
-                }
-            }
-        }
-        recentPackets.offer(inferredLoss ? false : true);
-        if (recentPackets.size() > RECENT_WINDOW_SIZE) {
-            recentPackets.poll();
-        }
-        
         // 子算法使用双 RTT：带宽用 full，延迟用 propagation
         currentAlgorithm.onAck(ackedBytes, fullRttMs, propagationRttMs);
         
@@ -287,10 +291,8 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             warmupRttCount--;
             
             // **优化：检测网络剧烈变化时提前结束预热**
-            // 快速计算当前丢包率
-            double quickLossRate = recentPackets.size() >= 5 
-                ? (double) recentPackets.stream().filter(p -> !p).count() / recentPackets.size()
-                : (totalPackets > 0 ? (double) lostPackets / totalPackets : 0);
+            // 与界面一致，使用 getDisplayLossRate()（总丢包/总分片 或 滑动窗口/累积）
+            double quickLossRate = getDisplayLossRate();
             long quickJitter = calculateRttJitter();
             
             // 判断当前网络质量
@@ -318,19 +320,17 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             }
         }
         
-        // **修复：使用滑动窗口计算丢包率（快速响应网络变化）**
-        double lossRate;
-        if (recentPackets.size() >= 5) {
-            // 滑动窗口有 5 个样本即可开始使用（约 25MB）
-            long recentLost = recentPackets.stream().filter(p -> !p).count();
-            lossRate = (double) recentLost / recentPackets.size();
-        } else {
-            // 样本不足，使用累积数据
-            lossRate = totalPackets > 0 ? (double) lostPackets / totalPackets : 0;
+        // **无 probe RTT 时不切换**：rttSamples 仅来自独立探测，为空时 avgRtt/minRtt 为 0，会误判为低延迟选 CUBIC；保持当前算法直至有 RTT 数据
+        if (rttSamples.isEmpty()) {
+            log.debug("无 RTT 样本（未上报 probe），跳过算法评估，保持当前: {}", currentAlgorithm.getAlgorithmName());
+            return;
         }
+        
+        // **与界面一致：切换逻辑使用 getDisplayLossRate()（总丢包数/总分片数）**
+        double lossRate = getDisplayLossRate();
         long rttJitter = calculateRttJitter();
         
-        // **更新成员变量，供算法切换决策使用**
+        // **更新成员变量，供算法切换决策与 recordMetrics 使用**
         this.currentLossRate = lossRate;
         this.currentRttJitter = rttJitter;
         double avgRtt = rttSamples.stream()
@@ -386,36 +386,45 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             lastSwitchTime = now;
             currentAlgorithmStartTime = now;
             
-            // **优化：算法状态继承机制（统一处理所有算法）**
-            // 1. 保存上一个算法的关键状态
+            // **优化：算法状态继承机制**
+            // 1. 保存上一个算法的 cwnd
             isWarmingUp = true;
             preWarmupCwnd = previousAlgorithm.getCwnd();
             long previousRate = previousAlgorithm.getRate();
             
+            // **修复：从差网络（Reno）切回好网络时，不继承已减半的 cwnd，否则速率卡在约一半（如 10MB/s -> 5MB/s -> 切回仍 5MB/s）**
+            // 切到 BBR/CUBIC/Vegas 时至少用 initialCwnd，切到 Reno 时仍继承上一算法 cwnd
+            long initialCwndConfig = congestionConfig.getInitialCwnd();
+            long cwndToSet = preWarmupCwnd;
+            String targetAlgName = selectedAlgorithm.getAlgorithmName();
+            if ("BBR".equals(targetAlgName) || "CUBIC".equals(targetAlgName) || "Vegas".equals(targetAlgName)) {
+                if (preWarmupCwnd < initialCwndConfig) {
+                    cwndToSet = initialCwndConfig;
+                    log.info("从保守算法切回激进算法，cwnd 提升至配置初始值: {}字节 ({}MB)，避免速率卡在半速",
+                            cwndToSet, String.format("%.2f", cwndToSet / 1024.0 / 1024.0));
+                }
+            }
+            
             // 2. 根据目标算法类型，设置合适的预热期
             int warmupPeriod = congestionConfig.getWarmupRttCount();
-            String targetAlgName = selectedAlgorithm.getAlgorithmName();
-            
-            // BBR需要更长的预热期（至少5个RTT来测量带宽）
             if ("BBR".equals(targetAlgName)) {
                 warmupPeriod = Math.max(warmupPeriod, 5);
             }
             
-            // **修复：为所有算法设置cwnd（使用反射或类型判断）**
+            // **为所有算法设置 cwnd**
             try {
-                // 尝试使用setCwnd方法（所有算法现在都有这个方法）
                 if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.BBRAlgorithm) {
-                    ((com.server.smarttransferserver.congestion.BBRAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
+                    ((com.server.smarttransferserver.congestion.BBRAlgorithm) selectedAlgorithm).setCwnd(cwndToSet);
                 } else if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.CubicAlgorithm) {
-                    ((com.server.smarttransferserver.congestion.CubicAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
+                    ((com.server.smarttransferserver.congestion.CubicAlgorithm) selectedAlgorithm).setCwnd(cwndToSet);
                 } else if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.VegasAlgorithm) {
-                    ((com.server.smarttransferserver.congestion.VegasAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
+                    ((com.server.smarttransferserver.congestion.VegasAlgorithm) selectedAlgorithm).setCwnd(cwndToSet);
                 } else if (selectedAlgorithm instanceof com.server.smarttransferserver.congestion.RenoAlgorithm) {
                     ((com.server.smarttransferserver.congestion.RenoAlgorithm) selectedAlgorithm).setCwnd(preWarmupCwnd);
                 }
                 
-                log.info("算法预热开始 - 新算法: {}, 继承cwnd: {}字节 ({}MB), 预热期: {}个RTT", 
-                        targetAlgName, preWarmupCwnd, String.format("%.2f", preWarmupCwnd / 1024.0 / 1024.0), warmupPeriod);
+                log.info("算法预热开始 - 新算法: {}, cwnd: {}字节 ({}MB), 预热期: {}个RTT", 
+                        targetAlgName, cwndToSet, String.format("%.2f", cwndToSet / 1024.0 / 1024.0), warmupPeriod);
             } catch (Exception e) {
                 log.warn("设置新算法cwnd失败: {}, 使用默认值", e.getMessage());
             }
@@ -521,14 +530,17 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         lastNetworkQualityLevel = currentQualityLevel;
         
         // 智能算法选择策略（多维度决策）：
-        // 1. 优秀网络（低丢包、低抖动）：优先BBR，但考虑历史性能
+        // 1. 优秀网络（低丢包、低抖动）：优先BBR
         // 2. 良好网络：根据延迟和RTT变化选择Vegas或CUBIC
         // 3. 一般网络：优先CUBIC（稳定可靠）
         // 4. 差网络：使用保守的Reno算法
         // 5. 高延迟、低变化网络：Vegas更适合
         String currentAlgName = currentAlgorithm.getAlgorithmName();
         
-        // 选算法完全按网络条件，不看评分（评分仅用于回滚与观测）
+        // **防御**：avgRtt 为 0 表示无有效 RTT（evaluateAndSwitch 已保证有样本，此处双重保险），不按延迟分支切换
+        if (avgRtt <= 0) {
+            return currentAlgorithm;
+        }
         
         // === 场景1：优秀网络 → BBR ===
         if (isExcellentNetwork && bbrAlgorithm != null) {
@@ -604,7 +616,7 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             currentAlgorithmStartTime = System.currentTimeMillis();
             trendAnalyzer.reset();
         } else {
-            // 增量重置：保留20%的RTT历史样本
+            // 增量重置（算法切换）：保留20%的RTT历史样本；不重置 lostPackets，保证界面丢包率 = 总丢包/总分片 不回落
             int preserveCount = (int) (rttSamples.size() * 0.2);
             preservedRttSamples.clear();
             List<Long> sorted = new LinkedList<>(rttSamples);
@@ -615,13 +627,10 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
                 }
             }
             
-            // 清空当前统计，但保留历史
             totalPackets = 0;
-            lostPackets = 0;
             rttSamples.clear();
-            recentPackets.clear(); // **新增：重置滑动窗口**
+            recentPackets.clear();
             
-            // 将保留的样本重新加入
             while (!preservedRttSamples.isEmpty()) {
                 rttSamples.offer(preservedRttSamples.poll());
             }
@@ -788,27 +797,25 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     }
 
     /**
-     * 用于界面显示的丢包率：使用滑动窗口丢包率（与算法决策一致），能快速反映网络状况变化。
-     * 不再使用累积丢包率（分母太大，无法体现短期网络质量变化）。
+     * 设置本任务总分片数（由上传服务在每次分片时注入，来自 init 时的 totalChunks）。
+     * 用于界面丢包率 = 总丢包数/总分片数，避免前几个包丢 1 个就暴增到 20%。
+     */
+    public void setTotalChunks(int totalChunks) {
+        this.totalChunks = totalChunks;
+    }
+    
+    /**
+     * 用于界面显示的丢包率：统一为「总丢包数/总分片数」，整次传输内累计、不随算法切换或近期无丢包而回落。
+     * totalChunks 未知时返回 0。
      *
-     * @return 丢包率 [0, 1]，无数据时返回 0
+     * @return 丢包率 [0, 1]
      */
     public double getDisplayLossRate() {
-        // **修复：使用滑动窗口丢包率，与算法决策逻辑一致**
-        if (recentPackets.size() >= 5) {
-            // 滑动窗口有 5 个样本即可开始使用（约 25MB）
-            long recentLost = recentPackets.stream().filter(p -> !p).count();
-            double rate = (double) recentLost / recentPackets.size();
-            return Math.min(1.0, Math.max(0.0, rate));
-        } else {
-            // 样本不足，使用累积数据
-            long total = totalPackets + lostPackets;
-            if (total <= 0) {
-                return 0;
-            }
-            double rate = (double) lostPackets / total;
-            return Math.min(1.0, Math.max(0.0, rate));
+        if (totalChunks <= 0) {
+            return 0;
         }
+        double rate = (double) lostPackets / totalChunks;
+        return Math.min(1.0, Math.max(0.0, rate));
     }
     
     /**
@@ -829,9 +836,9 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         // 更新当前指标
         metrics.setCurrentAlgorithm(currentAlgorithm.getAlgorithmName());
         
-        // 更新网络质量
+        // 更新网络质量（与前端显示、算法切换一致，均用 getDisplayLossRate()）
         NetworkScenario scenario = NetworkScenario.fromMetrics(
-                totalPackets > 0 ? (double) lostPackets / totalPackets : 0,
+                getDisplayLossRate(),
                 calculateRttJitter()
         );
         metrics.setNetworkQuality(scenario.getDescription());

@@ -8,6 +8,7 @@ import com.server.smarttransferserver.mapper.TransferTaskMapper;
 import com.server.smarttransferserver.service.CongestionAlgorithmManager;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.service.FileDownloadService;
+import com.server.smarttransferserver.service.ProbeRttStore;
 import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.RedisService;
 import com.server.smarttransferserver.util.CongestionClientMetricsConstants;
@@ -56,6 +57,9 @@ public class FileDownloadServiceImpl implements FileDownloadService {
     
     @Autowired
     private RedisService redisService;
+    
+    @Autowired
+    private ProbeRttStore probeRttStore;
     
     /**
      * Redis key前缀：存储已完成下载的分块集合
@@ -351,12 +355,18 @@ public class FileDownloadServiceImpl implements FileDownloadService {
                 rtt = serverProcessingMs;
             }
             
-            // 5. 算法使用双 RTT：full 用于带宽估计，propagation 用于延迟逻辑（与 Clumsy 50ms 一致）
-            //    **关键修复**：用服务端实际测量的处理时间（主要是传输时间）来计算传播 RTT，
-            //    而不是用算法的理论 rate（cwnd/rtt），因为理论 rate 可能远大于实际带宽。
+            // 5. 传播时延：仅使用前端独立探测 RTT（与上传一致），不再用分块推算
             Long propagationRttMs = null;
-            if (serverProcessingMs > 0) {
-                propagationRttMs = Math.max(0L, rtt - serverProcessingMs);
+            Long userId = UserContextHolder.getUserId();
+            if (userId != null) {
+                Long probeRtt = probeRttStore.get(userId);
+                if (probeRtt != null && probeRtt > 0) {
+                    propagationRttMs = probeRtt;
+                }
+            }
+            // 仅当 totalChunks > 0 时设置，保证丢包率分母正确（totalChunks 来自 init 文件大小与分块大小）
+            if (algorithm instanceof com.server.smarttransferserver.congestion.AdaptiveAlgorithm && totalChunks > 0) {
+                ((com.server.smarttransferserver.congestion.AdaptiveAlgorithm) algorithm).setTotalChunks(totalChunks);
             }
             algorithm.onAck(actualChunkSize, rtt, propagationRttMs);
             log.debug("拥塞控制响应ACK - 任务ID: {}, 算法: {}, 分块: {}字节, fullRtt: {}ms, propRtt: {}ms, cwnd: {}字节",

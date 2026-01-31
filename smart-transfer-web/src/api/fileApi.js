@@ -34,6 +34,29 @@ export function initUpload(data) {
 }
 
 /**
+ * RTT 探测：轻量 GET，用于测量传播时延。
+ * 响应含 serverProcessingMs，调用方用「客户端 RTT - serverProcessingMs」得到更接近网络传播的时延（与 Clumsy 一致）。
+ *
+ * @returns {Promise<{ ok: boolean, ts: number, serverProcessingMs?: number }>}
+ */
+export function getRttProbe() {
+  return request.get({ url: '/file/rtt-probe' })
+}
+
+/**
+ * 上报独立 RTT 探测值（测得后 POST），供后端算法与 WebSocket 推送使用。
+ *
+ * @param {number} rttMs 往返时延（ms）
+ * @returns {Promise}
+ */
+export function reportProbeRtt(rttMs) {
+  return request.post({
+    url: '/file/probe-rtt',
+    data: { rttMs: Math.round(rttMs) }
+  })
+}
+
+/**
  * 上传分片（进度停滞检测 + 自动重试）
  * 不设超时，只有进度卡死30秒才重试
  * @param {FormData} formData - 分片数据
@@ -146,7 +169,8 @@ export async function uploadChunk(formData, onProgress, maxRetries = 3, signal, 
         else if (isTimeout) errorType = '传输超时'
         else if (isNetworkError) errorType = '网络错误'
         
-        console.warn(`分片上传${errorType}，${delay/1000}秒后重试 (${attempt + 1}/${maxRetries})`)
+        // 重试中不打扰用户，仅调试输出；仅当 3 次都失败后由调用方弹出中文提示
+        console.debug(`分片上传${errorType}，${delay/1000}秒后重试 (${attempt + 1}/${maxRetries})`)
         // 分片上传重试
         await new Promise(resolve => setTimeout(resolve, delay))
       } else if (!shouldRetry) {

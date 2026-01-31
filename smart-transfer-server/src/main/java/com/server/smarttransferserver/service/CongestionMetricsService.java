@@ -23,6 +23,15 @@ public interface CongestionMetricsService extends IService<CongestionMetrics> {
     CongestionMetricsVO getCurrentMetrics(CongestionControlAlgorithm algorithm);
     
     /**
+     * 获取当前拥塞控制指标（按用户，用于 WebSocket 推送时优先使用该用户的独立探测 RTT）
+     *
+     * @param algorithm 当前使用的算法
+     * @param userId    用户ID，不为 null 时优先用该用户的 probe RTT 作为传播时延
+     * @return 指标VO
+     */
+    CongestionMetricsVO getCurrentMetrics(CongestionControlAlgorithm algorithm, Long userId);
+    
+    /**
      * 获取当前拥塞控制指标（自动获取当前算法）
      * 
      * @return 指标VO

@@ -14,6 +14,7 @@ import com.server.smarttransferserver.mapper.TransferTaskMapper;
 import com.server.smarttransferserver.service.CongestionAlgorithmManager;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.service.FileUploadCacheService;
+import com.server.smarttransferserver.service.ProbeRttStore;
 import com.server.smarttransferserver.service.IFileStorageService;
 import com.server.smarttransferserver.service.FileUploadService;
 import com.server.smarttransferserver.service.TransferTaskService;
@@ -71,16 +72,18 @@ public class FileUploadServiceImpl implements FileUploadService {
     @Autowired
     private CongestionMetricsService metricsService;
     
+    @Autowired
+    private ProbeRttStore probeRttStore;
+    
     /**
      * 记录每个分片上传的开始时间，用于计算RTT
      */
     private final ConcurrentHashMap<String, Long> chunkStartTimes = new ConcurrentHashMap<>();
     
     /**
-     * 每个任务上一分片的服务端处理时间（ms），用于与客户端上报的「上一分片 RTT」配对计算传播 RTT。
-     * 当前请求的 clientRttMs 对应的是上一分片的 RTT，必须用上一分片的 serverProcessingMs 相减才能得到正确的传播时延。
+     * 每个文件（fileId）对应的总分片数，在 initUpload 创建新任务时写入，用于丢包率 = 总丢包数/总分片数。
      */
-    private final ConcurrentHashMap<String, Long> lastServerProcessingMsByTask = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Integer> fileIdToTotalChunks = new ConcurrentHashMap<>();
     
     /** 分片日志采样间隔：每 N 个分片或首/尾分片才打印进度类日志，减少大量分片时的刷屏 */
     private static final int CHUNK_LOG_SAMPLE_INTERVAL = 5;
@@ -198,6 +201,7 @@ public class FileUploadServiceImpl implements FileUploadService {
             transferTaskMapper.updateById(newTask);
         }
         
+        fileIdToTotalChunks.put(fileInfo.getId(), dto.getTotalChunks());
         log.info("创建新上传任务 - 文件ID: {}, 总分片数: {}, 任务ID: {}", fileInfo.getId(), dto.getTotalChunks(), taskId);
         return FileUploadInitVO.builder()
                 .fileId(fileInfo.getId())
@@ -249,6 +253,9 @@ public class FileUploadServiceImpl implements FileUploadService {
                         .collect(Collectors.toList());
             }
             
+            if (totalChunks != null && totalChunks > 0) {
+                fileIdToTotalChunks.put(existingFile.getId(), totalChunks);
+            }
             log.info("断点续传 - 文件ID: {}, 已上传分片数: {}", existingFile.getId(), uploadedList.size());
             return FileUploadInitVO.builder()
                     .fileId(existingFile.getId())
@@ -355,20 +362,18 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 3. 记录传输字节数用于带宽估计
             bandwidthEstimator.recordSent(chunkSize);
             
-            // 4. 算法使用双 RTT：full 用于带宽估计，propagation 用于延迟逻辑（与 Clumsy 延迟一致）
-            //    **关键修复**：clientRttMs 是「上一分片」的 RTT，必须用「上一分片」的 serverProcessingMs 相减才得到正确的传播 RTT。
+            // 4. 传播时延：仅使用前端独立探测 RTT（与 Clumsy 一致），不再用分片推算
             Long propagationRttMs = null;
             if (algorithm != null) {
-                Long prevServerMs = lastServerProcessingMsByTask.get(taskId);
-                if (dto.getClientRttMs() != null && dto.getClientRttMs() > 0 && prevServerMs != null && prevServerMs > 0) {
-                    propagationRttMs = Math.max(0L, rtt - prevServerMs);
-                    // **DEBUG: RTT 调试日志**
-                    if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
-                        log.info("RTT调试 - 分片{}: clientRtt={}ms, prevServerMs={}ms, propagationRtt={}ms, 当前serverMs={}ms", 
-                                dto.getChunkNumber(), rtt, prevServerMs, propagationRttMs, serverProcessingMs);
-                    }
+                Long userId = UserContextHolder.getUserId();
+                Long probeRtt = userId != null ? probeRttStore.get(userId) : null;
+                if (probeRtt != null && probeRtt > 0) {
+                    propagationRttMs = probeRtt;
                 }
-                lastServerProcessingMsByTask.put(taskId, serverProcessingMs);
+                if (algorithm instanceof com.server.smarttransferserver.congestion.AdaptiveAlgorithm) {
+                    int totalChunks = fileIdToTotalChunks.getOrDefault(dto.getFileId(), 0);
+                    ((com.server.smarttransferserver.congestion.AdaptiveAlgorithm) algorithm).setTotalChunks(totalChunks);
+                }
                 algorithm.onAck(chunkSize, rtt, propagationRttMs);
                 if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
                     log.debug("拥塞控制响应ACK - 任务ID: {}, 文件ID: {}, 分片: {}, 算法: {}, fullRtt: {}ms, propRtt: {}ms, cwnd: {}字节", 
@@ -418,6 +423,10 @@ public class FileUploadServiceImpl implements FileUploadService {
             queryWrapper.eq("file_id", dto.getFileId());
             List<FileChunk> allChunks = fileChunkMapper.selectList(queryWrapper);
             int totalChunks = allChunks.size();
+            // 兜底：若 fileIdToTotalChunks 未设置（如断点续传未走 checkChunk），用 DB 分片数保证丢包率分母正确
+            if (algorithm instanceof com.server.smarttransferserver.congestion.AdaptiveAlgorithm && totalChunks > 0) {
+                ((com.server.smarttransferserver.congestion.AdaptiveAlgorithm) algorithm).setTotalChunks(totalChunks);
+            }
             long completedChunks = allChunks.stream()
                     .filter(c -> "COMPLETED".equals(c.getUploadStatus()))
                     .count();

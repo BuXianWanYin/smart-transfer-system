@@ -7,6 +7,7 @@ import com.server.smarttransferserver.mapper.CongestionMetricsMapper;
 import com.server.smarttransferserver.service.CongestionAlgorithmService;
 import com.server.smarttransferserver.service.CongestionMetricsService;
 import com.server.smarttransferserver.service.INetworkMonitorService;
+import com.server.smarttransferserver.service.ProbeRttStore;
 import com.server.smarttransferserver.vo.CongestionMetricsVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -39,6 +40,9 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
     @Autowired(required = false)
     private CongestionAlgorithmService algorithmService;
     
+    @Autowired(required = false)
+    private ProbeRttStore probeRttStore;
+    
     /** 记录拥塞指标日志采样间隔：每 N 次记录打印一次，减少大量分片时的刷屏 */
     private static final int RECORD_LOG_SAMPLE_INTERVAL = 50;
     
@@ -53,6 +57,11 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
      */
     @Override
     public CongestionMetricsVO getCurrentMetrics(CongestionControlAlgorithm algorithm) {
+        return getCurrentMetrics(algorithm, null);
+    }
+    
+    @Override
+    public CongestionMetricsVO getCurrentMetrics(CongestionControlAlgorithm algorithm, Long userId) {
         if (algorithm == null || networkMonitor == null) {
             return buildEmptyMetrics();
         }
@@ -83,14 +92,20 @@ public class CongestionMetricsServiceImpl extends ServiceImpl<CongestionMetricsM
         long bandwidth = networkMonitor.getEstimatedBandwidth();
         long rtt = algorithm.getRtt();
         long rttForDisplay = rtt;
+        // 传播时延：有 userId 时优先用该用户的独立探测 RTT（往返，与 Clumsy 一致），供 WebSocket 推送与前端显示一致
+        if (userId != null && probeRttStore != null) {
+            Long probeRtt = probeRttStore.get(userId);
+            if (probeRtt != null && probeRtt > 0) {
+                rttForDisplay = probeRtt;
+            }
+        }
+        if (rttForDisplay == rtt && algorithm instanceof AdaptiveAlgorithm) {
+            AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) algorithm;
+            rttForDisplay = adaptiveAlg.getDisplayRtt();
+        }
         double lossRateForVo = networkMonitor.getLossRate();
         if (algorithm instanceof AdaptiveAlgorithm) {
-            AdaptiveAlgorithm adaptiveAlg = (AdaptiveAlgorithm) algorithm;
-            // 传播时延只用 getDisplayRtt()（单向，与 Clumsy 一致），无样本时为 0，不捏造默认值
-            long displayRttOneWay = adaptiveAlg.getDisplayRtt();
-            rttForDisplay = displayRttOneWay;
-            // 界面丢包率用累计值，使少量重试也能显示非 0
-            lossRateForVo = adaptiveAlg.getDisplayLossRate();
+            lossRateForVo = ((AdaptiveAlgorithm) algorithm).getDisplayLossRate();
         }
         long bdp = bandwidth > 0 && rtt > 0 ? (bandwidth * rtt / 1000) : 0;
         

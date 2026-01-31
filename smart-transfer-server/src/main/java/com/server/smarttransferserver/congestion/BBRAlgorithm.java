@@ -38,9 +38,14 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
     private long bottleneckBandwidth;
     
     /**
-     * 最小RTT（毫秒）
+     * 最小RTT（毫秒）- 传播RTT，用于延迟检测
      */
     private long minRtt;
+    
+    /**
+     * 最近的fullRTT（毫秒）- 用于BDP计算，与bottleneckBandwidth计算保持一致
+     */
+    private long lastFullRtt;
     
     /**
      * 当前状态
@@ -96,6 +101,7 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
     public void initialize() {
         this.bottleneckBandwidth = 0;
         this.minRtt = Long.MAX_VALUE;
+        this.lastFullRtt = 100;  // 初始假设100ms
         this.state = CongestionState.BBR_STARTUP;
         this.pacingGain = STARTUP_PACING_GAIN;
         this.probeBwCycleIndex = 0;
@@ -114,7 +120,11 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
         long rttForBandwidth = Math.max(fullRttMs, 1);
         long currentBandwidth = (ackedBytes * 1000) / rttForBandwidth;
         updateBandwidthSample(currentBandwidth);
-        // 延迟/BDP 用传播 RTT（与 Clumsy 配置的 50ms 一致）
+        
+        // 保存最近的fullRTT，用于BDP计算
+        this.lastFullRtt = rttForBandwidth;
+        
+        // 延迟检测用传播 RTT（与 Clumsy 配置的延迟一致）
         long rttForDelay = propagationRttMs != null ? propagationRttMs : fullRttMs;
         updateRttSample(rttForDelay);
         
@@ -136,13 +146,26 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
                 break;
         }
         
-        // 更新拥塞窗口：cwnd = BDP * gain，BDP 用传播 RTT
-        long bdp = (bottleneckBandwidth * minRtt) / 1000;
+        // **关键修复：BBR的BDP应该基于链路容量，而不是当前吞吐量**
+        // 问题：bottleneckBandwidth是用fullRTT计算的吞吐量，受cwnd限制
+        // 如果cwnd小，fullRTT长，bottleneckBandwidth就小，形成恶性循环
+        // 解决：使用propagationRTT计算理论BDP，但要保证cwnd足够大以维持吞吐
+        
+        // 使用传播RTT计算理论BDP
+        long theoreticalBdp = (bottleneckBandwidth * minRtt) / 1000;
+        
+        // **核心修复**：在HTTP大文件传输场景，fullRTT包含数据传输时间
+        // 实际需要的cwnd应该 >= 当前传输的数据量，才能维持满速
+        // 使用 fullRTT 作为参考，确保 cwnd 足够大
+        long minCwndForThroughput = (bottleneckBandwidth * lastFullRtt) / 1000;
+        
+        // 取两者的最大值，确保既考虑网络延迟，又保证吞吐量
+        long bdp = Math.max(theoreticalBdp, minCwndForThroughput);
         cwnd = (long) (bdp * pacingGain);
         cwnd = Math.max(congestionConfig.getMinCwnd(), Math.min(cwnd, congestionConfig.getMaxCwnd()));
         
-        log.debug("BBR onAck - state: {}, cwnd: {}字节, bandwidth: {}字节/秒, fullRtt: {}ms, propRtt: {}ms", 
-                  state, cwnd, bottleneckBandwidth, fullRttMs, rttForDelay);
+        log.debug("BBR onAck - state: {}, cwnd: {}字节, bandwidth: {}字节/秒, fullRtt: {}ms, propRtt: {}ms, theoreticalBDP: {}字节, minCwndForThroughput: {}字节", 
+                  state, cwnd, bottleneckBandwidth, fullRttMs, rttForDelay, theoreticalBdp, minCwndForThroughput);
     }
     
     @Override
@@ -267,14 +290,14 @@ public class BBRAlgorithm implements CongestionControlAlgorithm {
     public void setCwnd(long cwnd) {
         this.cwnd = Math.max(cwnd, congestionConfig.getMinCwnd());
         
-        // **修复：同时初始化带宽估计，避免cwnd被重置为0**
-        // 根据 cwnd = BDP * gain，反推 bottleneckBandwidth
-        // 假设当前 minRtt = 10ms（典型值），pacingGain = 1.0
-        long estimatedRtt = this.minRtt == Long.MAX_VALUE ? 10 : this.minRtt;
-        this.bottleneckBandwidth = (cwnd * 1000) / Math.max(estimatedRtt, 1);
+        // **修复：不要反推带宽，让BBR通过实际测量恢复**
+        // 如果有历史带宽样本，保留它们；否则清空，让BBR重新测量
+        // 原因：cwnd来自其他算法（如Reno/CUBIC），用错误的RTT反推会得到错误的带宽
+        // BBR会在接下来的ACK中通过 (ackedBytes * 1000) / fullRTT 来准确测量带宽
         
-        log.info("BBR算法设置cwnd: {}字节 ({}MB), 估算带宽: {}字节/秒 ({}MB/s)", 
+        log.info("BBR算法设置cwnd: {}字节 ({}MB), 保留历史带宽样本: {} 个, 当前估算带宽: {}字节/秒 ({}MB/s)", 
                 cwnd, String.format("%.2f", cwnd / 1024.0 / 1024.0),
+                bandwidthSamples.size(),
                 bottleneckBandwidth, String.format("%.2f", bottleneckBandwidth / 1024.0 / 1024.0));
     }
     

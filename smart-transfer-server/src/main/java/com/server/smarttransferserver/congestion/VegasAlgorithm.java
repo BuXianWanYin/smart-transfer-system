@@ -254,7 +254,7 @@ public class VegasAlgorithm implements CongestionControlAlgorithm {
      */
     public void setCwnd(long cwnd) {
         this.cwnd = Math.max(cwnd, congestionConfig.getMinCwnd());
-        log.info("TCP Vegas算法设置cwnd: {}字节 ({:.2f}MB)", cwnd, cwnd / 1024.0 / 1024.0);
+        log.info("TCP Vegas算法设置cwnd: {}字节 ({} MB)", cwnd, String.format("%.2f", cwnd / 1024.0 / 1024.0));
     }
     
     @Override

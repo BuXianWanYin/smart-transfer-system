@@ -58,9 +58,9 @@
         </div>
       </div>
       
-      <!-- 拥塞监控面板 -->
+      <!-- 拥塞监控面板：仅在有传输任务时显示，无任务时不显示任何监控数据 -->
       <transition name="slide">
-        <div v-show="showMonitor" class="monitor-panel">
+        <div v-show="showMonitor && transferringCount > 0" class="monitor-panel">
           <div class="monitor-grid">
             <div class="monitor-item">
               <div class="monitor-label">当前算法</div>
@@ -85,10 +85,10 @@
               </div>
             </div>
             <div class="monitor-item">
-              <el-tooltip placement="top" effect="light">
+              <el-tooltip placement="top" effect="light" content="有传输时显示传播时延（与 Clumsy 延迟一致）">
                 <div class="monitor-label">传播时延</div>
               </el-tooltip>
-              <div class="monitor-value">{{ currentMetrics.rtt || 0 }}ms</div>
+              <div class="monitor-value">{{ displayRttText }}</div>
             </div>
             <div class="monitor-item">
               <div class="monitor-label">估算带宽</div>
@@ -305,7 +305,7 @@ import { formatFileSize, formatSpeed } from '@/utils/format'
 import { formatDateTime } from '@/utils/format'
 import { getHistoryList, deleteHistory, clearAllHistory, deleteRecentHistoryByFile } from '@/api/historyApi'
 import { getFileIconByType } from '@/utils/fileType'
-import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload, updateTaskStatus, getIncompleteTasks } from '@/api/fileApi'
+import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload, updateTaskStatus, getIncompleteTasks, getRttProbe } from '@/api/fileApi'
 import SparkMD5 from 'spark-md5'
 
 const congestionStore = useCongestionStore()
@@ -320,11 +320,15 @@ const wsConnected = ref(false)
 // 断点续传：从服务端恢复的上传任务点「重试」时，暂存任务项，等用户选择文件后继续
 const retryResumeItem = ref(null)
 const resumeUploadInputRef = ref(null)
+// 独立 RTT 探测：轻量 GET /file/rtt-probe 测量的往返时延（与 Clumsy 延迟一致，如 20ms 单向约 40–50ms）
+const probeRttMs = ref(undefined)
+let rttProbeTimerId = null
 
 // 监控数据 - 与后端 CongestionMetricsVO 字段对应，保证所有监控项可绑定
-const currentMetrics = ref({
+// 无传输时的监控卡片默认值（完成/失败/暂停后恢复）
+const DEFAULT_METRICS = {
   taskId: '',
-  algorithm: 'CUBIC',
+  algorithm: 'NONE',
   cwnd: 0,
   ssthresh: 0,
   rate: 0,
@@ -339,23 +343,49 @@ const currentMetrics = ref({
   rttJitter: undefined,
   bdp: undefined,
   networkTrend: undefined
-})
+}
 
-// 监听 congestionStore 的变化，实时同步算法和其他指标
-watch(() => congestionStore.currentMetrics, (newMetrics) => {
-  if (newMetrics) {
-    currentMetrics.value = {
-      ...currentMetrics.value,
-      ...newMetrics,
-      // 如果没有传输任务，网络质量显示"-"
-      networkQuality: newMetrics.networkQuality || '-'
-    }
-  }
-}, { deep: true, immediate: true })
+const currentMetrics = ref({ ...DEFAULT_METRICS })
+
+// 是否有正在进行的实际传输（非 MD5 计算、非暂停/待机）- 需在 watch 前定义
+const hasActiveTransfer = computed(() => {
+  const uploading = (transferStore.uploadQueue || []).some(t => t.status === 'uploading')
+  const downloading = (transferStore.downloadQueue || []).some(t => t.status === 'downloading')
+  return uploading || downloading
+})
 
 // 已完成列表
 const uploadCompletedList = ref([])
 const downloadCompletedList = ref([])
+
+// 无传输时不接受 WebSocket 推送覆盖，避免传输完成后仍显示旧数据
+watch(() => congestionStore.currentMetrics, (newMetrics) => {
+  if (!hasActiveTransfer.value || !newMetrics) return
+  currentMetrics.value = {
+    ...currentMetrics.value,
+    ...newMetrics,
+    networkQuality: newMetrics.networkQuality || '-'
+  }
+}, { deep: true, immediate: true })
+
+// 传输全部完成/失败/暂停时，监控卡片恢复默认值
+watch(hasActiveTransfer, (active) => {
+  if (!active) {
+    currentMetrics.value = { ...DEFAULT_METRICS }
+    congestionStore.updateMetrics(DEFAULT_METRICS)
+  }
+}, { immediate: true })
+
+// 传播时延：仅在有实际传输时显示数值，无传输时一律显示 -
+const displayRttMs = computed(() => {
+  if (probeRttMs.value != null && probeRttMs.value !== undefined) return Math.round(probeRttMs.value)
+  return currentMetrics.value?.rtt ?? 0
+})
+
+const displayRttText = computed(() => {
+  if (!hasActiveTransfer.value) return '-'
+  return `${displayRttMs.value}ms`
+})
 
 // 计算属性 - 传输中数量（包括error状态，因为可以重试）
 const transferringCount = computed(() => {
@@ -853,21 +883,13 @@ const startUploadTask = async (task) => {
     // 使用 failUploadTask标记为失败状态（保留在传输中列表，支持重试）
     await transferStore.failUploadTask(task.id, error.message || '上传失败')
     
-    // **修复：任务失败时清空监控数据**
-    currentMetrics.value = {
-      taskId: '',
-      algorithm: 'CUBIC',
-      cwnd: 0,
-      ssthresh: 0,
-      rate: 0,
-      rtt: 0,
-      lossRate: 0,
-      bandwidth: 0,
-      networkQuality: '-'
-    }
-    congestionStore.updateMetrics(currentMetrics.value)
-    
-    ElMessage.error(`${task.fileName} 上传失败: ${error.message}，可点击重试`)
+    // 任务失败时恢复监控默认值（hasActiveTransfer 会变为 false，watch 也会重置，此处显式重置一次）
+    currentMetrics.value = { ...DEFAULT_METRICS }
+    congestionStore.updateMetrics(DEFAULT_METRICS)
+    // 仅在此处提示用户：已重试 3 次仍失败，中文提示
+    const errText = (error && error.message) ? String(error.message) : ''
+    const friendly = errText === 'Network Error' ? '网络异常' : errText === 'UPLOAD_TIMEOUT' ? '上传超时' : errText === 'STALL_TIMEOUT' ? '上传停滞' : errText === 'CONNECTION_TIMEOUT' ? '连接超时' : errText || '未知错误'
+    ElMessage.error(`${task.fileName} 上传失败：${friendly}，已重试 3 次仍失败，可点击重试`)
     // **修复：失败任务不加载到已完成列表，保留在传输中以便重试**
   }
 }
@@ -969,30 +991,37 @@ const handleWsEvent = (event) => {
       const matchedTask = activeUploadTask || activeDownloadTask
       if (matchedTask && taskMetricsMap[matchedTask.taskId]) {
         const taskMetrics = taskMetricsMap[matchedTask.taskId]
-        // 全量替换，确保当前算法、网络质量等与后端实时一致
         currentMetrics.value = { ...taskMetrics }
         congestionStore.updateMetrics(taskMetrics)
       } else {
-        // **修复：没有活跃任务时，清空监控数据，避免显示已失败任务的数据**
-        // 不再使用第一个任务的指标，防止显示已停止任务的陈旧数据
-        currentMetrics.value = {
-          taskId: '',
-          algorithm: 'CUBIC',
-          cwnd: 0,
-          ssthresh: 0,
-          rate: 0,
-          rtt: 0,
-          lossRate: 0,
-          bandwidth: 0,
-          networkQuality: '-'
-        }
-        congestionStore.updateMetrics(currentMetrics.value)
+        // 无活跃任务时恢复默认，避免传输完成后仍显示旧数据
+        currentMetrics.value = { ...DEFAULT_METRICS }
+        congestionStore.updateMetrics(DEFAULT_METRICS)
       }
     } else {
-      // 兼容旧格式：单个指标对象
-      currentMetrics.value = data
-      congestionStore.updateMetrics(data)
+      // 兼容旧格式：无传输时不应用推送
+      if (hasActiveTransfer.value) {
+        currentMetrics.value = data
+        congestionStore.updateMetrics(data)
+      }
     }
+  }
+}
+
+const runRttProbe = async () => {
+  const t0 = Date.now()
+  try {
+    const data = await getRttProbe()
+    const clientRtt = Date.now() - t0
+    // 减去服务器处理时间，得到更接近网络传播的时延（与 Clumsy 出入各 20ms 约 40ms 一致）
+    const serverMs = data?.serverProcessingMs
+    const rtt = (typeof serverMs === 'number' && serverMs >= 0)
+      ? Math.max(0, Math.round(clientRtt - serverMs))
+      : clientRtt
+    probeRttMs.value = rtt
+    reportProbeRtt(rtt).catch(() => {})
+  } catch (_) {
+    // 失败时保留上次值，不覆盖
   }
 }
 
@@ -1001,6 +1030,10 @@ const startMonitoring = () => {
   congestionStore.startMonitoring()
   wsUnsubscribe = monitorWs.addListener(handleWsEvent)
   monitorWs.connect()
+  // 独立 RTT 探测：立即测一次，之后每 2 秒测一次（传播时延与 Clumsy 配置一致）
+  runRttProbe()
+  if (rttProbeTimerId) clearInterval(rttProbeTimerId)
+  rttProbeTimerId = setInterval(runRttProbe, 2000)
 }
 
 const stopMonitoring = () => {
@@ -1011,6 +1044,11 @@ const stopMonitoring = () => {
     wsUnsubscribe = null
   }
   monitorWs.disconnect()
+  if (rttProbeTimerId) {
+    clearInterval(rttProbeTimerId)
+    rttProbeTimerId = null
+  }
+  probeRttMs.value = undefined
 }
 
 // 格式化百分比（丢包率为 0–1 小数，超出时限制在 0–100% 显示）
@@ -1186,6 +1224,14 @@ const handleResume = (item) => {
 
 // 重试失败的任务（从服务端恢复的上传任务无 file 时，弹出文件选择框，选同一文件后断点续传）
 const handleRetry = (item) => {
+  // **修复：重试时检查WebSocket连接状态，如果未连接则重新连接**
+  if (!monitorWs.isConnected) {
+    console.log('WebSocket未连接，尝试重新连接...')
+    // 重置重连计数器，允许重新连接
+    monitorWs.reconnectAttempts = 0
+    monitorWs.connect()
+  }
+  
   if (activeMenu.value === 'upload') {
     if (item._fromServer && !item.file) {
       retryResumeItem.value = item

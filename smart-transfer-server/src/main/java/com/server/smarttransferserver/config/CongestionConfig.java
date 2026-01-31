@@ -55,6 +55,9 @@ public class CongestionConfig {
     // 最小切换间隔配置
     private long minSwitchInterval = 10000L;    // 最小切换间隔（毫秒）
     
+    /** 传播 RTT 上限（往返，毫秒）。0 表示不封顶；若使用 Clumsy 等工具，可设为 2×单向延迟（如 20ms 填 40，150ms 填 300），超出部分视为排队/上传时间。 */
+    private long maxPropagationRttMs = 0L;
+    
     /**
      * 初始化时从数据库加载配置
      */
@@ -104,6 +107,9 @@ public class CongestionConfig {
             
             // 最小切换间隔配置
             minSwitchInterval = getLongConfig("congestion.min-switch-interval", minSwitchInterval);
+            
+            // 传播 RTT 上限（0=不封顶；Clumsy 单向 20ms 可填 40，150ms 可填 300）
+            maxPropagationRttMs = getLongConfig("congestion.max-propagation-rtt-ms", maxPropagationRttMs);
             
             log.info("从数据库加载拥塞控制配置 - algorithm: {}, initialCwnd: {}, maxCwnd: {}, trendWindowSize: {}, confidenceThreshold: {}", 
                     algorithm, initialCwnd, maxCwnd, trendWindowSize, confidenceThreshold);
@@ -235,6 +241,11 @@ public class CongestionConfig {
     
     public long getMinSwitchInterval() {
         return minSwitchInterval;
+    }
+    
+    /** 传播 RTT 上限（往返 ms）。0 表示不封顶。 */
+    public long getMaxPropagationRttMs() {
+        return maxPropagationRttMs;
     }
 }
 
