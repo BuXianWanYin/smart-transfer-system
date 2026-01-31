@@ -34,29 +34,6 @@ export function initUpload(data) {
 }
 
 /**
- * RTT 探测：轻量 GET，用于测量传播时延。
- * 响应含 serverProcessingMs，调用方用「客户端 RTT - serverProcessingMs」得到更接近网络传播的时延（与 Clumsy 一致）。
- *
- * @returns {Promise<{ ok: boolean, ts: number, serverProcessingMs?: number }>}
- */
-export function getRttProbe() {
-  return request.get({ url: '/file/rtt-probe' })
-}
-
-/**
- * 上报独立 RTT 探测值（测得后 POST），供后端算法与 WebSocket 推送使用。
- *
- * @param {number} rttMs 往返时延（ms）
- * @returns {Promise}
- */
-export function reportProbeRtt(rttMs) {
-  return request.post({
-    url: '/file/probe-rtt',
-    data: { rttMs: Math.round(rttMs) }
-  })
-}
-
-/**
  * 上传分片（进度停滞检测 + 自动重试）
  * 不设超时，只有进度卡死30秒才重试
  * @param {FormData} formData - 分片数据

@@ -13,6 +13,7 @@ class MonitorWebSocket {
     this.reconnectDelay = 3000
     this.listeners = new Set()
     this.isConnecting = false
+    this.pingCallbacks = new Map() // 存储 ping 回调: Map<timestamp, {resolve, timer}>
   }
 
   /**
@@ -51,7 +52,19 @@ class MonitorWebSocket {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
-          this.notifyListeners({ type: 'message', data })
+          
+          // 处理 Pong 响应
+          if (data.type === 'pong' && data.clientTs) {
+            const callback = this.pingCallbacks.get(data.clientTs)
+            if (callback) {
+              clearTimeout(callback.timer)
+              this.pingCallbacks.delete(data.clientTs)
+              callback.resolve(data)
+            }
+          } else {
+            // 普通消息
+            this.notifyListeners({ type: 'message', data })
+          }
         } catch {
           // 解析消息失败，静默处理
         }
@@ -82,6 +95,13 @@ class MonitorWebSocket {
       this.reconnectTimer = null
     }
     
+    // 清理所有待处理的 ping 回调
+    this.pingCallbacks.forEach((callback) => {
+      clearTimeout(callback.timer)
+      callback.reject(new Error('WebSocket disconnected'))
+    })
+    this.pingCallbacks.clear()
+    
     if (this.ws) {
       this.ws.close()
       this.ws = null
@@ -104,6 +124,36 @@ class MonitorWebSocket {
    */
   refresh() {
     this.send('refresh')
+  }
+
+  /**
+   * 发送 Ping 并等待 Pong (用于 RTT 测量)
+   * @param {number} timeout - 超时时间(ms)，默认 5000ms
+   * @returns {Promise<{clientTs: number, serverTs: number}>}
+   */
+  async ping(timeout = 5000) {
+    if (!this.isConnected) {
+      throw new Error('WebSocket not connected')
+    }
+
+    const clientTs = Date.now()
+    
+    return new Promise((resolve, reject) => {
+      // 设置超时
+      const timer = setTimeout(() => {
+        this.pingCallbacks.delete(clientTs)
+        reject(new Error('Ping timeout'))
+      }, timeout)
+
+      // 存储回调
+      this.pingCallbacks.set(clientTs, { resolve, reject, timer })
+
+      // 发送 Ping
+      this.send({
+        type: 'ping',
+        ts: clientTs
+      })
+    })
   }
 
   /**

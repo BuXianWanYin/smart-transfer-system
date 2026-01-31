@@ -1009,19 +1009,32 @@ const handleWsEvent = (event) => {
 }
 
 const runRttProbe = async () => {
+  if (!monitorWs.isConnected) {
+    console.debug('WebSocket 未连接，跳过 RTT 探测')
+    return
+  }
+  
   const t0 = Date.now()
   try {
-    const data = await getRttProbe()
+    // 使用 WebSocket Ping/Pong 测量纯网络 RTT
+    const pongData = await monitorWs.ping(3000)
     const clientRtt = Date.now() - t0
-    // 减去服务器处理时间，得到更接近网络传播的时延（与 Clumsy 出入各 20ms 约 40ms 一致）
-    const serverMs = data?.serverProcessingMs
-    const rtt = (typeof serverMs === 'number' && serverMs >= 0)
-      ? Math.max(0, Math.round(clientRtt - serverMs))
-      : clientRtt
-    probeRttMs.value = rtt
-    reportProbeRtt(rtt).catch(() => {})
-  } catch (_) {
-    // 失败时保留上次值，不覆盖
+    
+    // 计算纯网络 RTT: 客户端往返时间
+    // WebSocket 在应用层测量，已经是最接近网络层的测量了
+    const networkRtt = clientRtt
+    
+    console.log(`RTT探测(WebSocket Ping) - 往返时延: ${networkRtt}ms, 客户端发送: ${pongData.clientTs}, 服务器响应: ${pongData.serverTs}`)
+    probeRttMs.value = networkRtt
+    
+    // 立即发送 RTT 更新消息给服务器，确保算法能使用最新的 RTT
+    monitorWs.send({
+      type: 'rtt-update',
+      rtt: networkRtt
+    })
+  } catch (err) {
+    console.debug('RTT探测失败:', err.message)
+    // 失败时保留上次值,不覆盖
   }
 }
 
@@ -1030,10 +1043,19 @@ const startMonitoring = () => {
   congestionStore.startMonitoring()
   wsUnsubscribe = monitorWs.addListener(handleWsEvent)
   monitorWs.connect()
-  // 独立 RTT 探测：立即测一次，之后每 2 秒测一次（传播时延与 Clumsy 配置一致）
-  runRttProbe()
-  if (rttProbeTimerId) clearInterval(rttProbeTimerId)
-  rttProbeTimerId = setInterval(runRttProbe, 2000)
+  
+  // 等待 WebSocket 连接后开始 RTT 探测
+  const waitForConnection = () => {
+    if (monitorWs.isConnected) {
+      // WebSocket RTT 探测：立即测一次，之后每 2 秒测一次
+      runRttProbe()
+      if (rttProbeTimerId) clearInterval(rttProbeTimerId)
+      rttProbeTimerId = setInterval(runRttProbe, 2000)
+    } else {
+      setTimeout(waitForConnection, 100)
+    }
+  }
+  waitForConnection()
 }
 
 const stopMonitoring = () => {

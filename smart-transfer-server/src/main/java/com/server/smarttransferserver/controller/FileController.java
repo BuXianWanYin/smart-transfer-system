@@ -8,7 +8,6 @@ import com.server.smarttransferserver.service.FileDownloadService;
 import com.server.smarttransferserver.service.FileInfoService;
 import com.server.smarttransferserver.service.FileMergeService;
 import com.server.smarttransferserver.service.FileUploadService;
-import com.server.smarttransferserver.service.ProbeRttStore;
 import com.server.smarttransferserver.service.TransferTaskService;
 import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.ChunkUploadVO;
@@ -26,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 import java.io.File;
@@ -66,9 +66,6 @@ public class FileController {
     
     @Autowired
     private DownloadCompleteService downloadCompleteService;
-    
-    @Autowired
-    private ProbeRttStore probeRttStore;
     
     /**
      * 初始化文件上传
@@ -115,41 +112,6 @@ public class FileController {
             log.error("检查分片失败", e);
             return Result.error("检查分片失败: " + e.getMessage());
         }
-    }
-    
-    /**
-     * RTT 探测：轻量 GET，仅用于客户端测量往返时延（传播时延）。
-     * 返回本接口的服务器处理耗时（serverProcessingMs），前端用「客户端 RTT - serverProcessingMs」得到更接近
-     * 网络传播的时延（与 Clumsy 配置一致，如出入各 20ms 则约 40ms）。
-     *
-     * @return ok、ts、serverProcessingMs（本请求在服务器侧耗时 ms）
-     */
-    @GetMapping("/rtt-probe")
-    public Result<Map<String, Object>> rttProbe() {
-        long t0 = System.currentTimeMillis();
-        Map<String, Object> data = new HashMap<>(4);
-        data.put("ok", true);
-        data.put("ts", Long.valueOf(System.currentTimeMillis()));
-        long serverProcessingMs = System.currentTimeMillis() - t0;
-        data.put("serverProcessingMs", Long.valueOf(serverProcessingMs));
-        return Result.success(data);
-    }
-    
-    /**
-     * 上报独立 RTT 探测值（前端 GET /file/rtt-probe 测得后 POST 此值），供算法与 WebSocket 推送使用。
-     *
-     * @param dto 探测 RTT（往返，ms）
-     * @return 成功
-     */
-    @PostMapping("/probe-rtt")
-    public Result<Void> reportProbeRtt(@Valid @RequestBody ProbeRttDTO dto) {
-        Long userId = UserContextHolder.getUserId();
-        if (userId == null) {
-            return Result.error("未登录");
-        }
-        Long rttMs = dto.getRttMs();
-        probeRttStore.set(userId, rttMs != null ? rttMs.longValue() : 0L);
-        return Result.success();
     }
     
     /**
