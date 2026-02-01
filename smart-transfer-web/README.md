@@ -83,8 +83,7 @@ VITE_APP_PORT=3000
 VITE_API_BASE_URL=/api
 VITE_API_TIMEOUT=30000
 VITE_SERVER_URL=http://localhost:8081
-VITE_CHUNK_SIZE=2097152
-VITE_MAX_FILE_SIZE=10737418240
+# 分片大小、最大文件大小从系统配置接口 /file/upload/config 获取
 ```
 
 详细配置说明请查看 [ENV_CONFIG.md](./ENV_CONFIG.md)

@@ -8,6 +8,7 @@ import com.server.smarttransferserver.service.FileDownloadService;
 import com.server.smarttransferserver.service.FileInfoService;
 import com.server.smarttransferserver.service.FileMergeService;
 import com.server.smarttransferserver.service.FileUploadService;
+import com.server.smarttransferserver.service.SystemConfigService;
 import com.server.smarttransferserver.service.TransferTaskService;
 import com.server.smarttransferserver.util.UserContextHolder;
 import com.server.smarttransferserver.vo.ChunkUploadVO;
@@ -19,6 +20,7 @@ import com.server.smarttransferserver.vo.TransferTaskVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.util.unit.DataSize;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -66,6 +68,44 @@ public class FileController {
     
     @Autowired
     private DownloadCompleteService downloadCompleteService;
+
+    @Autowired
+    private SystemConfigService systemConfigService;
+
+    /** 分片大小默认值（字节），系统配置表无值时使用 */
+    private static final long DEFAULT_CHUNK_SIZE = 5242880L;
+    /** 最大文件大小默认值（字节），系统配置表无值时使用 */
+    private static final long DEFAULT_MAX_FILE_SIZE = 10737418240L;
+
+    /**
+     * 获取上传配置（分片大小、最大文件大小）
+     * 从系统配置表 system_config 读取，配置键：transfer.chunk-size、transfer.max-file-size
+     */
+    @GetMapping("/upload/config")
+    public Result<Map<String, Long>> getUploadConfig() {
+        String chunkSizeStr = systemConfigService.getConfigValue("transfer.chunk-size", String.valueOf(DEFAULT_CHUNK_SIZE));
+        String maxFileSizeStr = systemConfigService.getConfigValue("transfer.max-file-size", String.valueOf(DEFAULT_MAX_FILE_SIZE));
+        long chunkSize = parseSizeToBytes(chunkSizeStr, DEFAULT_CHUNK_SIZE);
+        long maxFileSize = parseSizeToBytes(maxFileSizeStr, DEFAULT_MAX_FILE_SIZE);
+        Map<String, Long> config = new HashMap<>();
+        config.put("chunkSize", chunkSize);
+        config.put("maxFileSize", maxFileSize);
+        return Result.success(config);
+    }
+
+    /** 解析大小为字节：支持纯数字或 10GB/5MB 等格式 */
+    private long parseSizeToBytes(String value, long defaultValue) {
+        if (value == null || value.isBlank()) return defaultValue;
+        value = value.trim();
+        try {
+            if (value.matches("\\d+")) {
+                return Long.parseLong(value);
+            }
+            return DataSize.parse(value).toBytes();
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
     
     /**
      * 初始化文件上传

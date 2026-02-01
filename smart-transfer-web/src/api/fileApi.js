@@ -22,6 +22,17 @@ function clampRetryCountForHeader(c) {
 }
 
 /**
+ * 获取上传配置（分片大小、最大文件大小）
+ * 从系统配置接口获取，与后端 application.yml 保持一致
+ * @returns {Promise<{ chunkSize: number, maxFileSize: number }>}
+ */
+export function getUploadConfig() {
+  return request.get({
+    url: '/file/upload/config'
+  })
+}
+
+/**
  * 初始化文件上传
  * @param {Object} data - 上传初始化数据
  * @returns {Promise}

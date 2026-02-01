@@ -20,6 +20,12 @@ export const useConfigStore = defineStore('config', () => {
     autoRefresh: true,
     refreshInterval: 3000
   })
+
+  // 上传配置：分片大小、最大文件大小（从系统配置接口获取）
+  const transferConfig = ref({
+    chunkSize: 5242880,      // 5MB，与后端 transfer.chunk-size 默认一致
+    maxFileSize: 10737418240 // 10GB，与后端 max-file-size 默认一致
+  })
   
   // 方法
   function updateCongestionConfig(config) {
@@ -29,6 +35,11 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
   
+  function updateTransferConfig(config) {
+    if (config.chunkSize != null) transferConfig.value.chunkSize = Number(config.chunkSize)
+    if (config.maxFileSize != null) transferConfig.value.maxFileSize = Number(config.maxFileSize)
+  }
+
   function updateSystemConfig(config) {
     systemConfig.value = {
       ...systemConfig.value,
@@ -62,7 +73,9 @@ export const useConfigStore = defineStore('config', () => {
   return {
     congestionConfig,
     systemConfig,
+    transferConfig,
     updateCongestionConfig,
+    updateTransferConfig,
     updateSystemConfig,
     loadSystemConfig,
     resetCongestionConfig

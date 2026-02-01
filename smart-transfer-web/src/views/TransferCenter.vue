@@ -376,10 +376,11 @@ watch(hasActiveTransfer, (active) => {
   }
 }, { immediate: true })
 
-// 传播时延：仅在有实际传输时显示数值，无传输时一律显示 -
+// 传播时延（单向，与 Clumsy Delay 一致）：probeRttMs 已是单向；WebSocket 的 rtt 为完整 RTT 需 /2
 const displayRttMs = computed(() => {
   if (probeRttMs.value != null && probeRttMs.value !== undefined) return Math.round(probeRttMs.value)
-  return currentMetrics.value?.rtt ?? 0
+  const wsRtt = currentMetrics.value?.rtt ?? 0
+  return Math.round(wsRtt / 2)
 })
 
 const displayRttText = computed(() => {
@@ -1013,12 +1014,11 @@ const rttSamples = ref([])
 const RTT_WINDOW_SIZE = 10 // 保留最近 10 次采样（覆盖 10 秒）
 
 /**
- * Clumsy 额外开销（ms）。
- * 官方文档：Lag 经常高于设定值，参数非精确度量；勾选 Lag 后实测 RTT 会多出与设定值无关的延迟（约 30～50ms），
- * 即 Clumsy 在 loopback 下的额外开销。显示与算法使用「实测 RTT − 本常量」作校正，使更接近 4×Clumsy Delay。
+ * Clumsy Lag 设置的是单向延迟，实测为往返 RTT。
+ * - 后端需要完整 RTT（用于算法），发送 minRtt
+ * - 传播时延（与 Clumsy 一致）= 单向 = RTT/2，仅用于前端显示
+ * 例如 Clumsy 300ms → RTT≈600ms → 显示 300ms
  */
-const CLUMSY_LOOPBACK_OVERHEAD_MS = 35
-
 const runRttProbe = async () => {
   if (!monitorWs.isConnected) {
     console.debug('WebSocket 未连接，跳过 RTT 探测')
@@ -1039,21 +1039,19 @@ const runRttProbe = async () => {
     
     // 最小值（最小 RTT = 排队最少）
     const minRtt = Math.min(...rttSamples.value)
-    
-    // 仅当实测 RTT 明显大于 Clumsy 额外开销时，才减去 Clumsy 额外开销（否则未开 Lag 时 0～2ms 会被减成 0）
-    const rttAfterOverhead = minRtt > CLUMSY_LOOPBACK_OVERHEAD_MS
-      ? Math.max(0, minRtt - CLUMSY_LOOPBACK_OVERHEAD_MS)
-      : minRtt
+    // 传播时延(单向) = RTT/2，与 Clumsy Delay 一致，用于前端显示
+    const propagationRttMs = Math.round(minRtt / 2)
     
     const avgRtt = Math.round(rttSamples.value.reduce((a, b) => a + b, 0) / rttSamples.value.length)
-    console.log(`RTT探测(往返) - 实测最小: ${minRtt}ms, 减去Clumsy额外开销后: ${rttAfterOverhead}ms, 平均: ${avgRtt}ms`)
+    console.log(`RTT探测(往返) - 实测最小: ${minRtt}ms, 传播时延(单向): ${propagationRttMs}ms, 平均RTT: ${avgRtt}ms`)
     
-    // 前端监控 RTT 与算法切换使用的 RTT 均使用「减去 Clumsy 额外开销」后的值（rttAfterOverhead）
-    probeRttMs.value = rttAfterOverhead
+    // 发送完整 RTT 给后端（算法与指标用）
     monitorWs.send({
       type: 'rtt-update',
-      rtt: rttAfterOverhead
+      rtt: minRtt
     })
+    // 前端显示使用单向传播时延（与 Clumsy 一致）
+    probeRttMs.value = propagationRttMs
   } catch (err) {
     console.debug('RTT探测失败:', err.message)
   }
@@ -1068,8 +1066,7 @@ const startMonitoring = () => {
   // 等待 WebSocket 连接后开始 RTT 探测
   const waitForConnection = () => {
     if (monitorWs.isConnected) {
-      // Clumsy 官方：loopback 下 RTT≈4×Delay；实测常高于该值，显示与算法会减去 Clumsy 额外开销（约35ms）作校正
-      console.log('RTT探测已启动。Clumsy loopback 下理论 RTT≈4×Delay(ms)；显示/算法使用「实测−Clumsy额外开销」校正')
+      console.log('RTT探测已启动。Clumsy Delay 为单向延迟，传播时延 = 实测RTT/2')
       runRttProbe()
       if (rttProbeTimerId) clearInterval(rttProbeTimerId)
       rttProbeTimerId = setInterval(runRttProbe, 1000) // 每秒 1 次

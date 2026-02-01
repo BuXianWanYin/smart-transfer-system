@@ -152,17 +152,19 @@ import {
 import { useFileStore } from '@/store/fileStore'
 import { formatFileSize, formatSpeed, createFileChunks, calculateFileHash } from '@/utils/file'
 import { formatDateTime } from '@/utils/format'
-import { initUpload, uploadChunk, mergeFile } from '@/api/fileApi'
+import { initUpload, uploadChunk, mergeFile, getUploadConfig } from '@/api/fileApi'
 import { addHistory } from '@/api/historyApi'
+import { useConfigStore } from '@/store/configStore'
 
 const fileStore = useFileStore()
+const configStore = useConfigStore()
 const uploadRef = ref()
 const uploadQueue = ref([])
 
 // 处理文件选择
 const handleFileChange = (file) => {
-  // 检查文件大小限制
-  const maxFileSize = Number(import.meta.env.VITE_MAX_FILE_SIZE) || 10737418240 // 默认 10GB
+  // 检查最大文件大小限制（从系统配置获取）
+  const maxFileSize = configStore.transferConfig.maxFileSize
   if (file.size > maxFileSize) {
     ElMessage.error(`文件大小超过限制 ${formatFileSize(maxFileSize)}`)
     return
@@ -196,8 +198,8 @@ const startUpload = async (item) => {
       item.progress = Math.floor(progress * 0.1) // 哈希计算占10%进度
     })
     
-    // 初始化上传
-    const chunkSize = Number(import.meta.env.VITE_CHUNK_SIZE) || (2 * 1024 * 1024) // 默认 2MB
+    // 初始化上传（分片大小从系统配置获取）
+    const chunkSize = configStore.transferConfig.chunkSize
     const chunks = createFileChunks(item.file, chunkSize)
     
     const initRes = await initUpload({
@@ -407,6 +409,18 @@ const formatTime = (seconds) => {
   if (m > 0) return `${m}分${s}秒`
   return `${s}秒`
 }
+
+// 加载上传配置（分片大小、最大文件大小）从系统配置接口
+onMounted(async () => {
+  try {
+    const config = await getUploadConfig()
+    if (config?.chunkSize != null || config?.maxFileSize != null) {
+      configStore.updateTransferConfig(config)
+    }
+  } catch (e) {
+    // 接口失败时使用 configStore 默认值（与后端一致）
+  }
+})
 
 // 记录传输历史
 const recordHistory = async (item, fileHash, duration) => {
