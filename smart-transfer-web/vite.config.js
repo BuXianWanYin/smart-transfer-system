@@ -41,7 +41,22 @@ export default defineConfig(({ mode }) => {
       '/api': {
         target: env.VITE_SERVER_URL || 'http://localhost:8081',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        // http-proxy 超时：Clumsy 500ms 延迟时请求约 1.3s，默认可能过短导致 500
+        proxyTimeout: 60000,  // 代理到后端的等待超时 60s
+        timeout: 60000,       // 等待后端响应的超时 60s
+        configure: (proxy) => {
+          proxy.on('error', (err, req, res) => {
+            console.error('[Vite Proxy Error]', err.message)
+            if (!res.headersSent) {
+              res.writeHead(500, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({
+                code: 500,
+                message: '代理转发失败: ' + err.message
+              }))
+            }
+          })
+        }
       }
     }
   },

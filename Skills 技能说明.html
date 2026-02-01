@@ -82,6 +82,7 @@
 <body>
   <h1>OpenSkills 技能说明</h1>
   <p class="subtitle">基于 Anthropic 官方 Skills，在 Cursor 中通过 AGENTS.md 使用。调用方式：<code>npx openskills read &lt;技能名&gt;</code></p>
+  <p class="subtitle" style="margin-top:0.5rem;">论文格式：广西外国语学院本科毕设论文模板的<strong>全部格式</strong>已写入 Cursor 规则，可通过 <code>@.cursor/rules/thesis/thesis-format.md</code> 读取；或在与「论文格式」「论文模板」「WPS 格式化」相关对话时由规则自动提供。</p>
 
   <div class="table-wrap">
     <table>
@@ -178,12 +179,17 @@
           <td class="skill-name">xlsx</td>
           <td class="skill-desc">电子表格的创建、编辑与分析，支持公式、格式、数据分析与图表。适用于：新建带公式与格式的表格、读取或分析数据、在保留公式的前提下修改表格、在表格内做数据分析与可视化、重算公式等。支持 .xlsx、.xlsm、.csv、.tsv 等。</td>
         </tr>
+        <tr>
+          <td class="num">—</td>
+          <td class="skill-name">论文格式（本地规则）</td>
+          <td class="skill-desc">广西外国语学院本科毕设论文格式模板全文规范（封面、目录、摘要、正文、参考文献、致谢、题注、页眉等字号/行距/对齐）。<strong>读取方式</strong>：在 Cursor 中用 <code>@.cursor/rules/thesis/thesis-format.md</code> 引用，或在与「论文格式」「论文模板」「WPS 格式化」相关对话时由规则自动提供。WPS 宏见 <code>WpsFormatThesis/GXWGY_FormatThesis_WPS_v1.js</code>。</td>
+        </tr>
       </tbody>
     </table>
   </div>
 
   <footer>
-    共 17 个技能 · 来源：anthropics/skills · 通过 OpenSkills 安装，AGENTS.md 同步生成
+    共 17 个 OpenSkills + 1 个本地论文格式规则 · 来源：anthropics/skills · 通过 OpenSkills 安装，AGENTS.md 同步生成
   </footer>
 </body>
 </html>

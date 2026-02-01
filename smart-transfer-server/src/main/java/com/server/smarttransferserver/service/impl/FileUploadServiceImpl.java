@@ -124,7 +124,6 @@ public class FileUploadServiceImpl implements FileUploadService {
             if (!cachedChunks.isEmpty()) {
                 // Redis 有缓存
                 chunkNumbers = new ArrayList<>(cachedChunks);
-                log.info("从Redis获取已上传分片 - 文件ID: {}, 数量: {}", existingFile.getId(), chunkNumbers.size());
             } else {
                 // Redis 无缓存，从数据库查询
                 List<FileChunk> uploadedChunks = fileChunkMapper.selectByFileIdAndUploadStatus(
@@ -308,8 +307,6 @@ public class FileUploadServiceImpl implements FileUploadService {
      * @return 上传结果
      */
     private ChunkUploadVO uploadChunkInternal(ChunkUploadDTO dto) {
-        log.info("上传分片 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
-        
         // **关键修复：获取或创建任务，确保每个任务有独立的算法实例**
         String taskId = getOrCreateTaskId(dto.getFileId());
         CongestionControlAlgorithm algorithm = algorithmManager.getOrCreateAlgorithm(taskId);

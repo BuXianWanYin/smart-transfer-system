@@ -131,8 +131,6 @@ public class FileController {
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
             @RequestHeader(value = "X-Last-RTT-Ms", required = false) String clientRttMsStr,
             @RequestHeader(value = "X-Chunk-Retry-Count", required = false) String clientRetryCountStr) {
-        
-        log.info("上传分片 - 文件ID: {}, 分片: {}", fileId, chunkNumber);
         Long clientRttMs = parseLongHeader(clientRttMsStr);
         Integer clientRetryCount = parseIntHeader(clientRetryCountStr);
         try {

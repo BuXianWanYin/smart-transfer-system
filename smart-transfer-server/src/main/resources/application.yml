@@ -43,7 +43,7 @@ spring:
     host: localhost
     port: 6379
     database: 0
-    timeout: 3000
+    timeout: 30000   # 连接超时：30秒（Clumsy 网络模拟会增加 localhost 延迟，原 3000ms 可能触发超时）
     lettuce:
       pool:
         max-active: 15            # 最大连接数：支持多用户并发

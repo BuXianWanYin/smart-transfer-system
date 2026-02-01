@@ -305,7 +305,7 @@ import { formatFileSize, formatSpeed } from '@/utils/format'
 import { formatDateTime } from '@/utils/format'
 import { getHistoryList, deleteHistory, clearAllHistory, deleteRecentHistoryByFile } from '@/api/historyApi'
 import { getFileIconByType } from '@/utils/fileType'
-import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload, updateTaskStatus, getIncompleteTasks, getRttProbe } from '@/api/fileApi'
+import { getDownloadUrl, initUpload, uploadChunk, mergeFile, cancelUpload, initDownload, downloadChunk, completeDownload, cancelDownload, updateTaskStatus, getIncompleteTasks } from '@/api/fileApi'
 import SparkMD5 from 'spark-md5'
 
 const congestionStore = useCongestionStore()
@@ -1008,6 +1008,17 @@ const handleWsEvent = (event) => {
   }
 }
 
+// RTT 采样窗口（每秒采样 + 取最小值）
+const rttSamples = ref([])
+const RTT_WINDOW_SIZE = 10 // 保留最近 10 次采样（覆盖 10 秒）
+
+/**
+ * Clumsy 额外开销（ms）。
+ * 官方文档：Lag 经常高于设定值，参数非精确度量；勾选 Lag 后实测 RTT 会多出与设定值无关的延迟（约 30～50ms），
+ * 即 Clumsy 在 loopback 下的额外开销。显示与算法使用「实测 RTT − 本常量」作校正，使更接近 4×Clumsy Delay。
+ */
+const CLUMSY_LOOPBACK_OVERHEAD_MS = 35
+
 const runRttProbe = async () => {
   if (!monitorWs.isConnected) {
     console.debug('WebSocket 未连接，跳过 RTT 探测')
@@ -1016,25 +1027,35 @@ const runRttProbe = async () => {
   
   const t0 = Date.now()
   try {
-    // 使用 WebSocket Ping/Pong 测量纯网络 RTT
-    const pongData = await monitorWs.ping(3000)
+    // 使用 WebSocket Ping/Pong 测量往返 RTT
+    await monitorWs.ping(3000)
     const clientRtt = Date.now() - t0
     
-    // 计算纯网络 RTT: 客户端往返时间
-    // WebSocket 在应用层测量，已经是最接近网络层的测量了
-    const networkRtt = clientRtt
+    // 加入采样窗口
+    rttSamples.value.push(clientRtt)
+    if (rttSamples.value.length > RTT_WINDOW_SIZE) {
+      rttSamples.value.shift()
+    }
     
-    console.log(`RTT探测(WebSocket Ping) - 往返时延: ${networkRtt}ms, 客户端发送: ${pongData.clientTs}, 服务器响应: ${pongData.serverTs}`)
-    probeRttMs.value = networkRtt
+    // 最小值（最小 RTT = 排队最少）
+    const minRtt = Math.min(...rttSamples.value)
     
-    // 立即发送 RTT 更新消息给服务器，确保算法能使用最新的 RTT
+    // 仅当实测 RTT 明显大于 Clumsy 额外开销时，才减去 Clumsy 额外开销（否则未开 Lag 时 0～2ms 会被减成 0）
+    const rttAfterOverhead = minRtt > CLUMSY_LOOPBACK_OVERHEAD_MS
+      ? Math.max(0, minRtt - CLUMSY_LOOPBACK_OVERHEAD_MS)
+      : minRtt
+    
+    const avgRtt = Math.round(rttSamples.value.reduce((a, b) => a + b, 0) / rttSamples.value.length)
+    console.log(`RTT探测(往返) - 实测最小: ${minRtt}ms, 减去Clumsy额外开销后: ${rttAfterOverhead}ms, 平均: ${avgRtt}ms`)
+    
+    // 前端监控 RTT 与算法切换使用的 RTT 均使用「减去 Clumsy 额外开销」后的值（rttAfterOverhead）
+    probeRttMs.value = rttAfterOverhead
     monitorWs.send({
       type: 'rtt-update',
-      rtt: networkRtt
+      rtt: rttAfterOverhead
     })
   } catch (err) {
     console.debug('RTT探测失败:', err.message)
-    // 失败时保留上次值,不覆盖
   }
 }
 
@@ -1047,10 +1068,11 @@ const startMonitoring = () => {
   // 等待 WebSocket 连接后开始 RTT 探测
   const waitForConnection = () => {
     if (monitorWs.isConnected) {
-      // WebSocket RTT 探测：立即测一次，之后每 2 秒测一次
+      // Clumsy 官方：loopback 下 RTT≈4×Delay；实测常高于该值，显示与算法会减去 Clumsy 额外开销（约35ms）作校正
+      console.log('RTT探测已启动。Clumsy loopback 下理论 RTT≈4×Delay(ms)；显示/算法使用「实测−Clumsy额外开销」校正')
       runRttProbe()
       if (rttProbeTimerId) clearInterval(rttProbeTimerId)
-      rttProbeTimerId = setInterval(runRttProbe, 2000)
+      rttProbeTimerId = setInterval(runRttProbe, 1000) // 每秒 1 次
     } else {
       setTimeout(waitForConnection, 100)
     }

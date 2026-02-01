@@ -219,13 +219,13 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
     @Override
     public void onAck(long ackedBytes, long fullRttMs, Long propagationRttMs) {
         // RTT 仅使用独立探测值：只有 propagationRttMs（前端 probe）非空时才入样、参与 RTT 突增推断
+        boolean inferredLoss = false;
         if (propagationRttMs != null && propagationRttMs > 0 && propagationRttMs < 10000) {
             rttSamples.offer(propagationRttMs);
             if (rttSamples.size() > EVALUATION_WINDOW) {
                 rttSamples.poll();
             }
             // RTT 突增推断丢包（仅在有探测 RTT 时）
-            boolean inferredLoss = false;
             if (rttSamples.size() >= 3) {
                 double avg = rttSamples.stream().mapToLong(Long::longValue).average().orElse(0);
                 if (avg > 0 && propagationRttMs >= 1.8 * avg) {
@@ -235,10 +235,12 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
                     }
                 }
             }
-            recentPackets.offer(inferredLoss ? false : true);
-            if (recentPackets.size() > RECENT_WINDOW_SIZE) {
-                recentPackets.poll();
-            }
+        }
+        
+        // **修复：每个成功的 ACK 都记录到 recentPackets（不仅仅是有 RTT 探测时）**
+        recentPackets.offer(inferredLoss ? false : true);
+        if (recentPackets.size() > RECENT_WINDOW_SIZE) {
+            recentPackets.poll();
         }
         
         totalPackets++;
@@ -291,15 +293,17 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
             warmupRttCount--;
             
             // **优化：检测网络剧烈变化时提前结束预热**
-            // 与界面一致，使用 getDisplayLossRate()（总丢包/总分片 或 滑动窗口/累积）
-            double quickLossRate = getDisplayLossRate();
+            // 使用近期丢包率（更快响应网络变化）
+            double cumulativeLossRate = getDisplayLossRate();
+            long recentLossCount = recentPackets.stream().filter(b -> !b).count();
+            double recentLossRate = recentPackets.isEmpty() ? cumulativeLossRate : (double) recentLossCount / recentPackets.size();
             long quickJitter = calculateRttJitter();
             
-            // 判断当前网络质量
+            // 判断当前网络质量（差网络用累计丢包率，好网络用近期丢包率）
             double lossThreshold = congestionConfig.getLossRateThreshold();
             long jitterThreshold = congestionConfig.getRttJitterThreshold();
-            boolean nowPoor = quickLossRate > lossThreshold * 2 || quickJitter > jitterThreshold * 2;
-            boolean nowExcellent = quickLossRate < lossThreshold * 0.5 && quickJitter < jitterThreshold * 0.5;
+            boolean nowPoor = cumulativeLossRate > lossThreshold * 2 || quickJitter > jitterThreshold * 2;
+            boolean nowExcellent = recentLossRate < lossThreshold * 0.5 && quickJitter < jitterThreshold * 0.5;
             
             // 如果网络状况与当前算法严重不匹配，提前结束预热
             String currentAlgName = currentAlgorithm.getAlgorithmName();
@@ -307,8 +311,9 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
                             || (nowExcellent && !"BBR".equals(currentAlgName));
             
             if (mismatch) {
-                log.info("网络状况与当前算法不匹配，提前结束预热 - 算法: {}, 丢包: {}%, 抖动: {}ms", 
-                        currentAlgName, String.format("%.2f", quickLossRate * 100), quickJitter);
+                log.info("网络状况与当前算法不匹配，提前结束预热 - 算法: {}, 累计丢包: {}%, 近期丢包: {}%, 抖动: {}ms", 
+                        currentAlgName, String.format("%.2f", cumulativeLossRate * 100), 
+                        String.format("%.2f", recentLossRate * 100), quickJitter);
                 isWarmingUp = false;
                 warmupRttCount = 0;
                 // 继续执行评估
@@ -352,6 +357,41 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         
         // 获取带宽（用于吞吐量评估）
         long bandwidth = currentAlgorithm.getRate();
+        
+        // **网络恢复检测**：如果近期连续无丢包，且 CWND 被压缩过，自动恢复到初始值
+        long initialCwnd = congestionConfig.getInitialCwnd();
+        long currentCwnd = currentAlgorithm.getCwnd();
+        
+        // 计算近期成功率（recentPackets 中 true 的比例）
+        long recentSuccessCount = recentPackets.stream().filter(b -> b).count();
+        double recentSuccessRate = recentPackets.isEmpty() ? 0 : (double) recentSuccessCount / recentPackets.size();
+        
+        // 条件：近期成功率 > 95%（几乎无丢包），RTT抖动 < 阈值，CWND 被压缩到初始值的 50% 以下
+        boolean recentlyGood = recentSuccessRate > 0.95 && recentPackets.size() >= 10;
+        boolean lowJitter = rttJitter < congestionConfig.getRttJitterThreshold();
+        boolean cwndCompressed = currentCwnd < initialCwnd * 0.5;
+        
+        if (recentlyGood && lowJitter && cwndCompressed) {
+            // 网络已恢复，提升 CWND 到初始值
+            try {
+                if (currentAlgorithm instanceof com.server.smarttransferserver.congestion.BBRAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.BBRAlgorithm) currentAlgorithm).setCwnd(initialCwnd);
+                } else if (currentAlgorithm instanceof com.server.smarttransferserver.congestion.CubicAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.CubicAlgorithm) currentAlgorithm).setCwnd(initialCwnd);
+                } else if (currentAlgorithm instanceof com.server.smarttransferserver.congestion.VegasAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.VegasAlgorithm) currentAlgorithm).setCwnd(initialCwnd);
+                } else if (currentAlgorithm instanceof com.server.smarttransferserver.congestion.RenoAlgorithm) {
+                    ((com.server.smarttransferserver.congestion.RenoAlgorithm) currentAlgorithm).setCwnd(initialCwnd);
+                }
+                log.info("网络恢复检测 - 近期成功率: {}%, RTT抖动: {}ms, CWND 从 {}MB 恢复至初始值 {}MB",
+                        String.format("%.0f", recentSuccessRate * 100), 
+                        rttJitter,
+                        String.format("%.2f", currentCwnd / 1024.0 / 1024.0),
+                        String.format("%.2f", initialCwnd / 1024.0 / 1024.0));
+            } catch (Exception e) {
+                log.warn("网络恢复时提升 CWND 失败: {}", e.getMessage());
+            }
+        }
         
         // 添加到趋势分析器
         trendAnalyzer.addWindow(lossRate, rttJitter, avgRtt);
@@ -494,19 +534,28 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         double lossThreshold = congestionConfig.getLossRateThreshold();
         long jitterThreshold = congestionConfig.getRttJitterThreshold();
         
+        // **计算近期丢包率**：用于快速响应网络恢复
+        // recentPackets 中 false 表示丢包，统计丢包比例
+        long recentLossCount = recentPackets.stream().filter(b -> !b).count();
+        double recentLossRate = recentPackets.isEmpty() ? lossRate : (double) recentLossCount / recentPackets.size();
+        // 综合丢包率：取累计丢包率和近期丢包率的较小值（更快响应网络恢复）
+        double effectiveLossRate = Math.min(lossRate, recentLossRate);
+        
         // 判断网络质量等级
-        // **修复：调整网络质量判断标准，使其更容易识别优秀网络**
-        // 优秀网络：丢包率<0.5%，RTT抖动<25ms（更宽松的条件）
-        boolean isExcellentNetwork = lossRate < lossThreshold * 0.5 && rttJitter < jitterThreshold * 0.5;
+        // **修复：使用 effectiveLossRate，让网络恢复时更快切回激进算法**
+        // 优秀网络：丢包率<0.5%，RTT抖动<25ms
+        boolean isExcellentNetwork = effectiveLossRate < lossThreshold * 0.5 && rttJitter < jitterThreshold * 0.5;
         // 良好网络：丢包率<1%，RTT抖动<50ms
-        boolean isGoodNetwork = lossRate < lossThreshold && rttJitter < jitterThreshold;
-        // 差网络：丢包率>2%或RTT抖动>100ms
+        boolean isGoodNetwork = effectiveLossRate < lossThreshold && rttJitter < jitterThreshold;
+        // 差网络：丢包率>2%或RTT抖动>100ms（这里仍用累计丢包率，避免误判）
         boolean isPoorNetwork = lossRate > lossThreshold * 2 || rttJitter > jitterThreshold * 2;
         
         // **修复：增加日志输出，方便调试网络质量判断**
-        log.debug("网络质量评估 - 丢包率: {}%, RTT抖动: {}ms, 平均RTT: {}ms, 优秀: {}, 良好: {}, 差: {}", 
-                 String.format("%.2f", lossRate * 100), rttJitter, String.format("%.2f", avgRtt),
-                 isExcellentNetwork, isGoodNetwork, isPoorNetwork);
+        log.debug("网络质量评估 - 累计丢包: {}%, 近期丢包: {}%, 有效丢包: {}%, RTT抖动: {}ms, 优秀: {}, 良好: {}, 差: {}", 
+                 String.format("%.2f", lossRate * 100), 
+                 String.format("%.2f", recentLossRate * 100),
+                 String.format("%.2f", effectiveLossRate * 100),
+                 rttJitter, isExcellentNetwork, isGoodNetwork, isPoorNetwork);
         
         // **关键修复：检测网络质量等级变化，加速响应**
         int currentQualityLevel = isPoorNetwork ? 4 : (isExcellentNetwork ? 1 : (isGoodNetwork ? 2 : 3));
@@ -545,8 +594,10 @@ public class AdaptiveAlgorithm implements CongestionControlAlgorithm {
         // === 场景1：优秀网络 → BBR ===
         if (isExcellentNetwork && bbrAlgorithm != null) {
             if (!currentAlgName.equals("BBR")) {
-                log.info("优秀网络条件（丢包: {}%, 抖动: {}ms），切换到BBR - 当前: {}", 
-                        String.format("%.2f", lossRate * 100), rttJitter, currentAlgName);
+                log.info("优秀网络条件（有效丢包: {}%, 近期丢包: {}%, 抖动: {}ms），切换到BBR - 当前: {}", 
+                        String.format("%.2f", effectiveLossRate * 100), 
+                        String.format("%.2f", recentLossRate * 100),
+                        rttJitter, currentAlgName);
                 return bbrAlgorithm;
             }
             return bbrAlgorithm;
