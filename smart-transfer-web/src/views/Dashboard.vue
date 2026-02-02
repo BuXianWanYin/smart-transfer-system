@@ -553,6 +553,11 @@ const initUserChart = () => {
   }
   
   userChart.setOption(option)
+  
+  // 确保图表正确填充容器
+  setTimeout(() => {
+    userChart?.resize()
+  }, 100)
 }
 
 /**
@@ -709,6 +714,11 @@ const initStorageChart = () => {
   }
   
   storageChart.setOption(option)
+  
+  // 确保图表正确填充容器
+  setTimeout(() => {
+    storageChart?.resize()
+  }, 100)
 }
 
 /**
