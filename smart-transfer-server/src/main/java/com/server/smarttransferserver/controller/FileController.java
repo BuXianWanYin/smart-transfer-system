@@ -95,7 +95,7 @@ public class FileController {
 
     /** 解析大小为字节：支持纯数字或 10GB/5MB 等格式 */
     private long parseSizeToBytes(String value, long defaultValue) {
-        if (value == null || value.isBlank()) return defaultValue;
+        if (value == null || value.trim().isEmpty()) return defaultValue;
         value = value.trim();
         try {
             if (value.matches("\\d+")) {

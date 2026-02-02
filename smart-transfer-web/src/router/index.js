@@ -41,9 +41,9 @@ const routes = [
   },
   {
     path: '/admin/stats',
-    name: 'SystemStats',
-    component: () => import('@/views/SystemStats.vue'),
-    meta: { title: '系统统计', requiresAdmin: true }
+    name: 'Dashboard',
+    component: () => import('@/views/Dashboard.vue'),
+    meta: { title: '管理员工作台', requiresAdmin: true }
   },
   {
     path: '/profile',

@@ -101,10 +101,10 @@
       
       <!-- 管理员菜单（按指定顺序） -->
       <template v-if="userStore.isAdmin">
-        <!-- 1. 系统统计 -->
-        <el-menu-item index="admin-stats" :title="collapsed ? '系统统计' : undefined">
+        <!-- 1. 仪表盘 -->
+        <el-menu-item index="admin-stats" :title="collapsed ? '仪表盘' : undefined">
           <el-icon><DataAnalysis /></el-icon>
-          <template #title><span>系统统计</span></template>
+          <template #title><span>仪表盘</span></template>
         </el-menu-item>
         
         <!-- 2. 用户管理 -->
@@ -202,8 +202,8 @@ const activeIndex = computed(() => {
     return 'admin-users'
   }
   
-  // 系统统计
-  if (routeName === 'SystemStats') {
+  // 仪表盘
+  if (routeName === 'Dashboard') {
     return 'admin-stats'
   }
   
@@ -222,7 +222,7 @@ const activeIndex = computed(() => {
     return fileType !== undefined ? `file-${fileType}` : 'file-0'
   }
   
-  // 默认值：管理员返回系统统计，普通用户返回传输中心
+  // 默认值：管理员返回仪表盘，普通用户返回传输中心
   return userStore.isAdmin ? 'admin-stats' : 'transfer'
 })
 
@@ -274,9 +274,9 @@ const handleMenuSelect = (index) => {
     return
   }
   
-  // 系统统计
+  // 仪表盘
   if (index === 'admin-stats') {
-    router.push({ name: 'SystemStats' })
+    router.push({ name: 'Dashboard' })
     return
   }
   

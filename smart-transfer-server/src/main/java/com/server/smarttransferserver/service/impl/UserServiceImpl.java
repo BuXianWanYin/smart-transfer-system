@@ -57,6 +57,9 @@ public class UserServiceImpl implements UserService {
     @Resource
     private TransferHistoryService transferHistoryService;
     
+    @Resource
+    private com.server.smarttransferserver.service.SystemActivityService systemActivityService;
+    
     /**
      * 头像存储路径
      */
@@ -160,6 +163,18 @@ public class UserServiceImpl implements UserService {
         user.setUpdateTime(new Date());
         
         userMapper.insert(user);
+        
+        // 记录系统活动
+        try {
+            systemActivityService.recordActivity(
+                "USER_REGISTER",
+                "新用户注册",
+                user.getId(),
+                user.getNickname()
+            );
+        } catch (Exception e) {
+            log.error("记录用户注册活动失败", e);
+        }
     }
 
     @Override
@@ -481,6 +496,8 @@ public class UserServiceImpl implements UserService {
         long videoSize = 0;
         long audioSize = 0;
         long docSize = 0;
+        long archiveSize = 0;
+        long codeSize = 0;
         long otherSize = 0;
         
         int fileCount = files.size();
@@ -488,6 +505,8 @@ public class UserServiceImpl implements UserService {
         int videoCount = 0;
         int audioCount = 0;
         int docCount = 0;
+        int archiveCount = 0;
+        int codeCount = 0;
         int otherCount = 0;
         
         for (FileInfo file : files) {
@@ -509,6 +528,12 @@ public class UserServiceImpl implements UserService {
                 } else if (isDocument(ext)) {
                     docSize += size;
                     docCount++;
+                } else if (isArchive(ext)) {
+                    archiveSize += size;
+                    archiveCount++;
+                } else if (isCode(ext)) {
+                    codeSize += size;
+                    codeCount++;
                 } else {
                     otherSize += size;
                     otherCount++;
@@ -529,6 +554,10 @@ public class UserServiceImpl implements UserService {
         stats.put("audioCount", audioCount);
         stats.put("docSize", docSize);
         stats.put("docCount", docCount);
+        stats.put("archiveSize", archiveSize);
+        stats.put("archiveCount", archiveCount);
+        stats.put("codeSize", codeSize);
+        stats.put("codeCount", codeCount);
         stats.put("otherSize", otherSize);
         stats.put("otherCount", otherCount);
         
@@ -549,6 +578,14 @@ public class UserServiceImpl implements UserService {
     
     private boolean isDocument(String ext) {
         return "doc,docx,xls,xlsx,ppt,pptx,pdf,txt,md".contains(ext);
+    }
+    
+    private boolean isArchive(String ext) {
+        return "zip,rar,7z,tar,gz,bz2,xz,iso".contains(ext);
+    }
+    
+    private boolean isCode(String ext) {
+        return "java,js,ts,py,c,cpp,h,hpp,cs,go,rs,php,rb,swift,kt,vue,jsx,tsx,html,css,scss,less,sql,sh,bat,json,xml,yaml,yml".contains(ext);
     }
 
     @Override

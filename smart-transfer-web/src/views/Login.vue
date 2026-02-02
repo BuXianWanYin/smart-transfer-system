@@ -118,7 +118,8 @@
       </el-form>
       
       <div class="login-footer">
-        <p v-if="!isRegister" class="hint">默认账号：admin / 123456</p>
+        <p v-if="!isRegister" class="hint">默认管理员账号：admin / 123456</p>
+        <p v-if="!isRegister" class="hint">默认用户账号：user1 / 123456</p>
         <p class="switch-link">
           <span v-if="!isRegister">
             还没有账号？<el-link type="primary" @click="isRegister = true">立即注册</el-link>
@@ -128,10 +129,6 @@
           </span>
         </p>
       </div>
-    </div>
-    
-    <div class="copyright">
-      © 2026 基于Java+Vue的TCP拥塞控制优化大文件传输工具 | 毕业设计作品
     </div>
   </div>
 </template>

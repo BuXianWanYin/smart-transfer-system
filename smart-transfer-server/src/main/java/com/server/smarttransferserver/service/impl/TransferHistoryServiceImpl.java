@@ -23,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class TransferHistoryServiceImpl extends ServiceImpl<TransferHistoryMapper, TransferHistory> 
         implements TransferHistoryService {
     
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.server.smarttransferserver.service.SystemActivityService systemActivityService;
+    
     /**
      * 查询传输历史记录
      *
@@ -116,7 +119,28 @@ public class TransferHistoryServiceImpl extends ServiceImpl<TransferHistoryMappe
         if (userId != null) {
             history.setUserId(userId);
         }
-        return save(history) ? 1 : 0;
+        boolean success = save(history);
+        
+        // 记录系统活动（只记录已完成的上传和下载）
+        if (success && "COMPLETED".equals(history.getTransferStatus())) {
+            try {
+                String activityType = "UPLOAD".equals(history.getTransferType()) ? "FILE_UPLOAD" : "FILE_DOWNLOAD";
+                String activityDesc = ("UPLOAD".equals(history.getTransferType()) ? "上传" : "下载") + 
+                                      "文件完成 · " + history.getFileName();
+                String userName = UserContextHolder.getUsername();
+                
+                systemActivityService.recordActivity(
+                    activityType,
+                    activityDesc,
+                    userId,
+                    userName
+                );
+            } catch (Exception e) {
+                log.error("记录传输活动失败", e);
+            }
+        }
+        
+        return success ? 1 : 0;
     }
     
     /**
