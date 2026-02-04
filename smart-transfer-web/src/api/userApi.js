@@ -57,56 +57,56 @@ export const getStorageStats = () => {
  * 获取用户列表（管理员）
  */
 export const getUserList = () => {
-  return request.get({ url: '/user/list' })
+  return request.get({ url: '/admin/user/list' })
 }
 
 /**
  * 更新用户状态（管理员）
  */
 export const updateUserStatus = (userId, status) => {
-  return request.put({ url: `/user/status/${userId}`, data: { status } })
+  return request.put({ url: `/admin/user/status/${userId}`, data: { status } })
 }
 
 /**
  * 删除用户（管理员）
  */
 export const deleteUser = (userId) => {
-  return request.del({ url: `/user/${userId}` })
+  return request.del({ url: `/admin/user/${userId}` })
 }
 
 /**
  * 获取系统级存储统计（管理员）
  */
 export const getSystemStorageStats = () => {
-  return request.get({ url: '/user/system-storage' })
+  return request.get({ url: '/admin/user/system-storage' })
 }
 
 /**
  * 获取用户详情（存储使用、传输统计）（管理员）
  */
 export const getUserDetail = (userId) => {
-  return request.get({ url: `/user/detail/${userId}` })
+  return request.get({ url: `/admin/user/detail/${userId}` })
 }
 
 /**
  * 批量更新用户状态（管理员）
  */
 export const batchUpdateUserStatus = (userIds, status) => {
-  return request.put({ url: '/user/batch-status', data: { userIds, status } })
+  return request.put({ url: '/admin/user/batch-status', data: { userIds, status } })
 }
 
 /**
  * 批量删除用户（管理员）
  */
 export const batchDeleteUsers = (userIds) => {
-  return request.del({ url: '/user/batch', data: { userIds } })
+  return request.del({ url: '/admin/user/batch', data: { userIds } })
 }
 
 /**
  * 管理员更新用户信息
  */
 export const updateUserInfoByAdmin = (userId, data) => {
-  return request.put({ url: `/user/${userId}/info`, data })
+  return request.put({ url: `/admin/user/${userId}/info`, data })
 }
 
 /**
@@ -118,7 +118,7 @@ export const uploadAvatarByAdmin = (userId, file) => {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
   const token = userStorage.getToken()
   
-  return axios.post(`${baseURL}/user/${userId}/avatar`, formData, {
+  return axios.post(`${baseURL}/admin/user/${userId}/avatar`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
       'Authorization': `Bearer ${token}`

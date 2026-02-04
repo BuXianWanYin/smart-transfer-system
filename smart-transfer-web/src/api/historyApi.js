@@ -92,19 +92,3 @@ export function getTransferStats(period = 'day', userId = null) {
   })
 }
 
-/**
- * 获取算法使用统计
- * @param {Number} userId - 用户ID（可选，仅管理员可用）
- * @returns {Promise}
- */
-export function getAlgorithmStats(userId = null) {
-  const params = {}
-  if (userId) {
-    params.userId = userId
-  }
-  return request.get({
-    url: '/transfer/history/algorithm-stats',
-    params
-  })
-}
-

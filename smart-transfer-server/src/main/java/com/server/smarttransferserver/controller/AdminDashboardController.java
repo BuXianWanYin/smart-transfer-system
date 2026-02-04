@@ -6,7 +6,6 @@ import com.server.smarttransferserver.domain.SystemActivity;
 import com.server.smarttransferserver.service.DashboardService;
 import com.server.smarttransferserver.service.SystemActivityService;
 import com.server.smarttransferserver.vo.DashboardVO;
-
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,12 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 仪表盘控制器
+ * 管理员仪表盘控制器
+ * 包含所有需要管理员权限的仪表盘接口
  */
 @Slf4j
 @RestController
-@RequestMapping("/dashboard")
-public class DashboardController {
+@RequestMapping("/admin/dashboard")
+@RequireAdmin
+public class AdminDashboardController {
     
     @Autowired
     private DashboardService dashboardService;
@@ -31,9 +32,8 @@ public class DashboardController {
     private SystemActivityService systemActivityService;
     
     /**
-     * 获取仪表盘数据（需要管理员权限）
+     * 获取仪表盘数据
      */
-    @RequireAdmin
     @GetMapping("/data")
     public Result<DashboardVO> getDashboardData() {
         try {
@@ -46,9 +46,8 @@ public class DashboardController {
     }
     
     /**
-     * 获取最近动态列表（需要管理员权限）
+     * 获取最近动态列表
      */
-    @RequireAdmin
     @GetMapping("/activities")
     public Result<List<SystemActivity>> getRecentActivities(
             @RequestParam(defaultValue = "10") int limit) {

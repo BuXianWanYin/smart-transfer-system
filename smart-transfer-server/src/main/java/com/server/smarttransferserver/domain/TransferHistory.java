@@ -96,12 +96,6 @@ public class TransferHistory implements Serializable {
     private Integer duration;
     
     /**
-     * 使用的拥塞控制算法：CUBIC, BBR, ADAPTIVE
-     */
-    @TableField(value = "algorithm")
-    private String algorithm;
-    
-    /**
      * 完成时间
      */
     @TableField(value = "completed_time")

@@ -718,10 +718,6 @@ public class UserServiceImpl implements UserService {
         Map<String, Object> transferStats = transferHistoryService.getTransferStats("month", userId);
         detail.put("transferStats", transferStats);
         
-        // 4. 算法使用统计
-        Map<String, Object> algorithmStats = transferHistoryService.getAlgorithmStats(userId);
-        detail.put("algorithmStats", algorithmStats);
-        
         return detail;
     }
     

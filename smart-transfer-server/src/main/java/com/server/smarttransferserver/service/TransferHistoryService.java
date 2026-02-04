@@ -84,12 +84,5 @@ public interface TransferHistoryService extends IService<TransferHistory> {
      * @return 传输统计数据
      */
     Map<String, Object> getTransferStats(String period, Long userId);
-    
-    /**
-     * 获取算法使用统计
-     * @param userId 用户ID（可选，管理员可查询指定用户，普通用户只能查询自己）
-     * @return 算法使用统计数据
-     */
-    Map<String, Object> getAlgorithmStats(Long userId);
 }
 

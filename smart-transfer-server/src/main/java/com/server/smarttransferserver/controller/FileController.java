@@ -345,15 +345,12 @@ public class FileController {
      * @return 文件列表
      */
     @GetMapping("/list")
-    public Result<IPage<FileInfoVO>> getFileList(
-            @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "10") Integer pageSize,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long userId) {
-        
-        log.info("查询文件列表 - 页码: {}, 大小: {}, 状态: {}, 用户ID: {}", pageNum, pageSize, status, userId);
+    public Result<IPage<FileInfoVO>> getFileList(FileListQueryDTO query) {
+        log.info("查询文件列表 - 页码: {}, 大小: {}, 状态: {}, 用户ID: {}", 
+                query.getPageNum(), query.getPageSize(), query.getStatus(), query.getUserId());
         try {
-            IPage<FileInfoVO> page = fileInfoService.getFileList(pageNum, pageSize, status, userId);
+            IPage<FileInfoVO> page = fileInfoService.getFileList(
+                    query.getPageNum(), query.getPageSize(), query.getStatus(), query.getUserId());
             return Result.success(page);
         } catch (Exception e) {
             log.error("查询文件列表失败", e);

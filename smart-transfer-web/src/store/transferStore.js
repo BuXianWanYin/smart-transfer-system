@@ -155,7 +155,6 @@ export const useTransferStore = defineStore('transfer', () => {
         transferStatus: status,
         avgSpeed: duration > 0 ? Math.floor(task.uploadedSize / duration) : 0,
         duration: duration,
-        algorithm: 'CUBIC',
         completedTime: formatDateTime(new Date()),
         errorMessage: errorMessage
       })
@@ -257,7 +256,6 @@ export const useTransferStore = defineStore('transfer', () => {
         transferStatus: status,
         avgSpeed: duration > 0 ? Math.floor(task.downloadedSize / duration) : 0,
         duration: duration,
-        algorithm: 'CUBIC',
         completedTime: formatDateTime(new Date()),
         errorMessage: errorMessage
       })

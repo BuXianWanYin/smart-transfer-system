@@ -5,6 +5,7 @@ import java.util.Map;
 
 import com.server.smarttransferserver.common.Result;
 import com.server.smarttransferserver.domain.TransferHistory;
+import com.server.smarttransferserver.dto.DeleteRecentQueryDTO;
 import com.server.smarttransferserver.service.TransferHistoryService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -93,12 +94,10 @@ public class TransferHistoryController {
      * 删除指定文件在最近若干秒内完成的传输历史（取消上传后移除误记的「已完成」）
      */
     @DeleteMapping("/recent-by-file")
-    public Result<Integer> deleteRecentByFile(
-            @RequestParam Long fileId,
-            @RequestParam String transferType,
-            @RequestParam(defaultValue = "120") int withinSeconds) {
+    public Result<Integer> deleteRecentByFile(DeleteRecentQueryDTO query) {
         try {
-            int count = historyService.deleteRecentByFileId(fileId, transferType, withinSeconds);
+            int count = historyService.deleteRecentByFileId(
+                    query.getFileId(), query.getTransferType(), query.getWithinSeconds());
             return Result.success(count);
         } catch (Exception e) {
             log.error("删除近期历史失败", e);
@@ -138,20 +137,5 @@ public class TransferHistoryController {
         }
     }
     
-    /**
-     * 获取算法使用统计
-     * @param userId 用户ID（可选，仅管理员可用）
-     */
-    @GetMapping("/algorithm-stats")
-    public Result<Map<String, Object>> getAlgorithmStats(
-            @RequestParam(required = false) Long userId) {
-        try {
-            Map<String, Object> stats = historyService.getAlgorithmStats(userId);
-            return Result.success(stats);
-        } catch (Exception e) {
-            log.error("获取算法统计失败", e);
-            return Result.error("获取统计失败: " + e.getMessage());
-        }
-    }
 }
 

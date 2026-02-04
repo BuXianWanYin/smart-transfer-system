@@ -40,28 +40,22 @@ public class FolderController {
 
     /**
      * 获取文件夹内容（文件夹+文件列表）
-     * @param parentId 父文件夹ID
-     * @param fileType 文件类型筛选：0-全部, 1-图片, 2-文档, 3-视频, 4-音乐, 5-其他
-     * @param pageNum 页码
-     * @param pageSize 每页数量
-     * @param userId 用户ID（可选，仅管理员可用，用于筛选指定用户的文件）
+     * @param query 查询参数
      */
     @GetMapping("/content")
-    public Result<FolderContentVO> getFolderContent(
-            @RequestParam(required = false, defaultValue = "0") Long parentId,
-            @RequestParam(required = false, defaultValue = "0") Integer fileType,
-            @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "20") Integer pageSize,
-            @RequestParam(required = false) Long userId) {
-        
+    public Result<FolderContentVO> getFolderContent(FolderContentQueryDTO query) {
         // 改进日志：只在管理员指定筛选用户时打印该参数
-        if (userId != null) {
-            log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}, 筛选用户ID: {}", parentId, fileType, userId);
+        if (query.getUserId() != null) {
+            log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}, 筛选用户ID: {}", 
+                    query.getParentId(), query.getFileType(), query.getUserId());
         } else {
-            log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}", parentId, fileType);
+            log.info("获取文件夹内容 - 文件夹ID: {}, 文件类型: {}", 
+                    query.getParentId(), query.getFileType());
         }
         try {
-            FolderContentVO content = folderService.getFolderContent(parentId, fileType, pageNum, pageSize, userId);
+            FolderContentVO content = folderService.getFolderContent(
+                    query.getParentId(), query.getFileType(), query.getPageNum(), 
+                    query.getPageSize(), query.getUserId());
             return Result.success(content);
         } catch (Exception e) {
             log.error("获取文件夹内容失败", e);

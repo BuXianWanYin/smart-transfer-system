@@ -14,22 +14,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 系统配置Controller
- * 需要管理员权限
+ * 管理员系统配置控制器
+ * 包含所有需要管理员权限的系统配置接口
  */
 @Slf4j
 @RestController
-@RequestMapping("/config")
+@RequestMapping("/admin/config")
 @RequireAdmin
-public class ConfigController {
+public class AdminConfigController {
     
     @Autowired
     private SystemConfigService configService;
     
     /**
      * 获取拥塞控制配置
-     *
-     * @return 配置信息
      */
     @GetMapping("/congestion")
     public Result<Map<String, String>> getCongestionConfig() {
@@ -45,15 +43,11 @@ public class ConfigController {
     
     /**
      * 更新拥塞控制配置
-     *
-     * @param dto 配置DTO
-     * @return 更新结果
      */
     @PostMapping("/congestion")
     public Result<String> updateCongestionConfig(@Valid @RequestBody CongestionConfigDTO dto) {
-        log.info("接收更新拥塞控制配置请求 - 算法: {}", dto.getAlgorithm());
+        log.info("更新拥塞控制配置 - 算法: {}", dto.getAlgorithm());
         try {
-            // 调用Service层完成业务逻辑（包括数据库更新和内存刷新）
             configService.updateCongestionConfig(dto);
             return Result.success("配置更新成功");
         } catch (Exception e) {
@@ -64,12 +58,10 @@ public class ConfigController {
     
     /**
      * 刷新配置（从数据库重新加载）
-     *
-     * @return 刷新结果
      */
     @PostMapping("/refresh")
     public Result<String> refreshConfig() {
-        log.info("接收刷新系统配置请求");
+        log.info("刷新系统配置");
         try {
             configService.refreshConfig();
             return Result.success("配置刷新成功");
@@ -81,8 +73,6 @@ public class ConfigController {
     
     /**
      * 获取所有配置
-     *
-     * @return 配置列表
      */
     @GetMapping("/list")
     public Result<List<SystemConfig>> getAllConfigs() {
@@ -98,9 +88,6 @@ public class ConfigController {
     
     /**
      * 根据键获取配置值
-     *
-     * @param key 配置键
-     * @return 配置值
      */
     @GetMapping("/value")
     public Result<String> getConfigValue(@RequestParam String key) {
@@ -109,9 +96,8 @@ public class ConfigController {
             String value = configService.getConfigValue(key);
             return Result.success(value);
         } catch (Exception e) {
-            log.error("获取配置值失败", e);
+            log.error("获取配置值失败 - key: {}", key, e);
             return Result.error("获取配置失败: " + e.getMessage());
         }
     }
 }
-
