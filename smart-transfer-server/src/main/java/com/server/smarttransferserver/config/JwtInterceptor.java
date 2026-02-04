@@ -35,11 +35,6 @@ public class JwtInterceptor implements HandlerInterceptor {
         String requestURI = request.getRequestURI();
         String method = request.getMethod();
         
-        // POST /user/avatar 需要认证（上传头像）
-        // GET /user/avatar/avatars/** 不需要认证（访问头像静态资源，已在WebMvcConfig中排除）
-        // 这里确保 POST /user/avatar 会经过认证检查
-        
-        // 优先从 Authorization 头获取 token
         String token = null;
         String tokenSource = null;
         String authHeader = request.getHeader("Authorization");

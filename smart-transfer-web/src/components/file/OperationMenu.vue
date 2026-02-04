@@ -169,7 +169,7 @@ import { deleteFolder } from '@/api/folderApi'
 import { batchRestoreRecoveryFiles, batchDeleteRecoveryFiles, clearAllRecoveryFiles } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
 import { useUserStore } from '@/store/userStore'
-import { getUserList } from '@/api/userApi'
+import { getUserList } from '@/api/adminUserApi'
 import { onMounted } from 'vue'
 
 const router = useRouter()

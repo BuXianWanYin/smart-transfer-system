@@ -325,7 +325,7 @@ import {
   Edit, Delete, CircleCheck, CircleClose, InfoFilled, Close,
   Message, Phone, Clock, Calendar, Upload, User, Check
 } from '@element-plus/icons-vue'
-import { getUserList, updateUserStatus, deleteUser, batchUpdateUserStatus, batchDeleteUsers, updateUserInfoByAdmin, uploadAvatarByAdmin } from '@/api/userApi'
+import { getUserList, updateUserStatus, deleteUser, batchUpdateUserStatus, batchDeleteUsers, updateUserInfoByAdmin, uploadAvatarByAdmin } from '@/api/adminUserApi'
 
 // 加载状态
 const loading = ref(false)

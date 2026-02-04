@@ -258,7 +258,7 @@ import { formatFileSize, formatSpeed } from '@/utils/file'
 import { formatDateTime } from '@/utils/format'
 import { getDownloadUrl } from '@/api/fileApi'
 import { getHistoryList, deleteHistory, clearAllHistory } from '@/api/historyApi'
-import { getUserList } from '@/api/userApi'
+import { getUserList } from '@/api/adminUserApi'
 import { useUserStore } from '@/store/userStore'
 
 const fileStore = useFileStore()

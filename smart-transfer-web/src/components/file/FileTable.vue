@@ -273,7 +273,7 @@ import { deleteFolder, renameFolder } from '@/api/folderApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
 import { useUserStore } from '@/store/userStore'
-import { getUserList } from '@/api/userApi'
+import { getUserList } from '@/api/adminUserApi'
 import { useRouter } from 'vue-router'
 
 const props = defineProps({

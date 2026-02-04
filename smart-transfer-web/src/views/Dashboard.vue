@@ -175,7 +175,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getDashboardData } from '@/api/dashboardApi'
+import { getDashboardData } from '@/api/adminDashboardApi'
 import * as echarts from 'echarts'
 
 // 加载状态

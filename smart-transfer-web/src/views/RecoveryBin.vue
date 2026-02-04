@@ -115,7 +115,7 @@ import {
   clearAllRecoveryFiles 
 } from '@/api/recoveryApi'
 import { useUserStore } from '@/store/userStore'
-import { getUserList } from '@/api/userApi'
+import { getUserList } from '@/api/adminUserApi'
 
 const userStore = useUserStore()
 const loading = ref(false)

@@ -272,7 +272,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getCongestionConfig, updateCongestionConfig } from '@/api/configApi'
+import { getCongestionConfig, updateCongestionConfig } from '@/api/adminConfigApi'
 import { useConfigStore } from '@/store/configStore'
 import { formatFileSize, formatSpeed } from '@/utils/file'
 

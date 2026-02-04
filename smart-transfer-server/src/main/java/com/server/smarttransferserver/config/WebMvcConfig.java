@@ -33,11 +33,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/user/avatar/avatars/**",  // 头像访问（GET请求，静态资源路径：/user/avatar/avatars/userId/filename）
                         "/error"
                 );
-        // 注意：
-        // - POST /user/avatar (上传头像) 需要认证，不被排除
-        // - GET /user/avatar/avatars/** (访问头像静态资源) 被排除，不需要认证
-        // - /file/download/** 和 /file/preview/** 需要认证
-        //   认证方式：Authorization头 或 URL参数token（用于img/video标签和下载链接）
     }
     
     @Override

@@ -1,12 +1,11 @@
 import request from '@/utils/http'
 
 /**
- * 系统配置 API（管理员）
+ * 管理员系统配置 API
  */
 
 /**
- * 获取拥塞控制配置（管理员）
- * @returns {Promise}
+ * 获取拥塞控制配置
  */
 export function getCongestionConfig() {
   return request.get({
@@ -15,9 +14,8 @@ export function getCongestionConfig() {
 }
 
 /**
- * 更新拥塞控制配置（管理员）
+ * 更新拥塞控制配置
  * @param {Object} data - 配置数据
- * @returns {Promise}
  */
 export function updateCongestionConfig(data) {
   return request.post({
@@ -27,8 +25,7 @@ export function updateCongestionConfig(data) {
 }
 
 /**
- * 获取所有配置（管理员）
- * @returns {Promise}
+ * 获取所有配置
  */
 export function getAllConfigs() {
   return request.get({
@@ -37,9 +34,8 @@ export function getAllConfigs() {
 }
 
 /**
- * 根据键获取配置值（管理员）
+ * 根据键获取配置值
  * @param {String} key - 配置键
- * @returns {Promise}
  */
 export function getConfigValue(key) {
   return request.get({
@@ -49,12 +45,10 @@ export function getConfigValue(key) {
 }
 
 /**
- * 刷新配置（管理员）
- * @returns {Promise}
+ * 刷新配置
  */
 export function refreshConfig() {
   return request.post({
     url: '/admin/config/refresh'
   })
 }
-
