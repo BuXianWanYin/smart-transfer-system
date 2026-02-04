@@ -101,29 +101,23 @@ public class UserServiceImpl implements UserService {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, loginDTO.getUsername());
         User user = userMapper.selectOne(wrapper);
-        
         if (user == null) {
             throw new RuntimeException("用户不存在");
         }
-        
         // 验证密码
         String encryptedPassword = encryptPassword(loginDTO.getPassword());
         if (!encryptedPassword.equals(user.getPassword())) {
             throw new RuntimeException("密码错误");
         }
-        
         // 检查状态
         if (user.getStatus() != 1) {
             throw new RuntimeException("账号已被禁用");
         }
-        
         // 更新最后登录时间
         user.setLastLoginTime(new Date());
         userMapper.updateById(user);
-        
         // 生成 Token
         String token = jwtUtil.generateToken(user.getId(), user.getUsername());
-        
         // 构建返回结果
         LoginVO loginVO = new LoginVO();
         loginVO.setToken(token);
@@ -132,7 +126,6 @@ public class UserServiceImpl implements UserService {
         loginVO.setNickname(user.getNickname());
         loginVO.setAvatar(user.getAvatar());
         loginVO.setRole(user.getRole() != null ? user.getRole() : "USER");
-        
         return loginVO;
     }
 

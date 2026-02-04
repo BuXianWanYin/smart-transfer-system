@@ -84,6 +84,10 @@ export function canPreviewFile(extendName) {
   const textExts = ['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'vue', 'java', 'py', 'sql']
   if (textExts.includes(ext)) return true
   
+  // Office 文档可预览（仅支持新格式 docx/xlsx/pptx）
+  const officeExts = ['docx', 'xlsx', 'pptx']
+  if (officeExts.includes(ext)) return true
+  
   return false
 }
 

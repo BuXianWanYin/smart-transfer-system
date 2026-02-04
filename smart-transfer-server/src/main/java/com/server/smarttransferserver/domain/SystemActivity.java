@@ -17,14 +17,14 @@ import lombok.NoArgsConstructor;
 
 /**
  * 系统活动记录实体类
- * 对应数据库 t_system_activity 表
+ * 对应数据库 system_activity 表
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = false)
-@TableName(value = "t_system_activity")
+@TableName(value = "system_activity")
 public class SystemActivity implements Serializable {
     
     private static final long serialVersionUID = 1L;

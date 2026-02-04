@@ -6,7 +6,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.server.smarttransferserver.entity.FileInfo;
+import com.server.smarttransferserver.entity.User;
 import com.server.smarttransferserver.mapper.FileInfoMapper;
+import com.server.smarttransferserver.mapper.UserMapper;
 import com.server.smarttransferserver.domain.Folder;
 import com.server.smarttransferserver.mapper.FolderMapper;
 import com.server.smarttransferserver.service.FileInfoService;
@@ -47,6 +49,9 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Autowired
     private FileInfoMapper fileInfoMapper;
     
+    @Autowired
+    private UserMapper userMapper;
+    
     @Lazy
     @Autowired
     private RecoveryFileService recoveryFileService;
@@ -73,18 +78,28 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
     @Override
     public FileInfoVO getFileById(Long id) {
         Long userId = UserContextHolder.getUserId();
+        String username = UserContextHolder.getUsername();
         String userRole = UserContextHolder.getRole();
+        
         FileInfo fileInfo = fileInfoMapper.selectById(id);
         if (fileInfo == null) {
+            log.warn("文件不存在 - 文件ID: {}", id);
             return null;
         }
+        
+        // 查询文件所有者信息
+        User fileOwner = userMapper.selectById(fileInfo.getUserId());
+        String fileOwnerName = fileOwner != null ? fileOwner.getUsername() : "未知";
+        
+        log.info("文件访问检查 - 当前用户ID: {}, 用户名: {}, 角色: {}, 文件ID: {}, 文件所有者ID: {}, 文件所有者名: {}", 
+                 userId, username, userRole, id, fileInfo.getUserId(), fileOwnerName);
         
         // 修复：管理员可以访问所有用户的文件，普通用户只能访问自己的文件
         if (!"ADMIN".equals(userRole)) {
             // 普通用户：只能访问自己的文件
             if (userId == null || !userId.equals(fileInfo.getUserId())) {
-                log.warn("用户尝试访问其他用户的文件 - 用户ID: {}, 文件ID: {}, 文件所有者: {}", 
-                         userId, id, fileInfo.getUserId());
+                log.warn("用户尝试访问其他用户的文件 - 当前用户ID: {}, 用户名: {}, 角色: {}, 文件ID: {}, 文件所有者ID: {}, 文件所有者名: {}", 
+                         userId, username, userRole, id, fileInfo.getUserId(), fileOwnerName);
                 return null;
             }
         }

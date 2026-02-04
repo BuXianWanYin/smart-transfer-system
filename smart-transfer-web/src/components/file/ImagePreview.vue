@@ -136,7 +136,8 @@ import {
   ZoomIn, ZoomOut, FullScreen, Download, QuestionFilled,
   Close, ArrowLeft, ArrowRight
 } from '@element-plus/icons-vue'
-import { getPreviewUrl, getDownloadUrl } from '@/api/fileApi'
+import { getDownloadUrl } from '@/api/fileApi'
+import { userStorage } from '@/utils/storage'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -175,11 +176,24 @@ const getImageName = (img) => {
   return img.fileName || img.name || '未知图片'
 }
 
-// 获取图片URL
+// 获取图片URL（带token参数）
 const getImageUrl = (img) => {
   if (!img) return ''
-  if (img.fileUrl) return img.fileUrl
-  if (img.id) return getPreviewUrl(img.id)
+  // 如果已经有fileUrl，检查是否需要添加token
+  if (img.fileUrl) {
+    // 如果fileUrl已包含token参数则直接返回
+    if (img.fileUrl.includes('token=')) return img.fileUrl
+    // 否则添加token参数
+    const token = userStorage.getToken()
+    const separator = img.fileUrl.includes('?') ? '&' : '?'
+    return `${img.fileUrl}${token ? `${separator}token=${encodeURIComponent(token)}` : ''}`
+  }
+  // 使用文件ID构建URL
+  if (img.id) {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+    const token = userStorage.getToken()
+    return `${baseURL}/file/preview/${img.id}${token ? `?token=${encodeURIComponent(token)}` : ''}`
+  }
   return ''
 }
 

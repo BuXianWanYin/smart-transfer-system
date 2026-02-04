@@ -16,15 +16,18 @@
     "axios": "^1.7.5",
     "codemirror": "^5.65.20",
     "dayjs": "^1.11.10",
+    "docx-preview": "^0.3.7",
     "echarts": "^5.4.3",
     "element-plus": "^2.9.11",
     "pinia": "^2.3.1",
+    "pptx-preview": "^1.0.7",
     "simple-uploader.js": "^0.6.0",
     "spark-md5": "^3.0.2",
     "video.js": "^7.21.5",
     "vue": "^3.5.16",
     "vue-router": "^4.4.2",
-    "vue-simple-uploader": "^0.7.6"
+    "vue-simple-uploader": "^0.7.6",
+    "xlsx-preview": "^1.0.5"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

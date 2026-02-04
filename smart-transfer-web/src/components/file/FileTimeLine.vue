@@ -38,12 +38,12 @@
               <el-checkbox v-model="item._checked" @change="updateGroupCheck(group)" />
             </div>
             
-            <!-- 图片 -->
-            <img 
-              :src="getImageUrl(item)" 
-              class="image-preview"
-              :alt="item.fileName"
-              @error="handleImageError"
+            <!-- 图片（使用Blob URL加载） -->
+            <ThumbnailImage 
+              :file-id="item.id"
+              :extend-name="item.extendName"
+              :size="120"
+              class="image-preview-wrapper"
             />
           </div>
         </div>
@@ -131,7 +131,9 @@ import { Download, View, FolderOpened, Delete, Edit, CopyDocument, InfoFilled } 
 import MoveFileDialog from './MoveFileDialog.vue'
 import CopyFileDialog from './CopyFileDialog.vue'
 import FileDetailDialog from './FileDetailDialog.vue'
-import { moveFile, deleteFile, renameFile, getPreviewUrl } from '@/api/fileApi'
+import { moveFile, deleteFile, renameFile } from '@/api/fileApi'
+import ThumbnailImage from './ThumbnailImage.vue'
+import { userStorage } from '@/utils/storage'
 import { deleteFolder } from '@/api/folderApi'
 import { useTransferStore } from '@/store/transferStore'
 
@@ -190,7 +192,8 @@ const previewUrls = computed(() => {
   props.fileList.forEach(item => {
     const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg']
     if (imageExts.includes((item.extendName || '').toLowerCase())) {
-      urls.push(getImageUrl(item))
+      // 使用带token的URL用于el-image-viewer预览
+      urls.push(getImageUrlWithToken(item.id))
     }
   })
   return urls
@@ -233,14 +236,11 @@ const formatDate = (dateStr) => {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
 }
 
-// 获取图片URL
-const getImageUrl = (item) => {
-  return getPreviewUrl(item.id)
-}
-
-// 图片加载失败
-const handleImageError = (e) => {
-  e.target.src = '/icons/image.svg'
+// 获取图片URL（带token参数，用于el-image-viewer预览）
+const getImageUrlWithToken = (id) => {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const token = userStorage.getToken()
+  return `${baseURL}/file/preview/${id}${token ? `?token=${encodeURIComponent(token)}` : ''}`
 }
 
 // 点击图片
@@ -362,26 +362,30 @@ const handleMenuRename = () => {
 const confirmRename = async () => {
   if (!renameFormRef.value) return
   
-  await renameFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    
+  try {
+    // Element Plus validate() 验证失败时会 reject false 或验证错误对象
+    await renameFormRef.value.validate()
     renameLoading.value = true
-    try {
-      await renameFile({
-        id: renameFileData.value.id,
-        fileName: renameForm.value.fileName
-      })
-      ElMessage.success('重命名成功')
-      renameVisible.value = false
-      emit('refresh')
-    } catch (error) {
-      console.error('重命名失败', error)
-      ElMessage.error('重命名失败')
-    } finally {
-      renameLoading.value = false
-      renameFileData.value = null
+    
+    await renameFile({
+      id: renameFileData.value.id,
+      fileName: renameForm.value.fileName
+    })
+    
+    ElMessage.success('重命名成功')
+    renameVisible.value = false
+    emit('refresh')
+  } catch (error) {
+    // 如果是表单验证失败（error 为 false 或对象），不显示错误提示
+    // 因为 Element Plus 会自动显示验证错误信息
+    if (error !== false && typeof error !== 'boolean' && error !== 'cancel') {
+      console.error('重命名失败:', error)
+      ElMessage.error(error.message || error.msg || '重命名失败')
     }
-  })
+  } finally {
+    renameLoading.value = false
+    renameFileData.value = null
+  }
 }
 
 // 复制到

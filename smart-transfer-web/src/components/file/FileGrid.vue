@@ -39,12 +39,12 @@
         
         <!-- 图标/缩略图 -->
         <div class="icon-wrapper" :style="iconStyle">
-          <!-- 图片文件显示缩略图 -->
-          <img
+          <!-- 图片文件显示缩略图（使用Blob URL加载） -->
+          <ThumbnailImage
             v-if="isImageFile(item)"
-            :src="getThumbnailUrl(item)"
-            class="file-thumbnail"
-            @error="handleThumbnailError($event, item)"
+            :file-id="item.id"
+            :extend-name="item.extendName"
+            :size="iconSize"
           />
           <!-- 其他文件显示图标 -->
           <img v-else :src="getFileIcon(item)" class="file-icon" />
@@ -165,8 +165,9 @@ import CopyFileDialog from './CopyFileDialog.vue'
 import UnzipDialog from './UnzipDialog.vue'
 import FileDetailDialog from './FileDetailDialog.vue'
 import CodePreview from './CodePreview.vue'
+import ThumbnailImage from './ThumbnailImage.vue'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
-import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
+import { renameFile, moveFile, deleteFile } from '@/api/fileApi'
 import { deleteFolder } from '@/api/folderApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
@@ -216,6 +217,9 @@ const iconStyle = computed(() => ({
   width: `${props.gridSize * 0.6}px`,
   height: `${props.gridSize * 0.6}px`
 }))
+
+// 图标尺寸（用于ThumbnailImage组件）
+const iconSize = computed(() => Math.round(props.gridSize * 0.6))
 
 // 右键菜单
 const contextMenuVisible = ref(false)
@@ -292,18 +296,6 @@ const isImageFile = (item) => {
   if (item.isDir === 1) return false
   const ext = (item.extendName || '').toLowerCase()
   return imageExtensions.includes(ext)
-}
-
-// 获取缩略图 URL
-const getThumbnailUrl = (item) => {
-  return getPreviewUrl(item.id)
-}
-
-// 缩略图加载失败时显示图标
-const handleThumbnailError = (event, item) => {
-  event.target.src = getFileIconByType(item.extendName)
-  event.target.classList.remove('file-thumbnail')
-  event.target.classList.add('file-icon')
 }
 
 // 获取文件图标
@@ -481,7 +473,10 @@ const handleRefresh = () => {
 
 // 确认重命名
 const confirmRename = async () => {
+  if (!renameFormRef.value) return
+  
   try {
+    // Element Plus validate() 验证失败时会 reject false 或验证错误对象
     await renameFormRef.value.validate()
     renameLoading.value = true
     
@@ -494,8 +489,11 @@ const confirmRename = async () => {
     renameVisible.value = false
     emit('refresh')
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('重命名失败')
+    // 如果是表单验证失败（error 为 false 或对象），不显示错误提示
+    // 因为 Element Plus 会自动显示验证错误信息
+    if (error !== false && typeof error !== 'boolean' && error !== 'cancel') {
+      console.error('重命名失败:', error)
+      ElMessage.error(error.message || error.msg || '重命名失败')
     }
   } finally {
     renameLoading.value = false

@@ -288,22 +288,62 @@ export async function downloadChunk(fileId, chunkNumber, startByte, endByte, sig
 
 /**
  * 获取文件下载URL（兼容旧接口）
+ * 注意：a标签或window.open发起的请求不会携带axios拦截器的Authorization头
+ * 因此需要在URL中附加token作为查询参数
  * @param {Number} id - 文件ID
- * @returns {String} - 下载URL
+ * @returns {String} - 下载URL（包含token参数）
  */
 export function getDownloadUrl(id) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
-  return `${baseURL}/file/download/${id}`
+  const token = userStorage.getToken()
+  // 下载仍然需要token参数，因为通常是通过a标签或window.open下载
+  return `${baseURL}/file/download/${id}${token ? `?token=${encodeURIComponent(token)}` : ''}`
 }
 
 /**
- * 获取文件预览URL
+ * 获取文件预览URL（仅用于构建URL路径，不推荐直接用于img/video标签）
  * @param {Number} id - 文件ID
  * @returns {String} - 预览URL
+ * @deprecated 推荐使用 fetchPreviewBlob 替代
  */
 export function getPreviewUrl(id) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
   return `${baseURL}/file/preview/${id}`
+}
+
+/**
+ * 获取文件预览的Blob URL（推荐方案）
+ * 通过axios请求文件，自动携带Authorization头，然后创建Blob URL
+ * @param {Number} id - 文件ID
+ * @returns {Promise<string>} - Blob URL (blob:http://...)
+ */
+export async function fetchPreviewBlob(id) {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const token = userStorage.getToken()
+  
+  const response = await fetch(`${baseURL}/file/preview/${id}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  })
+  
+  if (!response.ok) {
+    throw new Error(`预览文件失败: ${response.status}`)
+  }
+  
+  const blob = await response.blob()
+  return URL.createObjectURL(blob)
+}
+
+/**
+ * 释放Blob URL，防止内存泄漏
+ * @param {String} blobUrl - 要释放的Blob URL
+ */
+export function revokePreviewBlob(blobUrl) {
+  if (blobUrl && blobUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(blobUrl)
+  }
 }
 
 /**
@@ -472,12 +512,16 @@ export function unzipFile(data) {
 
 /**
  * 获取批量下载URL
+ * 注意：a标签或window.open发起的请求不会携带axios拦截器的Authorization头
+ * 因此需要在URL中附加token作为查询参数
  * @param {Array<Number>} ids - 文件ID列表
- * @returns {String} - 批量下载URL
+ * @returns {String} - 批量下载URL（包含token参数）
  */
 export function getBatchDownloadUrl(ids) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
-  return `${baseURL}/file/download/batch?ids=${ids.join(',')}`
+  const token = userStorage.getToken()
+  // 将token作为查询参数附加到URL中
+  return `${baseURL}/file/download/batch?ids=${ids.join(',')}${token ? `&token=${encodeURIComponent(token)}` : ''}`
 }
 
 /**

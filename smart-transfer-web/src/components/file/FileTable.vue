@@ -27,15 +27,19 @@
       <!-- 图标列（支持图片缩略图） -->
       <el-table-column label="" width="56" align="center" class-name="file-icon-column">
         <template #default="{ row }">
-          <!-- 图片文件显示缩略图 -->
-          <img
+          <!-- 图片文件显示缩略图（使用Blob URL加载） -->
+          <div
             v-if="isImageFile(row)"
-            :src="getThumbnailUrl(row)"
-            class="file-thumbnail"
+            class="thumbnail-cell"
             :title="'点击预览'"
             @click="handleFileClick(row)"
-            @error="handleThumbnailError($event, row)"
-          />
+          >
+            <ThumbnailImage
+              :file-id="row.id"
+              :extend-name="row.extendName"
+              :size="36"
+            />
+          </div>
           <!-- 其他文件显示图标 -->
           <img
             v-else
@@ -261,9 +265,10 @@ import UnzipDialog from './UnzipDialog.vue'
 import ImagePreview from './ImagePreview.vue'
 import FileDetailDialog from './FileDetailDialog.vue'
 import CodePreview from './CodePreview.vue'
+import ThumbnailImage from './ThumbnailImage.vue'
 import { formatFileSize, formatDateTime } from '@/utils/format'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
-import { renameFile, moveFile, deleteFile, getPreviewUrl } from '@/api/fileApi'
+import { renameFile, moveFile, deleteFile, fetchPreviewBlob, revokePreviewBlob } from '@/api/fileApi'
 import { deleteFolder } from '@/api/folderApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
@@ -383,18 +388,6 @@ const isImageFile = (row) => {
   if (row.isDir === 1) return false
   const ext = (row.extendName || '').toLowerCase()
   return imageExtensions.includes(ext)
-}
-
-// 获取缩略图 URL
-const getThumbnailUrl = (row) => {
-  return getPreviewUrl(row.id)
-}
-
-// 缩略图加载失败时显示图标
-const handleThumbnailError = (event, row) => {
-  event.target.src = getFileIconByType(row.extendName)
-  event.target.classList.remove('file-thumbnail')
-  event.target.classList.add('file-icon')
 }
 
 // 获取文件名
@@ -536,7 +529,10 @@ const handleMenuRestore = async () => {
 
 // 确认重命名
 const confirmRename = async () => {
+  if (!renameFormRef.value) return
+  
   try {
+    // Element Plus validate() 验证失败时会 reject false 或验证错误对象
     await renameFormRef.value.validate()
     renameLoading.value = true
     
@@ -549,8 +545,11 @@ const confirmRename = async () => {
     renameVisible.value = false
     emit('refresh')
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('重命名失败')
+    // 如果是表单验证失败（error 为 false 或对象），不显示错误提示
+    // 因为 Element Plus 会自动显示验证错误信息
+    if (error !== false && typeof error !== 'boolean' && error !== 'cancel') {
+      console.error('重命名失败:', error)
+      ElMessage.error(error.message || error.msg || '重命名失败')
     }
   } finally {
     renameLoading.value = false
@@ -647,10 +646,8 @@ const imageListForPreview = computed(() => {
     if (item.isDir === 1) return false
     const ext = (item.extendName || '').toLowerCase()
     return imageExtensions.includes(ext)
-  }).map(item => ({
-    ...item,
-    fileUrl: getPreviewUrl(item.id)
-  }))
+  })
+  // 不再预计算fileUrl，ImagePreview组件内部会使用Blob URL加载
 })
 
 // 打开增强版图片预览
@@ -778,6 +775,24 @@ defineExpose({
     transition: all 0.2s;
     
     &:hover {
+      transform: scale(1.15);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+  }
+  
+  .thumbnail-cell {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    
+    :deep(.thumbnail-image) {
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      transition: all 0.2s;
+    }
+    
+    &:hover :deep(.thumbnail-image) {
       transform: scale(1.15);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
