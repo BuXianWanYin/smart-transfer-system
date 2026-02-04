@@ -168,7 +168,7 @@ import CodePreview from './CodePreview.vue'
 import ThumbnailImage from './ThumbnailImage.vue'
 import { getFileIconByType, canPreviewFile } from '@/utils/fileType'
 import { renameFile, moveFile, deleteFile } from '@/api/fileApi'
-import { deleteFolder } from '@/api/folderApi'
+import { deleteFolder, renameFolder } from '@/api/folderApi'
 import { restoreRecoveryFile, deleteRecoveryFile } from '@/api/recoveryApi'
 import { useTransferStore } from '@/store/transferStore'
 
@@ -483,10 +483,20 @@ const confirmRename = async () => {
     await renameFormRef.value.validate()
     renameLoading.value = true
     
-    await renameFile({
-      id: renameFileData.value.id,
-      fileName: renameForm.value.fileName
-    })
+    // 区分文件和文件夹
+    if (renameFileData.value.isDir === 1) {
+      // 重命名文件夹
+      await renameFolder({
+        id: renameFileData.value.id,
+        folderName: renameForm.value.fileName
+      })
+    } else {
+      // 重命名文件
+      await renameFile({
+        id: renameFileData.value.id,
+        fileName: renameForm.value.fileName
+      })
+    }
     
     ElMessage.success('重命名成功')
     renameVisible.value = false
