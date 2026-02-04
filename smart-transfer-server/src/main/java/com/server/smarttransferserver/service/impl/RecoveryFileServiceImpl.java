@@ -253,20 +253,20 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
         }
 
         String batchNum = recoveryFile.getDeleteBatchNum();
+        LocalDateTime now = LocalDateTime.now();
 
         if (recoveryFile.getIsDir() == 1 && recoveryFile.getOriginalFolderId() != null) {
-            // 还原文件夹及其所有内容
-            restoreFolderAndChildren(batchNum);
+            // 还原文件夹及其所有内容（使用原生SQL绕过@TableLogic）
+            restoreFolderAndChildren(batchNum, now);
             log.info("文件夹已还原，recoveryId: {}, folderName: {}", recoveryId, recoveryFile.getFileName());
         } else {
-            // 使用MyBatis Plus的LambdaUpdateWrapper还原单个文件
-            LambdaUpdateWrapper<FileInfo> updateWrapper = new LambdaUpdateWrapper<>();
-            updateWrapper.eq(FileInfo::getId, recoveryFile.getFileId())
-                    .set(FileInfo::getDelFlag, 0)
-                    .set(FileInfo::getDeleteBatchNum, null)
-                    .set(FileInfo::getUpdateTime, LocalDateTime.now());
-            fileInfoMapper.update(null, updateWrapper);
-            log.info("文件已还原，recoveryId: {}, fileName: {}", recoveryId, recoveryFile.getFileName());
+            // 使用原生SQL还原单个文件（绕过@TableLogic的del_flag自动条件）
+            int rows = fileInfoMapper.restoreByFileId(recoveryFile.getFileId(), now);
+            if (rows > 0) {
+                log.info("文件已还原，recoveryId: {}, fileName: {}", recoveryId, recoveryFile.getFileName());
+            } else {
+                log.warn("文件还原失败，可能文件记录不存在，recoveryId: {}, fileId: {}", recoveryId, recoveryFile.getFileId());
+            }
         }
 
         // 删除回收站记录
@@ -275,26 +275,19 @@ public class RecoveryFileServiceImpl extends ServiceImpl<RecoveryFileMapper, Rec
 
     /**
      * 还原文件夹及其所有内容
+     * 使用原生SQL绕过@TableLogic的del_flag自动条件
+     *
+     * @param batchNum 删除批次号
+     * @param now 更新时间
      */
-    private void restoreFolderAndChildren(String batchNum) {
-        LocalDateTime now = LocalDateTime.now();
-        
-        // 使用MyBatis Plus的LambdaUpdateWrapper还原所有标记为该批次号的文件夹
-        LambdaUpdateWrapper<Folder> folderUpdate = new LambdaUpdateWrapper<>();
-        folderUpdate.eq(Folder::getDeleteBatchNum, batchNum)
-                .set(Folder::getDelFlag, 0)
-                .set(Folder::getDeleteBatchNum, null)
-                .set(Folder::getDeleteTime, null)
-                .set(Folder::getUpdateTime, now);
-        folderMapper.update(null, folderUpdate);
+    private void restoreFolderAndChildren(String batchNum, LocalDateTime now) {
+        // 使用原生SQL还原所有标记为该批次号的文件夹（绕过@TableLogic）
+        int folderRows = folderMapper.restoreByBatchNum(batchNum, now);
+        log.info("还原文件夹数量: {}, batchNum: {}", folderRows, batchNum);
 
-        // 使用MyBatis Plus的LambdaUpdateWrapper还原所有标记为该批次号的文件
-        LambdaUpdateWrapper<FileInfo> fileUpdate = new LambdaUpdateWrapper<>();
-        fileUpdate.eq(FileInfo::getDeleteBatchNum, batchNum)
-                .set(FileInfo::getDelFlag, 0)
-                .set(FileInfo::getDeleteBatchNum, null)
-                .set(FileInfo::getUpdateTime, now);
-        fileInfoMapper.update(null, fileUpdate);
+        // 使用原生SQL还原所有标记为该批次号的文件（绕过@TableLogic）
+        int fileRows = fileInfoMapper.restoreByBatchNum(batchNum, now);
+        log.info("还原文件数量: {}, batchNum: {}", fileRows, batchNum);
     }
 
     @Override

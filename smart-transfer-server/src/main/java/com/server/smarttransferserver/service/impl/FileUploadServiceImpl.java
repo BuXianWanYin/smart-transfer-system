@@ -1,6 +1,7 @@
 package com.server.smarttransferserver.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.server.smarttransferserver.congestion.AdaptiveAlgorithm;
 import com.server.smarttransferserver.congestion.BandwidthEstimator;
 import com.server.smarttransferserver.congestion.CongestionControlAlgorithm;
 import com.server.smarttransferserver.dto.ChunkUploadDTO;
@@ -301,192 +302,273 @@ public class FileUploadServiceImpl implements FileUploadService {
     /**
      * 上传分片（内部方法）
      * 集成拥塞控制算法，在上传成功/失败时触发算法响应
-     * **关键修复：为每个任务使用独立的算法实例**
      *
      * @param dto 分片上传DTO
      * @return 上传结果
      */
     private ChunkUploadVO uploadChunkInternal(ChunkUploadDTO dto) {
-        // **关键修复：获取或创建任务，确保每个任务有独立的算法实例**
+        // 获取任务ID和拥塞控制算法实例
         String taskId = getOrCreateTaskId(dto.getFileId());
         CongestionControlAlgorithm algorithm = algorithmManager.getOrCreateAlgorithm(taskId);
-        
-        // 丢包率优化：上一分片在客户端的重试次数视为应用层“丢包”，计入滑动窗口（上限防恶意/异常值，与前端 RETRY_COUNT_MAX 一致）
-        Integer retryCount = dto.getClientRetryCount();
-        if (retryCount != null && retryCount > 0 && algorithm != null) {
-            int capped = Math.min(retryCount, CongestionClientMetricsConstants.RETRY_COUNT_CAP);
-            long chunkSizeForLoss = dto.getFile().getSize();
-            for (int i = 0; i < capped; i++) {
-                algorithm.onLoss(chunkSizeForLoss);
-            }
-            if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
-                log.debug("应用层丢包统计 - 上一分片重试{}次，计入{}次丢包", retryCount, capped);
-            }
-        }
-        
-        // 记录分片上传开始时间（用于计算RTT）
+        handleRetryLossStatistics(dto, algorithm);
+        // 记录分片开始时间
         String chunkKey = dto.getFileId() + "-" + dto.getChunkNumber();
         long startTime = System.currentTimeMillis();
         chunkStartTimes.put(chunkKey, startTime);
-        
         try {
-            // 注：分片哈希验证已跳过，文件完整性在合并时通过整体哈希验证
-            
-            // 1. 保存分片文件
             long chunkSize = dto.getFile().getSize();
             storageService.saveChunk(dto.getFileId(), dto.getChunkNumber(), dto.getFile());
-            
-            // 2. RTT：优先使用客户端测量的上一分片网络往返时延，否则用服务端处理时间
-            long endTime = System.currentTimeMillis();
-            long serverProcessingMs = endTime - startTime;
+            long serverProcessingMs = System.currentTimeMillis() - startTime;
             chunkStartTimes.remove(chunkKey);
-            
-            // **DEBUG: 记录原始值（移到外面，确保每个采样分片都打印）**
-            if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
-                log.info("RTT原始值 - 分片{}: clientRttMs={}, serverProcessingMs={}ms", 
-                        dto.getChunkNumber(), 
-                        (dto.getClientRttMs() != null ? dto.getClientRttMs() + "ms" : "null"), 
-                        serverProcessingMs);
-            }
-            
-            long rtt;
-            if (dto.getClientRttMs() != null && dto.getClientRttMs() > 0) {
-                rtt = Math.max(CongestionClientMetricsConstants.RTT_MS_MIN, Math.min(CongestionClientMetricsConstants.RTT_MS_MAX, dto.getClientRttMs()));
-            } else {
-                rtt = serverProcessingMs;
-            }
-            
-            // 3. 记录传输字节数用于带宽估计
-            bandwidthEstimator.recordSent(chunkSize);
-            
-            // 4. 传播时延：仅使用前端独立探测 RTT（与 Clumsy 一致），不再用分片推算
-            Long propagationRttMs = null;
-            if (algorithm != null) {
-                Long userId = UserContextHolder.getUserId();
-                Long probeRtt = userId != null ? probeRttStore.get(userId) : null;
-                if (probeRtt != null && probeRtt > 0) {
-                    propagationRttMs = probeRtt;
-                }
-                if (algorithm instanceof com.server.smarttransferserver.congestion.AdaptiveAlgorithm) {
-                    int totalChunks = fileIdToTotalChunks.getOrDefault(dto.getFileId(), 0);
-                    ((com.server.smarttransferserver.congestion.AdaptiveAlgorithm) algorithm).setTotalChunks(totalChunks);
-                }
-                algorithm.onAck(chunkSize, rtt, propagationRttMs);
-                if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
-                    log.debug("拥塞控制响应ACK - 任务ID: {}, 文件ID: {}, 分片: {}, 算法: {}, fullRtt: {}ms, propRtt: {}ms, cwnd: {}字节", 
-                             taskId, dto.getFileId(), dto.getChunkNumber(), algorithm.getAlgorithmName(), rtt, propagationRttMs, algorithm.getCwnd());
-                }
-                // **关键修复：记录指标到数据库（关联taskId）**
-                // 使用CongestionMetricsServiceImpl的recordMetrics方法（不是接口方法，需要强制转换）
-                if (metricsService instanceof CongestionMetricsServiceImpl) {
-                    ((CongestionMetricsServiceImpl) metricsService).recordMetrics(taskId, algorithm);
-                }
-            }
-            
-            // 5. 更新分片记录（如果分片记录不存在，则创建）
-            FileChunk chunk = fileChunkMapper.selectByFileIdAndChunkNumber(dto.getFileId(), dto.getChunkNumber());
-            if (chunk != null) {
-                chunk.setChunkHash(dto.getChunkHash());
-                chunk.setUploadStatus("COMPLETED");
-                fileChunkMapper.updateById(chunk);
-            } else {
-                // 如果分片记录不存在（可能是在初始化时未创建或编号不匹配），创建新记录
-                log.warn("分片记录不存在，创建新记录 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
-                chunk = FileChunk.builder()
-                        .fileId(dto.getFileId())
-                        .chunkNumber(dto.getChunkNumber())
-                        .chunkSize(chunkSize)
-                        .chunkHash(dto.getChunkHash())
-                        .uploadStatus("COMPLETED")
-                        .createTime(LocalDateTime.now())
-                        .build();
-                fileChunkMapper.insert(chunk);
-            }
-            
-            // **修复CRITICAL-2: 上传成功后更新Redis缓存（用于断点续传）**
-            try {
-                uploadCacheService.markChunkUploaded(dto.getFileId(), dto.getChunkNumber());
-                if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
-                    log.debug("更新Redis分片缓存 - 文件ID: {}, 分片: {}", dto.getFileId(), dto.getChunkNumber());
-                }
-            } catch (Exception e) {
-                log.warn("更新Redis分片缓存失败 - 文件ID: {}, 分片: {}, 错误: {}", 
-                        dto.getFileId(), dto.getChunkNumber(), e.getMessage());
-                // Redis缓存失败不影响上传流程，但可能影响断点续传性能
-            }
-            
-            // 6. 统计上传进度
-            QueryWrapper<FileChunk> queryWrapper = new QueryWrapper<>();
-            queryWrapper.eq("file_id", dto.getFileId());
-            List<FileChunk> allChunks = fileChunkMapper.selectList(queryWrapper);
-            int totalChunks = allChunks.size();
-            // 兜底：若 fileIdToTotalChunks 未设置（如断点续传未走 checkChunk），用 DB 分片数保证丢包率分母正确
-            if (algorithm instanceof com.server.smarttransferserver.congestion.AdaptiveAlgorithm && totalChunks > 0) {
-                ((com.server.smarttransferserver.congestion.AdaptiveAlgorithm) algorithm).setTotalChunks(totalChunks);
-            }
-            long completedChunks = allChunks.stream()
-                    .filter(c -> "COMPLETED".equals(c.getUploadStatus()))
-                    .count();
-            // 修复：防止除零，如果totalChunks为0，进度设为0
-            double progress = totalChunks > 0 ? (double) completedChunks / totalChunks * 100 : 0;
-            
-            // 7. 获取当前拥塞窗口大小（用于前端调整并发数）
-            long currentCwnd = algorithm != null ? algorithm.getCwnd() : 5 * 1024 * 1024;
-            
-            // 仅首片、每 N 片、末片时打印进度日志，避免大量分片刷屏
-            if (shouldLogChunk(dto.getChunkNumber(), totalChunks, (int) completedChunks)) {
-                String progressStr = String.format("%.2f", progress);
-                log.info("分片上传成功 - 任务ID: {}, 文件ID: {}, 分片: {}, 进度: {}%, RTT: {}ms, 算法: {}, cwnd: {}字节", 
-                         taskId, dto.getFileId(), dto.getChunkNumber(), progressStr, rtt, 
-                         algorithm != null ? algorithm.getAlgorithmName() : "NONE", currentCwnd);
-            }
-            
-            long rateBps = algorithm != null ? algorithm.getRate() : 0L;
-            // 单向传播时延 = propagationRttMs / 2，与 Clumsy 的「延迟」一致（配 50ms 即返回 50ms）
-            Long propagationRttOneWay = propagationRttMs != null ? propagationRttMs / 2 : null;
-            return ChunkUploadVO.builder()
-                    .fileId(dto.getFileId())
-                    .chunkNumber(dto.getChunkNumber())
-                    .success(true)
-                    .completedChunks((int) completedChunks)
-                    .totalChunks(totalChunks)
-                    .progress(progress)
-                    .cwnd(currentCwnd)  // 返回当前拥塞窗口
-                    .rtt(rtt)           // 返回本次RTT（fullRtt，含传输时间）
-                    .rate(rateBps > 0 ? rateBps : null)
-                    .propagationRtt(propagationRttOneWay)  // 单向传播时延，与 Clumsy「延迟」一致
-                    .message("分片上传成功")
-                    .build();
-            
+            long rtt = calculateRtt(dto, serverProcessingMs);
+            Long propagationRttMs = updateCongestionControlOnAck(
+                    taskId, dto, algorithm, chunkSize, rtt);
+            updateChunkDatabaseRecord(dto, chunkSize);
+            updateChunkCache(dto);
+            ChunkProgressInfo progressInfo = calculateChunkProgress(dto.getFileId(), algorithm);
+            logChunkUploadSuccess(taskId, dto, rtt, algorithm, progressInfo);
+            return buildSuccessResponse(dto, rtt, propagationRttMs, algorithm, progressInfo);
         } catch (IOException e) {
-            log.error("分片上传失败 - 任务ID: {}, 文件ID: {}, 分片: {}, 错误: {}", 
-                      taskId, dto.getFileId(), dto.getChunkNumber(), e.getMessage());
-            
-            // **关键修复：上传失败视为丢包，使用任务独立的算法实例触发丢包响应**
-            long chunkSize = dto.getFile().getSize();
-            chunkStartTimes.remove(chunkKey);
-            
-            if (algorithm != null) {
-                algorithm.onLoss(chunkSize);
-                log.warn("拥塞控制响应丢包 - 任务ID: {}, 算法: {}, 分片大小: {}字节, 当前cwnd: {}字节", 
-                        taskId, algorithm.getAlgorithmName(), chunkSize, algorithm.getCwnd());
-                
-                // **关键修复：记录丢包后的指标到数据库**
-                if (metricsService instanceof CongestionMetricsServiceImpl) {
-                    ((CongestionMetricsServiceImpl) metricsService).recordMetrics(taskId, algorithm);
-                }
-            }
-            
-            long currentCwnd = algorithm != null ? algorithm.getCwnd() : 5 * 1024 * 1024;
-            
-            return ChunkUploadVO.builder()
+            return handleUploadFailure(taskId, dto, algorithm, chunkKey, e);
+        }
+    }
+    
+    /**
+     * 处理客户端重试导致的丢包统计
+     * 将重试次数转换为丢包事件，通知拥塞控制算法
+     */
+    private void handleRetryLossStatistics(ChunkUploadDTO dto, CongestionControlAlgorithm algorithm) {
+        Integer retryCount = dto.getClientRetryCount();
+        if (retryCount == null || retryCount <= 0 || algorithm == null) {
+            return;
+        }
+        
+        int cappedRetry = Math.min(retryCount, CongestionClientMetricsConstants.RETRY_COUNT_CAP);
+        long chunkSize = dto.getFile().getSize();
+        
+        for (int i = 0; i < cappedRetry; i++) {
+            algorithm.onLoss(chunkSize);
+        }
+        
+        if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+            log.debug("应用层丢包统计 - 分片{}重试{}次，计入{}次丢包", 
+                     dto.getChunkNumber(), retryCount, cappedRetry);
+        }
+    }
+    
+    /**
+     * 计算RTT（往返时延）
+     * 优先使用客户端测量的RTT，否则使用服务器处理时间
+     */
+    private long calculateRtt(ChunkUploadDTO dto, long serverProcessingMs) {
+        if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+            log.info("RTT原始值 - 分片{}: clientRttMs={}, serverProcessingMs={}ms", 
+                    dto.getChunkNumber(),
+                    dto.getClientRttMs() != null ? dto.getClientRttMs() + "ms" : "null",
+                    serverProcessingMs);
+        }
+        
+        if (dto.getClientRttMs() != null && dto.getClientRttMs() > 0) {
+            // 使用客户端RTT，并限制在合理范围内
+            return Math.max(CongestionClientMetricsConstants.RTT_MS_MIN,
+                    Math.min(CongestionClientMetricsConstants.RTT_MS_MAX, dto.getClientRttMs()));
+        }
+        return serverProcessingMs;
+    }
+    
+    /**
+     * 更新拥塞控制算法状态（收到ACK时）
+     * 
+     * @return 传播延迟RTT（单向）
+     */
+    private Long updateCongestionControlOnAck(String taskId, ChunkUploadDTO dto,
+            CongestionControlAlgorithm algorithm, long chunkSize, long rtt) {
+        bandwidthEstimator.recordSent(chunkSize);
+        
+        if (algorithm == null) {
+            return null;
+        }
+        
+        // 获取传播延迟
+        Long propagationRttMs = getPropagationRtt();
+        
+        // 设置自适应算法的总分片数
+        if (algorithm instanceof AdaptiveAlgorithm) {
+            int totalChunks = fileIdToTotalChunks.getOrDefault(dto.getFileId(), 0);
+            ((AdaptiveAlgorithm) algorithm).setTotalChunks(totalChunks);
+        }
+        
+        // 通知算法收到ACK
+        algorithm.onAck(chunkSize, rtt, propagationRttMs);
+        
+        if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+            log.debug("拥塞控制ACK - 任务{}, 分片{}, 算法{}, RTT{}ms, cwnd{}字节",
+                     taskId, dto.getChunkNumber(), algorithm.getAlgorithmName(), 
+                     rtt, algorithm.getCwnd());
+        }
+        
+        // 记录指标
+        if (metricsService instanceof CongestionMetricsServiceImpl) {
+            ((CongestionMetricsServiceImpl) metricsService).recordMetrics(taskId, algorithm);
+        }
+        
+        return propagationRttMs;
+    }
+    
+    /**
+     * 获取传播延迟RTT
+     */
+    private Long getPropagationRtt() {
+        Long userId = UserContextHolder.getUserId();
+        if (userId == null) {
+            return null;
+        }
+        Long probeRtt = probeRttStore.get(userId);
+        return (probeRtt != null && probeRtt > 0) ? probeRtt : null;
+    }
+    
+    /**
+     * 更新分片数据库记录
+     */
+    private void updateChunkDatabaseRecord(ChunkUploadDTO dto, long chunkSize) {
+        FileChunk chunk = fileChunkMapper.selectByFileIdAndChunkNumber(
+                dto.getFileId(), dto.getChunkNumber());
+        
+        if (chunk != null) {
+            chunk.setChunkHash(dto.getChunkHash());
+            chunk.setUploadStatus("COMPLETED");
+            fileChunkMapper.updateById(chunk);
+        } else {
+            log.warn("分片记录不存在，创建新记录 - 文件ID: {}, 分片: {}", 
+                    dto.getFileId(), dto.getChunkNumber());
+            chunk = FileChunk.builder()
                     .fileId(dto.getFileId())
                     .chunkNumber(dto.getChunkNumber())
-                    .success(false)
-                    .cwnd(currentCwnd)  // 即使失败也返回cwnd，让前端降低并发
-                    .message("分片上传失败: " + e.getMessage())
+                    .chunkSize(chunkSize)
+                    .chunkHash(dto.getChunkHash())
+                    .uploadStatus("COMPLETED")
+                    .createTime(LocalDateTime.now())
                     .build();
+            fileChunkMapper.insert(chunk);
         }
+    }
+    
+    /**
+     * 更新Redis分片缓存
+     */
+    private void updateChunkCache(ChunkUploadDTO dto) {
+        try {
+            uploadCacheService.markChunkUploaded(dto.getFileId(), dto.getChunkNumber());
+            if (shouldLogChunk(dto.getChunkNumber(), -1, -1)) {
+                log.debug("更新Redis缓存 - 文件{}, 分片{}", dto.getFileId(), dto.getChunkNumber());
+            }
+        } catch (Exception e) {
+            log.warn("更新Redis缓存失败 - 文件{}, 分片{}, 错误: {}",
+                    dto.getFileId(), dto.getChunkNumber(), e.getMessage());
+        }
+    }
+    
+    /**
+     * 分片进度信息
+     */
+    private static class ChunkProgressInfo {
+        int totalChunks;
+        long completedChunks;
+        double progress;
+        long cwnd;
+    }
+    
+    /**
+     * 计算分片上传进度
+     */
+    private ChunkProgressInfo calculateChunkProgress(Long fileId, CongestionControlAlgorithm algorithm) {
+        QueryWrapper<FileChunk> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("file_id", fileId);
+        List<FileChunk> allChunks = fileChunkMapper.selectList(queryWrapper);
+        
+        ChunkProgressInfo info = new ChunkProgressInfo();
+        info.totalChunks = allChunks.size();
+        info.completedChunks = allChunks.stream()
+                .filter(c -> "COMPLETED".equals(c.getUploadStatus()))
+                .count();
+        info.progress = info.totalChunks > 0 
+                ? (double) info.completedChunks / info.totalChunks * 100 : 0;
+        info.cwnd = algorithm != null ? algorithm.getCwnd() : 5 * 1024 * 1024;
+        
+        // 更新自适应算法的总分片数
+        if (algorithm instanceof AdaptiveAlgorithm && info.totalChunks > 0) {
+            ((AdaptiveAlgorithm) algorithm).setTotalChunks(info.totalChunks);
+        }
+        
+        return info;
+    }
+    
+    /**
+     * 记录分片上传成功日志
+     */
+    private void logChunkUploadSuccess(String taskId, ChunkUploadDTO dto, long rtt,
+            CongestionControlAlgorithm algorithm, ChunkProgressInfo progressInfo) {
+        if (shouldLogChunk(dto.getChunkNumber(), progressInfo.totalChunks, (int) progressInfo.completedChunks)) {
+            log.info("分片上传成功 - 任务{}, 文件{}, 分片{}, 进度{:.2f}%, RTT{}ms, 算法{}, cwnd{}字节",
+                    taskId, dto.getFileId(), dto.getChunkNumber(), progressInfo.progress, rtt,
+                    algorithm != null ? algorithm.getAlgorithmName() : "NONE", progressInfo.cwnd);
+        }
+    }
+    
+    /**
+     * 构建上传成功响应
+     */
+    private ChunkUploadVO buildSuccessResponse(ChunkUploadDTO dto, long rtt, Long propagationRttMs,
+            CongestionControlAlgorithm algorithm, ChunkProgressInfo progressInfo) {
+        long rateBps = algorithm != null ? algorithm.getRate() : 0L;
+        Long propagationRttOneWay = propagationRttMs != null ? propagationRttMs / 2 : null;
+        
+        return ChunkUploadVO.builder()
+                .fileId(dto.getFileId())
+                .chunkNumber(dto.getChunkNumber())
+                .success(true)
+                .completedChunks((int) progressInfo.completedChunks)
+                .totalChunks(progressInfo.totalChunks)
+                .progress(progressInfo.progress)
+                .cwnd(progressInfo.cwnd)
+                .rtt(rtt)
+                .rate(rateBps > 0 ? rateBps : null)
+                .propagationRtt(propagationRttOneWay)
+                .message("分片上传成功")
+                .build();
+    }
+    
+    /**
+     * 处理分片上传失败
+     * 通知拥塞控制算法发生丢包，并返回失败响应
+     */
+    private ChunkUploadVO handleUploadFailure(String taskId, ChunkUploadDTO dto,
+            CongestionControlAlgorithm algorithm, String chunkKey, IOException e) {
+        log.error("分片上传失败 - 任务{}, 文件{}, 分片{}, 错误: {}",
+                taskId, dto.getFileId(), dto.getChunkNumber(), e.getMessage());
+        
+        long chunkSize = dto.getFile().getSize();
+        chunkStartTimes.remove(chunkKey);
+        
+        // 通知拥塞控制算法发生丢包
+        if (algorithm != null) {
+            algorithm.onLoss(chunkSize);
+            log.warn("拥塞控制丢包 - 任务{}, 算法{}, 分片大小{}字节, cwnd{}字节",
+                    taskId, algorithm.getAlgorithmName(), chunkSize, algorithm.getCwnd());
+            
+            if (metricsService instanceof CongestionMetricsServiceImpl) {
+                ((CongestionMetricsServiceImpl) metricsService).recordMetrics(taskId, algorithm);
+            }
+        }
+        
+        long currentCwnd = algorithm != null ? algorithm.getCwnd() : 5 * 1024 * 1024;
+        return ChunkUploadVO.builder()
+                .fileId(dto.getFileId())
+                .chunkNumber(dto.getChunkNumber())
+                .success(false)
+                .cwnd(currentCwnd)
+                .message("分片上传失败: " + e.getMessage())
+                .build();
     }
     
     /**

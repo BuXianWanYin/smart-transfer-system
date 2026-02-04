@@ -130,42 +130,26 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
         Long currentUserId = UserContextHolder.getUserId();
         String currentUserRole = UserContextHolder.getRole();
         QueryWrapper<FileInfo> queryWrapper = new QueryWrapper<>();
-        
-        // 用户数据隔离逻辑：
-        // 1. 如果是管理员，且指定了filterUserId，则查询指定用户的文件
-        // 2. 如果是管理员，且未指定filterUserId，则查询所有用户的文件
-        // 3. 如果是普通用户，只能查询自己的文件
         if ("ADMIN".equals(currentUserRole)) {
             // 管理员：如果指定了filterUserId，查询指定用户；否则查询所有用户
             if (filterUserId != null) {
                 queryWrapper.eq("user_id", filterUserId);
             }
-            // 如果未指定filterUserId，不添加userId条件，查询所有用户
         } else {
-            // 普通用户：只能查询自己的文件
             if (currentUserId != null) {
                 queryWrapper.eq("user_id", currentUserId);
             }
         }
-        
         if (status != null && !status.isEmpty()) {
             queryWrapper.eq("upload_status", status);
         } else {
-            // 默认只查询上传完成的文件
             queryWrapper.eq("upload_status", "COMPLETED");
         }
-        
-        // 只查询未删除的文件
         queryWrapper.eq("del_flag", 0);
-        
-        // 按创建时间倒序
         queryWrapper.orderByDesc("create_time");
-        
         // 分页查询
         Page<FileInfo> page = new Page<>(pageNum, pageSize);
         IPage<FileInfo> filePage = fileInfoMapper.selectPage(page, queryWrapper);
-        
-        // 转换为VO
         Page<FileInfoVO> voPage = new Page<>(pageNum, pageSize);
         voPage.setTotal(filePage.getTotal());
         voPage.setRecords(filePage.getRecords().stream().map(fileInfo -> {
@@ -173,7 +157,6 @@ public class FileInfoServiceImpl extends ServiceImpl<FileInfoMapper, FileInfo> i
             BeanUtils.copyProperties(fileInfo, vo);
             return vo;
         }).collect(Collectors.toList()));
-        
         log.info("查询文件列表 - 当前用户ID: {}, 角色: {}, 筛选用户ID: {}, 状态: {}, 结果数: {}", 
                 currentUserId, currentUserRole, filterUserId, status, voPage.getRecords().size());
         return voPage;

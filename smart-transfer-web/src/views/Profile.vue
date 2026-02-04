@@ -58,111 +58,6 @@
         </div>
       </el-card>
       
-      <!-- 存储统计卡片 -->
-      <el-card class="storage-card">
-        <template #header>
-          <div class="card-header">
-            <span>存储统计</span>
-            <el-button text @click="loadStorageStats">
-              <el-icon><Refresh /></el-icon>
-            </el-button>
-          </div>
-        </template>
-        
-        <div class="storage-stats" v-loading="storageLoading">
-          <!-- 总体统计 -->
-          <div class="total-stats">
-            <div class="stat-item main">
-              <div class="stat-value">{{ formatSize(storageStats.totalSize) }}</div>
-              <div class="stat-label">已使用空间</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-value">{{ storageStats.fileCount || 0 }}</div>
-              <div class="stat-label">文件数量</div>
-            </div>
-          </div>
-          
-          <!-- 分类统计 -->
-          <div class="category-stats">
-            <div class="category-item" v-for="item in categoryList" :key="item.key">
-              <div class="category-icon" :style="{ background: item.color }">
-                <el-icon><component :is="item.icon" /></el-icon>
-              </div>
-              <div class="category-info">
-                <div class="category-name">{{ item.name }}</div>
-                <div class="category-detail">
-                  {{ storageStats[item.countKey] || 0 }} 个文件，
-                  {{ formatSize(storageStats[item.sizeKey]) }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </el-card>
-      
-      <!-- 传输统计卡片 -->
-      <el-card class="transfer-stats-card">
-        <template #header>
-          <div class="card-header">
-            <span>传输统计</span>
-            <el-button text @click="loadTransferStats">
-              <el-icon><Refresh /></el-icon>
-            </el-button>
-          </div>
-        </template>
-        
-        <div class="transfer-stats" v-loading="transferStatsLoading">
-          <el-radio-group v-model="transferPeriod" @change="loadTransferStats" size="small">
-            <el-radio-button value="day">日</el-radio-button>
-            <el-radio-button value="week">周</el-radio-button>
-            <el-radio-button value="month">月</el-radio-button>
-          </el-radio-group>
-          
-          <div class="transfer-summary" v-if="transferStats.uploadValues">
-            <div class="summary-item">
-              <div class="summary-label">上传总量</div>
-              <div class="summary-value">{{ formatSize(getTotalUpload()) }}</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-label">下载总量</div>
-              <div class="summary-value">{{ formatSize(getTotalDownload()) }}</div>
-            </div>
-          </div>
-          
-          <div class="transfer-chart" v-if="transferStats.uploadLabels && transferStats.uploadLabels.length > 0">
-            <div class="chart-item">
-              <div class="chart-title">上传趋势</div>
-              <div class="chart-bars">
-                <div 
-                  v-for="(value, index) in transferStats.uploadValues" 
-                  :key="index"
-                  class="chart-bar upload"
-                  :style="{ height: getBarHeight(value, transferStats.uploadValues) + '%' }"
-                  :title="`${transferStats.uploadLabels && transferStats.uploadLabels[index] ? transferStats.uploadLabels[index] : ''}: ${formatSize(value)}`"
-                >
-                  <span class="bar-value">{{ formatSize(value) }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="chart-item">
-              <div class="chart-title">下载趋势</div>
-              <div class="chart-bars">
-                <div 
-                  v-for="(value, index) in transferStats.downloadValues" 
-                  :key="index"
-                  class="chart-bar download"
-                  :style="{ height: getBarHeight(value, transferStats.downloadValues) + '%' }"
-                  :title="`${transferStats.downloadLabels && transferStats.downloadLabels[index] ? transferStats.downloadLabels[index] : ''}: ${formatSize(value)}`"
-                >
-                  <span class="bar-value">{{ formatSize(value) }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <el-empty v-else description="暂无传输数据" />
-        </div>
-      </el-card>
-      
       <!-- 修改密码卡片 -->
       <el-card class="password-card">
         <template #header>
@@ -216,10 +111,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UserFilled, Refresh, Picture, VideoPlay, Headset, Document, Folder, Camera } from '@element-plus/icons-vue'
+import { UserFilled, Camera } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/userStore'
-import { updateUserInfo, changePassword, getStorageStats, uploadAvatar } from '@/api/userApi'
-import { getTransferStats } from '@/api/historyApi'
+import { updateUserInfo, changePassword, uploadAvatar } from '@/api/userApi'
 
 const userStore = useUserStore()
 
@@ -315,29 +209,6 @@ const infoRules = {
   ]
 }
 
-// 存储统计
-const storageLoading = ref(false)
-const storageStats = ref({})
-
-// 传输统计
-const transferPeriod = ref('day')
-const transferStats = reactive({
-  uploadLabels: [],
-  uploadValues: [],
-  downloadLabels: [],
-  downloadValues: []
-})
-const transferStatsLoading = ref(false)
-
-// 分类列表
-const categoryList = [
-  { key: 'image', name: '图片', icon: Picture, color: '#67c23a', countKey: 'imageCount', sizeKey: 'imageSize' },
-  { key: 'video', name: '视频', icon: VideoPlay, color: '#409eff', countKey: 'videoCount', sizeKey: 'videoSize' },
-  { key: 'audio', name: '音乐', icon: Headset, color: '#e6a23c', countKey: 'audioCount', sizeKey: 'audioSize' },
-  { key: 'doc', name: '文档', icon: Document, color: '#f56c6c', countKey: 'docCount', sizeKey: 'docSize' },
-  { key: 'other', name: '其他', icon: Folder, color: '#909399', countKey: 'otherCount', sizeKey: 'otherSize' }
-]
-
 // 密码表单
 const passwordFormRef = ref(null)
 const passwordForm = reactive({
@@ -368,64 +239,6 @@ const passwordRules = {
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
     { validator: validateConfirmPassword, trigger: 'blur' }
   ]
-}
-
-// 格式化大小
-const formatSize = (size) => {
-  if (!size) return '0 B'
-  if (size < 1024) return size + ' B'
-  if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB'
-  if (size < 1024 * 1024 * 1024) return (size / 1024 / 1024).toFixed(2) + ' MB'
-  return (size / 1024 / 1024 / 1024).toFixed(2) + ' GB'
-}
-
-// 加载存储统计
-const loadStorageStats = async () => {
-  storageLoading.value = true
-  try {
-    const data = await getStorageStats()
-    storageStats.value = data || {}
-  } catch (error) {
-    // 忽略错误
-  } finally {
-    storageLoading.value = false
-  }
-}
-
-// 加载传输统计
-const loadTransferStats = async () => {
-  transferStatsLoading.value = true
-  try {
-    const data = await getTransferStats(transferPeriod.value)
-    transferStats.uploadLabels = data.uploadLabels || []
-    transferStats.uploadValues = data.uploadValues || []
-    transferStats.downloadLabels = data.downloadLabels || []
-    transferStats.downloadValues = data.downloadValues || []
-  } catch (error) {
-    // 忽略错误
-  } finally {
-    transferStatsLoading.value = false
-  }
-}
-
-// 计算总上传量
-const getTotalUpload = () => {
-  if (!transferStats.uploadValues || transferStats.uploadValues.length === 0) return 0
-  return transferStats.uploadValues.reduce((a, b) => a + b, 0)
-}
-
-// 计算总下载量
-const getTotalDownload = () => {
-  if (!transferStats.downloadValues || transferStats.downloadValues.length === 0) return 0
-  return transferStats.downloadValues.reduce((a, b) => a + b, 0)
-}
-
-// 计算柱状图高度
-const getBarHeight = (value, values) => {
-  if (!values || values.length === 0) return 0
-  const max = Math.max(...values)
-  if (max === 0) return 0
-  return (value / max) * 100
 }
 
 // 更新用户信息
@@ -487,12 +300,6 @@ onMounted(() => {
   infoForm.nickname = userInfo.value.nickname || ''
   infoForm.email = userInfo.value.email || ''
   infoForm.phone = userInfo.value.phone || ''
-  
-  // 加载存储统计
-  loadStorageStats()
-  
-  // 加载传输统计
-  loadTransferStats()
 })
 </script>
 
@@ -587,173 +394,6 @@ onMounted(() => {
   }
 }
 
-// 存储统计卡片
-.storage-card {
-  .storage-stats {
-    .total-stats {
-      display: flex;
-      gap: 40px;
-      margin-bottom: 30px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid var(--art-border-color);
-      
-      .stat-item {
-        text-align: center;
-        
-        .stat-value {
-          font-family: var(--art-font-display);
-          font-size: 24px;
-          font-weight: 600;
-          color: var(--art-text-gray-800);
-        }
-        
-        .stat-label {
-          margin-top: 4px;
-          font-size: 14px;
-          color: var(--art-text-gray-500);
-        }
-        
-        &.main {
-          .stat-value {
-            color: rgb(var(--art-primary));
-          }
-        }
-      }
-    }
-    
-    .category-stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 16px;
-      
-      .category-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px;
-        background: var(--art-fill-light);
-        border-radius: 10px;
-        
-        .category-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #fff;
-          
-          .el-icon {
-            font-size: 20px;
-          }
-        }
-        
-        .category-info {
-          flex: 1;
-          
-          .category-name {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--art-text-gray-800);
-          }
-          
-          .category-detail {
-            margin-top: 2px;
-            font-size: 12px;
-            color: var(--art-text-gray-500);
-          }
-        }
-      }
-    }
-  }
-}
-
-// 传输统计卡片
-.transfer-stats-card {
-  .transfer-stats {
-    .transfer-summary {
-      display: flex;
-      gap: 40px;
-      margin: 20px 0;
-      padding: 20px;
-      background: var(--art-fill-light);
-      border-radius: 10px;
-      
-      .summary-item {
-        flex: 1;
-        text-align: center;
-        
-        .summary-label {
-          font-size: 14px;
-          color: var(--art-text-gray-500);
-          margin-bottom: 8px;
-        }
-        
-        .summary-value {
-          font-family: var(--art-font-display);
-          font-size: 24px;
-          font-weight: 600;
-          color: rgb(var(--art-primary));
-        }
-      }
-    }
-    
-    .transfer-chart {
-      display: flex;
-      gap: 40px;
-      margin-top: 20px;
-      
-      .chart-item {
-        flex: 1;
-        
-        .chart-title {
-          font-size: 14px;
-          font-weight: bold;
-          margin-bottom: 12px;
-          text-align: center;
-        }
-        
-        .chart-bars {
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-around;
-          height: 150px;
-          gap: 4px;
-          
-          .chart-bar {
-            flex: 1;
-            border-radius: 4px 4px 0 0;
-            position: relative;
-            min-height: 20px;
-            transition: all 0.3s;
-            
-            &.upload {
-              background: rgb(var(--art-primary));
-            }
-            
-            &.download {
-              background: rgb(var(--art-success));
-            }
-            
-            .bar-value {
-              position: absolute;
-              top: -20px;
-              left: 50%;
-              transform: translateX(-50%);
-              font-size: 10px;
-              white-space: nowrap;
-            }
-            
-            &:hover {
-              opacity: 0.8;
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
 // 修改密码卡片
 .password-card {
   .password-form {
@@ -775,25 +415,6 @@ onMounted(() => {
     .user-info {
       .info-form {
         max-width: 100%;
-      }
-    }
-  }
-  
-  .storage-card {
-    .storage-stats {
-      .total-stats {
-        gap: 24px;
-        
-        .stat-item {
-          .stat-value {
-            font-size: 20px;
-          }
-        }
-      }
-      
-      .category-stats {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 12px;
       }
     }
   }
@@ -845,56 +466,6 @@ onMounted(() => {
         
         :deep(.el-form-item) {
           margin-bottom: 16px;
-        }
-      }
-    }
-  }
-  
-  .storage-card {
-    .storage-stats {
-      .total-stats {
-        flex-direction: column;
-        gap: 16px;
-        align-items: flex-start;
-        
-        .stat-item {
-          text-align: left;
-          
-          .stat-value {
-            font-size: 22px;
-          }
-          
-          .stat-label {
-            font-size: 13px;
-          }
-        }
-      }
-      
-      .category-stats {
-        grid-template-columns: 1fr;
-        gap: 10px;
-        
-        .category-item {
-          padding: 10px;
-          
-          .category-icon {
-            width: 36px;
-            height: 36px;
-            
-            .el-icon {
-              font-size: 18px;
-            }
-          }
-          
-          .category-info {
-            .category-name {
-              font-size: 13px;
-            }
-            
-            .category-detail {
-              font-size: 11px;
-            }
-          }
         }
       }
     }

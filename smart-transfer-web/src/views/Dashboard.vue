@@ -3,6 +3,7 @@
     <!-- KPI行 -->
     <div class="kpi-row" v-loading="loading">
       <div class="kpi-card">
+        <div class="change up">{{ dashboardData.kpiData?.usersChangePercent || '+0%' }}</div>
         <div class="kpi-icon-wrap" style="background: #3b82f6;">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -14,11 +15,11 @@
         <div class="kpi-content">
           <div class="value">{{ dashboardData.kpiData?.totalUsers || 0 }}</div>
           <div class="label">总用户数</div>
-          <div class="change up">{{ dashboardData.kpiData?.usersChangePercent || '+0%' }}</div>
         </div>
       </div>
 
       <div class="kpi-card">
+        <div class="change up">{{ dashboardData.kpiData?.storageChangePercent || '+0%' }}</div>
         <div class="kpi-icon-wrap" style="background: #10b981;">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
@@ -29,11 +30,13 @@
         <div class="kpi-content">
           <div class="value">{{ formatSize(dashboardData.kpiData?.totalStorage || 0) }}</div>
           <div class="label">总存储</div>
-          <div class="change up">{{ dashboardData.kpiData?.storageChangePercent || '+0%' }}</div>
         </div>
       </div>
 
       <div class="kpi-card">
+        <div class="change" :class="getChangeClass(dashboardData.kpiData?.filesChangePercent)">
+          {{ dashboardData.kpiData?.filesChangePercent || '+0%' }}
+        </div>
         <div class="kpi-icon-wrap" style="background: #f59e0b;">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
@@ -43,13 +46,11 @@
         <div class="kpi-content">
           <div class="value">{{ dashboardData.kpiData?.totalFiles || 0 }}</div>
           <div class="label">总文件数</div>
-          <div class="change" :class="getChangeClass(dashboardData.kpiData?.filesChangePercent)">
-            {{ dashboardData.kpiData?.filesChangePercent || '+0%' }}
-          </div>
         </div>
       </div>
 
       <div class="kpi-card">
+        <div class="change up">{{ dashboardData.kpiData?.transferChangePercent || '+0%' }}</div>
         <div class="kpi-icon-wrap" style="background: #06b6d4;">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
@@ -59,7 +60,6 @@
         <div class="kpi-content">
           <div class="value">{{ formatSize(dashboardData.kpiData?.todayTransfer || 0) }}</div>
           <div class="label">今日传输量</div>
-          <div class="change up">{{ dashboardData.kpiData?.transferChangePercent || '+0%' }}</div>
         </div>
       </div>
     </div>
@@ -785,6 +785,7 @@ const handleResize = () => {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+  position: relative;
 }
 
 .kpi-card:hover {
@@ -825,8 +826,11 @@ const handleResize = () => {
 }
 
 .kpi-card .change {
+  position: absolute;
+  top: 12px;
+  right: 16px;
   font-size: 0.75rem;
-  margin-top: 8px;
+  font-weight: 500;
 }
 
 .kpi-card .change.up {

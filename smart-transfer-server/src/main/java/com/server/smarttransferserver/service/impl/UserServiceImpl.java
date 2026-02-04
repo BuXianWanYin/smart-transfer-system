@@ -358,13 +358,10 @@ public class UserServiceImpl implements UserService {
         if (status == null) {
             throw new RuntimeException("状态参数不能为空");
         }
-        
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new RuntimeException("用户不存在");
         }
-        
-        // 如果要禁用管理员，检查是否还有其他的启用状态的管理员
         if ("ADMIN".equals(user.getRole()) && status == 0) {
             LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(User::getRole, "ADMIN");
@@ -375,7 +372,6 @@ public class UserServiceImpl implements UserService {
                 throw new RuntimeException("不能禁用最后一个管理员");
             }
         }
-        
         user.setStatus(status);
         user.setUpdateTime(new Date());
         userMapper.updateById(user);

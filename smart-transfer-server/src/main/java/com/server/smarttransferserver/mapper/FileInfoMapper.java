@@ -6,7 +6,9 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -80,4 +82,26 @@ public interface FileInfoMapper extends BaseMapper<FileInfo> {
     List<FileInfo> selectByFileNameAndFolder(@Param("fileName") String fileName, 
                                               @Param("folderId") Long folderId, 
                                               @Param("userId") Long userId);
+
+    /**
+     * 根据批次号还原文件（绕过@TableLogic的del_flag自动条件）
+     * 用于回收站还原功能
+     *
+     * @param batchNum 删除批次号
+     * @param now 更新时间
+     * @return 影响行数
+     */
+    @Update("UPDATE file_info SET del_flag = 0, delete_batch_num = NULL, update_time = #{now} WHERE delete_batch_num = #{batchNum}")
+    int restoreByBatchNum(@Param("batchNum") String batchNum, @Param("now") LocalDateTime now);
+
+    /**
+     * 根据文件ID还原单个文件（绕过@TableLogic的del_flag自动条件）
+     * 用于回收站还原功能
+     *
+     * @param fileId 文件ID
+     * @param now 更新时间
+     * @return 影响行数
+     */
+    @Update("UPDATE file_info SET del_flag = 0, delete_batch_num = NULL, update_time = #{now} WHERE id = #{fileId}")
+    int restoreByFileId(@Param("fileId") Long fileId, @Param("now") LocalDateTime now);
 }

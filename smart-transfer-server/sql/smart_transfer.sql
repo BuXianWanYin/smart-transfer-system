@@ -113,7 +113,7 @@ DROP TABLE IF EXISTS `recovery_file`;
 CREATE TABLE `recovery_file`  (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '回收站记录ID',
   `user_id` bigint NULL DEFAULT NULL COMMENT '用户ID',
-  `file_id` bigint NOT NULL COMMENT '文件ID',
+  `file_id` bigint NULL DEFAULT NULL COMMENT '文件ID（文件夹为NULL）',
   `file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '文件名',
   `extend_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '文件扩展名',
   `file_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '原文件路径',

@@ -104,8 +104,7 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
         if (dto.getMinCwnd() != null) {
             updateConfigValue("congestion.min-cwnd", dto.getMinCwnd().toString(), "最小拥塞窗口");
         }
-        
-        // ========== 自适应算法配置 ==========
+
         if (dto.getLossRateThreshold() != null) {
             updateConfigValue("congestion.loss-rate-threshold", dto.getLossRateThreshold().toString(), "丢包率阈值");
         }
@@ -152,8 +151,7 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
         
         // 刷新内存中的配置
         congestionConfig.refresh();
-        
-        // **关键：重新初始化算法，让新配置生效**
+
         reinitializeAlgorithms();
         
         log.info("拥塞控制配置更新完成，已刷新内存配置并重新初始化算法");
