@@ -189,19 +189,20 @@ const fileSizeText = computed(() => {
   return (size / 1024 / 1024 / 1024).toFixed(2) + ' GB'
 })
 
-// 格式化日期
+// 格式化日期为 年-月-日 时:分:秒
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
-  if (typeof dateStr === 'string') return dateStr
   const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  if (isNaN(date.getTime())) return dateStr
+  
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
 // 预览

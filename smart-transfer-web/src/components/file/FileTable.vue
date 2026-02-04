@@ -368,6 +368,7 @@ const renameFormRef = ref(null)
 const renameForm = ref({ fileName: '' })
 const renameRules = { fileName: [{ required: true, message: '请输入名称', trigger: 'blur' }] }
 const renameLoading = ref(false)
+const renameFileData = ref(null)  // 保存要重命名的文件数据
 
 // 移动
 const moveDialogVisible = ref(false)
@@ -472,9 +473,11 @@ const handleMenuPreview = () => {
 }
 
 const handleMenuRename = () => {
+  // 先保存文件数据，再关闭菜单（因为closeContextMenu会将contextMenuRow设为null）
+  renameFileData.value = { ...contextMenuRow.value }
   renameForm.value.fileName = getFileName(contextMenuRow.value)
-  renameVisible.value = true
   closeContextMenu()
+  renameVisible.value = true
 }
 
 const handleMenuMove = () => {
@@ -537,7 +540,7 @@ const confirmRename = async () => {
     renameLoading.value = true
     
     await renameFile({
-      id: contextMenuRow.value.id,
+      id: renameFileData.value.id,
       fileName: renameForm.value.fileName
     })
     

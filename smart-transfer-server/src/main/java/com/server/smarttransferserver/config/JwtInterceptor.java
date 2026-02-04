@@ -44,6 +44,11 @@ public class JwtInterceptor implements HandlerInterceptor {
         String tokenSource = null;
         String authHeader = request.getHeader("Authorization");
         
+        // 对于文件预览和下载请求，输出INFO级别日志便于排查
+        if (requestURI.contains("/file/preview") || requestURI.contains("/file/download")) {
+            log.info("==== JWT拦截器 ==== URI: {}, Method: {}, Authorization头: {}", 
+                     requestURI, method, authHeader != null ? "存在(长度:" + authHeader.length() + ")" : "不存在");
+        }
         log.debug("==== JWT拦截器调试 ==== URI: {}, Method: {}", requestURI, method);
         log.debug("Authorization头: {}", authHeader != null ? "存在(长度:" + authHeader.length() + ")" : "不存在");
         

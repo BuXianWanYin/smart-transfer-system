@@ -321,6 +321,9 @@ export async function fetchPreviewBlob(id) {
   const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
   const token = userStorage.getToken()
   
+  // 调试日志
+  console.log('[fetchPreviewBlob] token:', token ? `存在(长度:${token.length})` : '不存在')
+  
   const response = await fetch(`${baseURL}/file/preview/${id}`, {
     method: 'GET',
     headers: {

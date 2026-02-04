@@ -78,6 +78,7 @@ import { ElMessage } from 'element-plus'
 import { Check, Download, QuestionFilled, Close } from '@element-plus/icons-vue'
 import { getPreviewUrl, getDownloadUrl } from '@/api/fileApi'
 import { useTransferStore } from '@/store/transferStore'
+import { userStorage } from '@/utils/storage'
 
 const router = useRouter()
 const transferStore = useTransferStore()
@@ -241,7 +242,18 @@ const loadFileContent = async () => {
   loading.value = true
   try {
     const url = getPreviewUrl(props.file.id)
-    const response = await fetch(url)
+    const token = userStorage.getToken()
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`加载文件失败: ${response.status}`)
+    }
+    
     const text = await response.text()
     
     code.value = text

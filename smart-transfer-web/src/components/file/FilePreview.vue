@@ -131,6 +131,8 @@ onUnmounted(() => {
   if (previewUrl.value) {
     revokePreviewBlob(previewUrl.value)
   }
+  // 清理PPT预览器实例
+  pptxPreviewer = null
 })
 
 const isMobile = computed(() => screenWidth.value < 768)
@@ -312,6 +314,9 @@ const renderXlsxFile = async (blobUrl) => {
   }
 }
 
+// PPT预览器实例
+let pptxPreviewer = null
+
 /**
  * 渲染PPT演示文稿
  */
@@ -325,21 +330,21 @@ const renderPptxFile = async (blobUrl) => {
       // 清空容器
       pptxContainer.value.innerHTML = ''
       
-      // 动态导入pptx-preview（该库可能没有默认导出）
-      const pptxModule = await import('pptx-preview')
-      const renderPptx = pptxModule.default || pptxModule.render || pptxModule.pptx2Html
+      // 动态导入并初始化pptx-preview
+      const { init } = await import('pptx-preview')
       
-      if (typeof renderPptx === 'function') {
-        await renderPptx(arrayBuffer, pptxContainer.value)
-      } else {
-        // 如果库不支持直接渲染，显示提示
-        pptxContainer.value.innerHTML = `
-          <div class="pptx-fallback">
-            <p>PPT预览功能加载中...</p>
-            <p class="sub-text">如果长时间无法加载，请下载后查看</p>
-          </div>
-        `
-      }
+      // 获取容器尺寸
+      const containerWidth = pptxContainer.value.clientWidth || 800
+      const containerHeight = Math.min(containerWidth * 0.5625, 540) // 16:9 比例
+      
+      // 初始化预览器
+      pptxPreviewer = init(pptxContainer.value, {
+        width: containerWidth - 40,
+        height: containerHeight
+      })
+      
+      // 调用预览方法
+      await pptxPreviewer.preview(arrayBuffer)
     }
     loading.value = false
   } catch (error) {

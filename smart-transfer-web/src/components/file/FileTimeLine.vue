@@ -352,10 +352,11 @@ const handleMenuDelete = async () => {
 
 // 重命名
 const handleMenuRename = () => {
+  // 先保存文件数据，再关闭菜单（因为closeContextMenu会将contextMenuRow设为null）
   renameFileData.value = { ...contextMenuRow.value }
   renameForm.value.fileName = contextMenuRow.value.fileName
-  renameVisible.value = true
   closeContextMenu()
+  renameVisible.value = true
 }
 
 // 确认重命名
